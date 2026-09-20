@@ -1,0 +1,58 @@
+# ---------- OS / Editor ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# ---------- Secrets / env ----------
+.env
+.env.*
+!.env.example
+
+# ---------- Frontend (Node) ----------
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- Python (backend + ml) ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# ---------- ML data & models ----------
+ml/data/raw/*
+ml/data/processed/*
+!ml/data/raw/.gitkeep
+!ml/data/processed/.gitkeep
+ml/models/*.pkl
+ml/models/*.pt
+ml/models/*.pth
+ml/models/*.h5
+ml/models/*.onnx
+*.npy
+*.npz
+
+# ---------- Logs ----------
+*.log
+logs/
+
+# ---------- Docker ----------
+docker-compose.override.yml
