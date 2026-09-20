@@ -117,14 +117,28 @@ docker compose up --build
 ### วิธีที่ 2: รันแยกทีละส่วน
 
 **Backend**
+
+Windows (PowerShell / cmd):
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate        # Windows
+.venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
+
+macOS / Linux (bash / zsh):
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
 เปิดเอกสาร API ที่ http://localhost:8000/docs
+
+> ความต่างหลักระหว่าง Windows กับ Mac/Linux คือคำสั่งสร้าง/เปิดใช้งาน virtual environment (`python` vs `python3`, `.venv\Scripts\activate` vs `source .venv/bin/activate`) ส่วนคำสั่งอื่น ๆ ในเอกสารนี้ (`docker compose`, `npm install`, `npm run dev`, `pip install`) ใช้เหมือนกันทุกระบบปฏิบัติการ
 
 **Frontend**
 ```bash

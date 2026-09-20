@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./backend
+    container_name: signbridge-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app          # แก้โค้ดแล้ว reload อัตโนมัติ
+      - ./ml/models:/app/models:ro      # โมเดลที่เทรนแล้ว
+    environment:
+      - MODEL_DIR=/app/models
+      - CORS_ORIGINS=http://localhost:5173
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    container_name: signbridge-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules               # ไม่ให้ทับ node_modules ใน image
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+    depends_on:
+      - backend
