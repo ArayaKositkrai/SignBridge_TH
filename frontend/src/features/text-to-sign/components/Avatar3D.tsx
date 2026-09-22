@@ -1,0 +1,171 @@
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import * as THREE from "three";
+import { applyPose } from "../../../lib/avatar3d/rig";
+import { loadRig, type Rig } from "../../../lib/avatar3d/loadModel";
+import { HEAD_BONE } from "../../../lib/avatar3d/bones";
+import { createFaceMesh, createFaceTexture, drawFace } from "../../../lib/avatar3d/face";
+import { SHOULDER, sampleFace, sampleMotion } from "../../../lib/avatar/skeleton";
+import type { Motion } from "../../../types";
+import SkeletonAvatar from "./SkeletonAvatar";
+
+interface Props {
+  motion: Motion | null | undefined;
+  progressRef: MutableRefObject<number>;
+}
+
+type Status = "loading" | "ready" | "error";
+
+// กรอบกล้อง (พิกัด 0-1 แบบเดียวกับที่ใช้กำหนดท่ามือใน motion_library.py):
+// บนสุดเผื่อพื้นที่เหนือหัวตอนยกมือสุด (เช่นท่า "ช่วยด้วย" มืออยู่ที่ y~0.16)
+// ล่างสุดคลุมถึงท่าระดับเอว (เช่นท่า "หิว" มืออยู่ที่ y~0.66)
+const FRAME_TOP_UNIT = 0.02;
+const FRAME_BOTTOM_UNIT = 0.68;
+
+// ตัวละครโมเดล 3D (X Bot จาก Mixamo) ขยับแขน มือ นิ้ว และเอียงหัวตามท่าทางปัจจุบัน
+// ถ้าโหลดโมเดลไม่สำเร็จ จะตกไปใช้ตัวโครงกระดูก 2D แทนโดยอัตโนมัติ
+export default function Avatar3D({ motion, progressRef }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef(motion);
+  motionRef.current = motion;
+  const [status, setStatus] = useState<Status>("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    let stop: (() => void) | null = null;
+
+    loadRig()
+      .then((rig) => {
+        if (cancelled) return;
+        setStatus("ready");
+        stop = startScene(containerRef.current!, rig, motionRef, progressRef);
+      })
+      .catch((err) => {
+        console.error("โหลดโมเดล x-bot.fbx ไม่สำเร็จ", err);
+        if (!cancelled) setStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (status === "error") return <SkeletonAvatar motion={motion} progressRef={progressRef} />;
+
+  return (
+    <div className="absolute inset-0">
+      <div ref={containerRef} className="absolute inset-0" data-testid="avatar3d-container" />
+      {status === "loading" && (
+        <div className="absolute inset-0 grid place-items-center text-sky/70">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-sky/30 border-t-sky" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ตั้งฉาก กล้อง แสง โหลดโมเดลเข้าฉาก แล้ววนอัปเดตท่าทางทุกเฟรม คืนฟังก์ชันไว้หยุด/เก็บกวาดตอน unmount
+function startScene(
+  container: HTMLElement,
+  rig: Rig,
+  motionRef: MutableRefObject<Motion | null | undefined>,
+  progressRef: MutableRefObject<number>,
+): () => void {
+  const scene = new THREE.Scene();
+  scene.add(rig.root);
+
+  scene.add(new THREE.AmbientLight(0xbbd6e1, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(1.2, 2.2, 2.4);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x3885ab, 0.9);
+  rim.position.set(-1.4, 1.4, -2);
+  scene.add(rim);
+
+  // ตั้งกล้องให้เห็นครึ่งตัวเต็มเฟรม โดยคำนวณจากกรอบบน-ล่างในพิกัด 0-1 เดียวกับที่ใช้
+  // กำหนดท่ามือ (ไม่ใช่เดาสัดส่วนตัวโมเดลเอาเอง) จึงครอบคลุมทุกท่าได้จริงไม่ว่ายกมือสูงแค่ไหน
+  // แนวกึ่งกลางแนวนอนอยู่ที่ lookAt.x = 0 เสมอ ให้ตัวละครอยู่กึ่งกลางจอไม่ว่าสัดส่วนกล่องจะเป็นเท่าไร
+  const anchorUnitY = SHOULDER.r.y;
+  const unitToReal = (unitY: number) => rig.frame.chest.y - (unitY - anchorUnitY) * rig.armScale;
+  const visibleHeight = (FRAME_BOTTOM_UNIT - FRAME_TOP_UNIT) * rig.armScale;
+  const midY = (unitToReal(FRAME_TOP_UNIT) + unitToReal(FRAME_BOTTOM_UNIT)) / 2;
+  const fovDeg = 32;
+  const distance = visibleHeight / 2 / Math.tan((fovDeg * Math.PI) / 360);
+  const lookAt = new THREE.Vector3(0, midY, rig.frame.chest.z);
+  const camera = new THREE.PerspectiveCamera(fovDeg, 1, 0.1, distance * 4);
+  camera.position.set(lookAt.x, lookAt.y, lookAt.z + distance);
+  camera.lookAt(lookAt);
+
+  // แปะหน้าการ์ตูน (วาดสีหน้าไม่ได้ผ่านกระดูกเพราะโมเดลนี้ไม่มี blendshape) ไว้เป็นลูกของ
+  // กระดูกหัว หันไปทางกล้องเสมอ headTiltAxis คือทิศ "หน้าหัน" ของหัวในพิกัดท้องถิ่นของมันเอง
+  // จุดกำเนิดของกระดูกหัวอยู่แถวคาง/โคนคอ (ไม่ใช่กลางหน้า) จึงต้องขยับแผ่นหน้าขึ้นไปทางกระหม่อม
+  // ด้วย ไม่ใช่แค่ดันออกมาข้างหน้าอย่างเดียว ไม่งั้นตา/ปากจะไปโผล่แถวคอ
+  const headBind = rig.bind.get(HEAD_BONE)!;
+  const headRadius = headBind.pos.distanceTo(rig.frame.headTop);
+  const headUp = new THREE.Vector3(0, 1, 0).applyQuaternion(headBind.worldQuat.clone().invert()).normalize();
+  const faceOffset = rig.headTiltAxis
+    .clone()
+    .multiplyScalar(headRadius * 0.82)
+    .addScaledVector(headUp, headRadius * 0.28);
+  const faceTex = createFaceTexture();
+  const faceMesh = createFaceMesh(faceTex.texture, headRadius * 1.15, faceOffset, rig.headTiltAxis);
+  rig.bones.get(HEAD_BONE)!.add(faceMesh);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+  // ต้องกำหนด CSS ขนาดของ canvas เอง (setSize ตัวที่ 3 = false คือไม่ให้มันตั้งให้)
+  // เพราะเราคุมขนาด "บัฟเฟอร์วาดภาพ" เองตาม devicePixelRatio อยู่แล้วในลูปด้านล่าง
+  // ถ้าไม่กำหนดตรงนี้ บนจอ HiDPI (devicePixelRatio > 1) canvas จะแสดงผลใหญ่กว่ากล่องจริง
+  // 2 เท่า แล้วโดนตัดขอบ (overflow-hidden) ทำให้ตัวละครดูเหมือนไม่อยู่กึ่งกลาง
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
+  renderer.domElement.style.display = "block";
+  container.appendChild(renderer.domElement);
+
+  let raf = 0;
+  // จำขนาดกล่องล่าสุดไว้เทียบเอง แทนที่จะอ่านจาก canvas.width/height ซึ่งเป็นพิกเซลอุปกรณ์
+  // (คูณด้วย devicePixelRatio แล้ว) เทียบตรง ๆ กับ CSS px ไม่ได้ จะสั่ง setSize ทุกเฟรมโดยไม่จำเป็น
+  let lastW = 0;
+  let lastH = 0;
+  const tick = (now: number) => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w && h) {
+      if (w !== lastW || h !== lastH) {
+        lastW = w;
+        lastH = h;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+      // หายใจเบา ๆ ตอนไม่มีท่า ไม่ให้ตัวละครดูนิ่งค้าง (เหมือนตัว 2D เดิม)
+      // สร้างอ็อบเจกต์ใหม่เสมอ ห้ามเขียนทับ hands.r/l ตรง ๆ เพราะ sampleMotion อาจคืนค่า
+      // REST ตัวเดียวกันซ้ำ (ไม่ได้ clone) การเขียนทับจะไปเปลี่ยนค่าคงที่ REST ถาวร
+      const base = sampleMotion(motionRef.current, progressRef.current);
+      const sway = Math.sin(now / 900) * 0.004;
+      const hands = {
+        r: { ...base.r, y: base.r.y + sway },
+        l: { ...base.l, y: base.l.y + sway },
+      };
+      const face = sampleFace(motionRef.current, progressRef.current);
+      applyPose(rig, hands, face);
+      drawFace(faceTex, face, now);
+      renderer.render(scene, camera);
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+
+  return () => {
+    cancelAnimationFrame(raf);
+    renderer.dispose();
+    scene.remove(rig.root);
+    rig.bones.get(HEAD_BONE)!.remove(faceMesh);
+    faceMesh.geometry.dispose();
+    (faceMesh.material as THREE.MeshBasicMaterial).dispose();
+    faceTex.texture.dispose();
+    if (renderer.domElement.parentElement === container) container.removeChild(renderer.domElement);
+  };
+}

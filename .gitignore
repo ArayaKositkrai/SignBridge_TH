@@ -56,3 +56,7 @@ logs/
 
 # ---------- Docker ----------
 docker-compose.override.yml
+
+# ---------- User data written by the backend ----------
+backend/app/data/custom_phrases.json
+backend/app/data/*.tmp

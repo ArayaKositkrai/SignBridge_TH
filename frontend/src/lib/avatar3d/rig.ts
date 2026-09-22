@@ -1,0 +1,112 @@
+import * as THREE from "three";
+import { computeFigure, HEAD, REST, SHOULDER, type Arm, type Face, type HandPair, type Side } from "../avatar/skeleton";
+import { ARM_BONES, CURL_INDEX, FINGERS, HEAD_BONE, SHOULDER_BONES, fingerBones } from "./bones";
+import type { Rig } from "./loadModel";
+
+// มุมงอสูงสุดของแต่ละข้อนิ้ว (เรเดียน) ตั้งแต่ข้อโคนถึงปลาย
+const FINGER_BEND = [0.9, 1.1, 0.8];
+// อัตราขยายมุมบิดข้อมือ ต่อหน่วยมุม a ที่เปลี่ยนไปจากท่าพัก
+const WRIST_TWIST_GAIN = 1.1;
+// มือยิ่งเหยียดออกจากลำตัวมาก ยิ่งยื่นมาข้างหน้า (ทำให้ท่าดูเป็นธรรมชาติ ไม่แบนติดลำตัว)
+const FORWARD_BASE = 0.12;
+const FORWARD_GAIN = 0.42;
+const ELBOW_FORWARD_BASE = 0.05;
+const ELBOW_FORWARD_GAIN = 0.12;
+const MAX_HEAD_TILT = 0.32;
+const REST_ANGLE = Math.PI; // มุม a ตอนท่าพัก (มือคว่ำห้อยลง)
+
+// แปลงจุดในพิกัด 0-1 ของระบบ 2D เดิม เป็นตำแหน่งจริงในโลก 3D รอบไหล่ของโมเดล
+function toWorldPoint(rig: Rig, side: Side, p: { x: number; y: number }, forward: number): THREE.Vector3 {
+  const shoulderBind = rig.bind.get(ARM_BONES[side][0])!;
+  const ref = SHOULDER[side];
+  return new THREE.Vector3(
+    shoulderBind.pos.x + (p.x - ref.x) * rig.armScale,
+    shoulderBind.pos.y - (p.y - ref.y) * rig.armScale,
+    shoulderBind.pos.z + forward * rig.armScale,
+  );
+}
+
+// หมุนกระดูก "ต้นแขน" และ "ท่อนแขนล่าง" ให้ปลายมือไปถึงจุดเป้าหมายในโลก 3D
+// (แปลงจากผล IK แบบ 2D ที่มีอยู่แล้ว แล้วเติมความลึก z เอาเอง)
+function poseArm(rig: Rig, side: Side, arm: Arm): void {
+  const [upperName, foreName] = ARM_BONES[side];
+  const shoulderBind = rig.bind.get(upperName)!;
+  const foreBind = rig.bind.get(foreName)!;
+  const handBind = rig.bind.get(ARM_BONES[side][2])!;
+  const shoulderParentBind = rig.bind.get(SHOULDER_BONES[side])!;
+
+  const upperLen = shoulderBind.pos.distanceTo(foreBind.pos);
+  // "ยกมือขึ้นแค่ไหน" ไม่ใช่ "ห่างจากไหล่แค่ไหน" เพราะมือที่ห้อยลงข้างตัวตามสบาย
+  // ก็ห่างจากไหล่มากอยู่แล้ว (ตกลงมาตามแนวดิ่ง) แต่ไม่ควรยื่นออกมาข้างหน้าเลย
+  const restY = REST[side].y;
+  const raise = Math.min(Math.max((restY - arm.wrist.y) / (restY - HEAD.y), 0), 1);
+
+  const elbowTarget = toWorldPoint(rig, side, arm.elbow, ELBOW_FORWARD_BASE + ELBOW_FORWARD_GAIN * raise);
+  const wristTarget = toWorldPoint(rig, side, arm.wrist, FORWARD_BASE + FORWARD_GAIN * raise);
+
+  // ---- ต้นแขน: หมุนจากทิศตอน bind ไปยังทิศที่ชี้ไปข้อศอกเป้าหมาย ----
+  const restUpperDir = foreBind.pos.clone().sub(shoulderBind.pos).normalize();
+  const targetUpperDir = elbowTarget.clone().sub(shoulderBind.pos).normalize();
+  const deltaUpper = new THREE.Quaternion().setFromUnitVectors(restUpperDir, targetUpperDir);
+  const upperWorldQuat = deltaUpper.multiply(shoulderBind.worldQuat);
+  const upperLocalQuat = shoulderParentBind.worldQuat.clone().invert().multiply(upperWorldQuat);
+  rig.bones.get(upperName)!.quaternion.copy(upperLocalQuat);
+
+  // ตำแหน่งข้อศอกจริงหลังหมุน (คำนวณตรง ๆ จากทิศที่หมุนไป คูณความยาวต้นแขนจริง)
+  const elbowActual = shoulderBind.pos.clone().addScaledVector(targetUpperDir, upperLen);
+
+  // ---- ท่อนแขนล่าง: หมุนจากทิศตอน bind ไปยังทิศที่ชี้ไปข้อมือเป้าหมาย ----
+  const restForeDir = handBind.pos.clone().sub(foreBind.pos).normalize();
+  const targetForeDir = wristTarget.clone().sub(elbowActual).normalize();
+  const deltaFore = new THREE.Quaternion().setFromUnitVectors(restForeDir, targetForeDir);
+  const foreWorldQuat = deltaFore.multiply(foreBind.worldQuat);
+  const foreLocalQuat = upperWorldQuat.clone().invert().multiply(foreWorldQuat);
+  rig.bones.get(foreName)!.quaternion.copy(foreLocalQuat);
+}
+
+// บิดข้อมือตามมุม a ของท่ามือ (หมุนรอบแกนของมือเอง แบบเดียวกับที่งอนิ้ว คือหมุน "สัมพัทธ์"
+// กับท่อนแขนล่างเสมอ ไม่ว่าท่อนแขนจะหมุนไปทางไหนก็ตาม ถ้าอ้างอิงกับทิศทาง bind pose เดิม
+// (ตอนแขนกางตรงข้างลำตัว) ตรง ๆ มือจะบิดผิดทิศทันทีที่ยกแขนขึ้นมาทำท่า)
+function poseWrist(rig: Rig, side: Side, hand: HandPair["r"]) {
+  const handName = ARM_BONES[side][2];
+  const bindLocal = rig.bind.get(handName)!.localQuat;
+  const twist = (hand.a - REST_ANGLE) * WRIST_TWIST_GAIN;
+  const delta = new THREE.Quaternion().setFromAxisAngle(rig.handTwistAxis[side], twist);
+  rig.bones.get(handName)!.quaternion.copy(bindLocal.clone().multiply(delta));
+}
+
+// งอนิ้วทั้งห้าตามค่า curl (0 = กางตรง, 1 = กำแน่น) ของท่ามือ
+function poseFingers(rig: Rig, side: Side, hand: HandPair["r"]) {
+  FINGERS.forEach((finger) => {
+    const curl = hand.c[CURL_INDEX[finger]] ?? 0;
+    fingerBones(side, finger).forEach((name, i) => {
+      const axis = rig.fingerAxis.get(name)!;
+      const bindLocal = rig.bind.get(name)!.localQuat;
+      const delta = new THREE.Quaternion().setFromAxisAngle(axis, FINGER_BEND[i] * curl);
+      rig.bones.get(name)!.quaternion.copy(bindLocal.clone().multiply(delta));
+    });
+  });
+}
+
+// เอียงศีรษะเล็กน้อยตามสีหน้า (rot) ให้พอสื่ออารมณ์ได้บ้างแม้โมเดลนี้ไม่มี blendshape หน้า
+function poseHead(rig: Rig, face: Face) {
+  const bindLocal = rig.bind.get(HEAD_BONE)!.localQuat;
+  const angle = Math.max(-MAX_HEAD_TILT, Math.min(MAX_HEAD_TILT, face.rot * 1.4));
+  const delta = new THREE.Quaternion().setFromAxisAngle(rig.headTiltAxis, angle);
+  rig.bones.get(HEAD_BONE)!.quaternion.copy(bindLocal.clone().multiply(delta));
+}
+
+// จัดท่าตัวละครทั้งตัวหนึ่งเฟรม จากท่ามือ (ตำแหน่ง/มุม/การงอนิ้ว) และสีหน้าปัจจุบัน
+export function applyPose(rig: Rig, hands: HandPair, face: Face) {
+  rig.skeleton.pose(); // รีเซ็ตทุกกระดูกกลับท่ายืนตั้งต้นก่อน กันการหมุนสะสมผิดเพี้ยน
+  const figure = computeFigure(hands);
+
+  (["r", "l"] as Side[]).forEach((side) => {
+    const arm = side === "r" ? figure.armR : figure.armL;
+    poseArm(rig, side, arm);
+    poseWrist(rig, side, hands[side]);
+    poseFingers(rig, side, hands[side]);
+  });
+
+  poseHead(rig, face);
+}

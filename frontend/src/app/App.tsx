@@ -1,16 +1,11 @@
+import PageLayout from "../components/layout/PageLayout";
+import AppRoutes from "./routes";
+
+// แอปหลัก: ครอบทุกหน้าด้วยโครงหน้า (header + เมนู)
 export default function App() {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        fontFamily: "sans-serif",
-        fontSize: "2rem",
-      }}
-    >
-      Hello SignBridge TH
-    </div>
+    <PageLayout>
+      <AppRoutes />
+    </PageLayout>
   );
 }
