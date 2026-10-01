@@ -1,5 +1,5 @@
 import { API_URL } from "../../../config/env";
-import { send, type SampleMeta, type VocabEntry, type WordStats } from "../../contributor/services/contributorApi";
+import { send, type ModelsBrief, type SampleMeta, type VocabEntry, type WordStats } from "../../contributor/services/contributorApi";
 
 // ที่อยู่ API ของหน้าแอดมิน
 const BASE = `${API_URL}/api/admin`;
@@ -47,6 +47,8 @@ export interface ModelFile {
   label: string;
   words: number | null;
   samples: number | null;
+  val_accuracy?: number | null;
+  val_top3?: number | null;
   bytes: number;
   modified_at: string;
   active: boolean;
@@ -84,7 +86,7 @@ export const updateUser = (id: string, changes: Partial<Pick<User, "role" | "act
 export const deleteUser = (id: string) => send<void>(`${BASE}/users/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 // ดึงคลังคำศัพท์และท่ารวม
-export const getVocabulary = () => send<{ items: VocabItem[] }>(`${BASE}/vocabulary`).then((r) => r.items);
+export const getVocabulary = () => send<{ items: VocabItem[]; models: ModelsBrief }>(`${BASE}/vocabulary`);
 
 // ดึงรายการไฟล์โมเดล
 export const listModels = () => send<{ models: ModelFile[] }>(`${BASE}/models`).then((r) => r.models);

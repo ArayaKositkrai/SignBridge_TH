@@ -60,7 +60,8 @@ def read_dataset_words(merged_zip: Path) -> dict[str, dict]:
     for row in csv.DictReader(io.StringIO(text)):
         if row["is_null_class"] == "True" or row["หมวด"] == NULL_CATEGORY:
             continue
-        key = (row["คำ"].strip(), row["ชุดข้อมูล"])
+        # ใช้ชื่อคำแบบไม่มีวงเล็บแบบท่า (word_th) ให้ตรงกับชื่อคลาสของโมเดล
+        key = ((row["word_th"] or row["คำ"]).strip(), row["ชุดข้อมูล"])
         clips[key] += 1
         signers[key].add(row["signer_id"])
         category.setdefault(key[0], row["หมวด"])

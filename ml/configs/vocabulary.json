@@ -706,6 +706,10 @@
       "TSL-ONE-S": {
         "clips": 24,
         "signers": 24
+      },
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
       }
     }
   },
@@ -986,6 +990,10 @@
       "TSL-ONE-S": {
         "clips": 26,
         "signers": 26
+      },
+      "TSL-51": {
+        "clips": 21,
+        "signers": 2
       }
     }
   },
@@ -1140,6 +1148,10 @@
       "TSL-ONE-S": {
         "clips": 26,
         "signers": 26
+      },
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
       }
     }
   },
@@ -1154,11 +1166,15 @@
       "TSL-ONE-S": {
         "clips": 26,
         "signers": 26
+      },
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
       }
     }
   },
   {
-    "word": "กรุงเทพ (แบบ 1)",
+    "word": "กรุงเทพ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1172,7 +1188,7 @@
     }
   },
   {
-    "word": "กลัว (แบบ 1)",
+    "word": "กลัว",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1186,7 +1202,7 @@
     }
   },
   {
-    "word": "กิน (แบบ 1)",
+    "word": "กิน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1200,7 +1216,7 @@
     }
   },
   {
-    "word": "ขนมปัง (แบบ 1)",
+    "word": "ขนมปัง",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1214,7 +1230,7 @@
     }
   },
   {
-    "word": "ขอบคุณ_เปิดมือสองข้าง",
+    "word": "ขอบคุณ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1228,7 +1244,7 @@
     }
   },
   {
-    "word": "ขอโทษ_อายุเท่ากันหรือน้อยกว่า",
+    "word": "ขอโทษ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1242,7 +1258,7 @@
     }
   },
   {
-    "word": "ข้าว (แบบ 1)",
+    "word": "ข้าว",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1256,7 +1272,7 @@
     }
   },
   {
-    "word": "คุณ (แบบ 1)",
+    "word": "คุณ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1270,7 +1286,7 @@
     }
   },
   {
-    "word": "ง่วง (แบบ 1)",
+    "word": "ง่วง",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1284,7 +1300,21 @@
     }
   },
   {
-    "word": "ฉัน (แบบ 1)",
+    "word": "ฉัน",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 60,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ชอบ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1298,35 +1328,7 @@
     }
   },
   {
-    "word": "ฉัน (แบบ 2)",
-    "category": "คำในประโยค (TSL-51)",
-    "priority": null,
-    "assigned": null,
-    "note": null,
-    "to_record": false,
-    "external": {
-      "TSL-51": {
-        "clips": 30,
-        "signers": 3
-      }
-    }
-  },
-  {
-    "word": "ชอบ (แบบ 1)",
-    "category": "คำในประโยค (TSL-51)",
-    "priority": null,
-    "assigned": null,
-    "note": null,
-    "to_record": false,
-    "external": {
-      "TSL-51": {
-        "clips": 30,
-        "signers": 3
-      }
-    }
-  },
-  {
-    "word": "ชื่อ (แบบ 1)",
+    "word": "ชื่อ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1340,7 +1342,7 @@
     }
   },
   {
-    "word": "ดี (แบบ 1)",
+    "word": "ดี",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1354,7 +1356,7 @@
     }
   },
   {
-    "word": "ด้วยกัน (แบบ 1)",
+    "word": "ด้วยกัน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1368,7 +1370,7 @@
     }
   },
   {
-    "word": "ตลาด (แบบ 4)",
+    "word": "ตลาด",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1382,7 +1384,7 @@
     }
   },
   {
-    "word": "ถาม_ทำท่ามือถามไปยังผู้นั้น",
+    "word": "ถาม",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1396,7 +1398,7 @@
     }
   },
   {
-    "word": "ทำงาน (แบบ 2)",
+    "word": "ทำงาน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1410,7 +1412,7 @@
     }
   },
   {
-    "word": "ทำไม (แบบ 1)",
+    "word": "ทำไม",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1424,7 +1426,7 @@
     }
   },
   {
-    "word": "ที่ไหน (แบบ 1)",
+    "word": "ที่ไหน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1438,7 +1440,7 @@
     }
   },
   {
-    "word": "น้อง (แบบ 1)",
+    "word": "น้อง",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1452,7 +1454,7 @@
     }
   },
   {
-    "word": "บ้าน (แบบ 1)",
+    "word": "บ้าน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1466,7 +1468,7 @@
     }
   },
   {
-    "word": "พรุ่งนี้ (แบบ 1)",
+    "word": "พรุ่งนี้",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1480,7 +1482,7 @@
     }
   },
   {
-    "word": "พี่ (แบบ 1)",
+    "word": "พี่",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1494,7 +1496,7 @@
     }
   },
   {
-    "word": "ภาษามือ (แบบ 1)",
+    "word": "ภาษามือ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1508,21 +1510,7 @@
     }
   },
   {
-    "word": "ยาย (แบบ 1)",
-    "category": "คำในประโยค (TSL-51)",
-    "priority": null,
-    "assigned": null,
-    "note": null,
-    "to_record": false,
-    "external": {
-      "TSL-51": {
-        "clips": 21,
-        "signers": 2
-      }
-    }
-  },
-  {
-    "word": "ร้อน_สองมือ",
+    "word": "ร้อน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1536,7 +1524,7 @@
     }
   },
   {
-    "word": "วันนี้ (แบบ 1)",
+    "word": "วันนี้",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1550,7 +1538,7 @@
     }
   },
   {
-    "word": "วันหยุด (แบบ 1)",
+    "word": "วันหยุด",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1564,7 +1552,7 @@
     }
   },
   {
-    "word": "สบายดี (แบบ 1)",
+    "word": "สบายดี",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1578,7 +1566,7 @@
     }
   },
   {
-    "word": "สวัสดี_อายุเท่ากันหรือน้อยกว่า",
+    "word": "สวัสดี",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1592,7 +1580,7 @@
     }
   },
   {
-    "word": "หูหนวก (แบบ 2)",
+    "word": "หูหนวก",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1606,7 +1594,7 @@
     }
   },
   {
-    "word": "อยู่บ้าน (แบบ 1)",
+    "word": "อยู่บ้าน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1620,7 +1608,7 @@
     }
   },
   {
-    "word": "อย่า (แบบ 1)",
+    "word": "อย่า",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1634,7 +1622,7 @@
     }
   },
   {
-    "word": "อะไร (แบบ 1)",
+    "word": "อะไร",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1648,7 +1636,7 @@
     }
   },
   {
-    "word": "เกิด (แบบ 2)",
+    "word": "เกิด",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1662,7 +1650,7 @@
     }
   },
   {
-    "word": "เช้า (แบบ 1)",
+    "word": "เช้า",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1676,7 +1664,7 @@
     }
   },
   {
-    "word": "เที่ยว (แบบ 1)",
+    "word": "เที่ยว",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1690,7 +1678,7 @@
     }
   },
   {
-    "word": "เรียก (แบบ 1)",
+    "word": "เรียก",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1704,7 +1692,7 @@
     }
   },
   {
-    "word": "เรียน (แบบ 1)",
+    "word": "เรียน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1718,7 +1706,7 @@
     }
   },
   {
-    "word": "เหงา (แบบ 1)",
+    "word": "เหงา",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1732,7 +1720,7 @@
     }
   },
   {
-    "word": "เหนื่อย (แบบ 1)",
+    "word": "เหนื่อย",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1746,7 +1734,7 @@
     }
   },
   {
-    "word": "แต่งงาน (แบบ 1)",
+    "word": "แต่งงาน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1760,7 +1748,7 @@
     }
   },
   {
-    "word": "แฟน (แบบ 1)",
+    "word": "แมว",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1774,7 +1762,7 @@
     }
   },
   {
-    "word": "แมว (แบบ 1)",
+    "word": "โกรธ",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1788,21 +1776,7 @@
     }
   },
   {
-    "word": "แม่ (แบบ 1)",
-    "category": "คำในประโยค (TSL-51)",
-    "priority": null,
-    "assigned": null,
-    "note": null,
-    "to_record": false,
-    "external": {
-      "TSL-51": {
-        "clips": 32,
-        "signers": 3
-      }
-    }
-  },
-  {
-    "word": "โกรธ (แบบ 1)",
+    "word": "โรงเรียน",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1816,21 +1790,7 @@
     }
   },
   {
-    "word": "โรงเรียน (แบบ 1)",
-    "category": "คำในประโยค (TSL-51)",
-    "priority": null,
-    "assigned": null,
-    "note": null,
-    "to_record": false,
-    "external": {
-      "TSL-51": {
-        "clips": 30,
-        "signers": 3
-      }
-    }
-  },
-  {
-    "word": "โสด (แบบ 1)",
+    "word": "โสด",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,
@@ -1844,21 +1804,7 @@
     }
   },
   {
-    "word": "ไข่ (แบบ 2)",
-    "category": "คำในประโยค (TSL-51)",
-    "priority": null,
-    "assigned": null,
-    "note": null,
-    "to_record": false,
-    "external": {
-      "TSL-51": {
-        "clips": 32,
-        "signers": 3
-      }
-    }
-  },
-  {
-    "word": "ไป (แบบ 2)",
+    "word": "ไป",
     "category": "คำในประโยค (TSL-51)",
     "priority": null,
     "assigned": null,

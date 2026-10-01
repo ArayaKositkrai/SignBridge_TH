@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import MODEL_CONFIG_PATH, MODELS_DIR, TRAIN_SCRIPT
 from app.services import dataset_service as ds
+from app.services import model_registry as mr
 from app.services import user_service
 from app.services.motion_library import get_motion
 from app.services.retrieval_service import load_vocabulary
@@ -21,7 +22,7 @@ from app.services.retrieval_service import load_vocabulary
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # นามสกุลไฟล์ที่นับเป็นไฟล์โมเดล
-MODEL_EXTS = {".h5", ".keras", ".pt", ".pth", ".onnx", ".pkl", ".joblib", ".tflite"}
+MODEL_EXTS = {".npz", ".h5", ".keras", ".pt", ".pth", ".onnx", ".pkl", ".joblib", ".tflite"}
 # รูปแบบชื่อไฟล์โมเดลที่มีเลขเวอร์ชัน เช่น model_signBridge_v0.0.1.h5
 VERSION_RE = re.compile(r"_v(\d+)\.(\d+)\.(\d+)\.[a-z0-9]+$", re.IGNORECASE)
 # ไฟล์ log ของการเทรนล่าสุด
@@ -160,12 +161,12 @@ def delete_user(user_id: str):
 # ---------- คลังคำศัพท์และท่า ----------
 
 
-# รวมคลังคำ (คำที่ต้องอัด + ชุดข้อมูล TSL + คลิปที่อัด) กับคำที่โมเดลรู้จัก และคลังท่าของอวตาร
+# รวมคลังคำ (คำที่ต้องอัด + ชุดข้อมูล TSL + คลิปที่อัด) กับสถานะในแต่ละเวอร์ชันโมเดล และคลังท่าของอวตาร
 @router.get("/vocabulary")
 def vocabulary():
-    config = load_config()
-    active_words = set(config.get("words", []))
-    draft_words = set(config.get("draft_words", []))
+    summary = mr.model_summary()
+    active_words = set(summary["active"]["words"])
+    draft_words = set(summary["draft"]["words"])
     avatar = load_vocabulary()
     base = {v["word"]: v for v in ds.vocabulary_items()}
     for word in (active_words | draft_words | set(avatar)) - set(base):
@@ -178,6 +179,7 @@ def vocabulary():
                 **v,
                 "in_active_model": word in active_words,
                 "in_draft_model": word in draft_words,
+                "model": mr.word_model_status(word, summary),
                 "avatar": {
                     "has_motion": bool(entry and get_motion(entry["gloss"])),
                     "has_clip": bool(entry and entry.get("clip")),
@@ -186,7 +188,10 @@ def vocabulary():
                 else None,
             }
         )
-    return {"items": items}
+    return {"items": sorted(items, key=lambda v: (not v.get("to_record"), v["word"])), "models": {
+        k: {kk: vv for kk, vv in v.items() if kk not in ("words", "per_word")} | {"word_count": len(v["words"])}
+        for k, v in summary.items()
+    }}
 
 
 # ---------- เวอร์ชันโมเดล ----------
@@ -218,6 +223,8 @@ def list_models():
                         "modified_at": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
                         "words": len(info.get("words", {})) if info else None,
                         "samples": info.get("samples"),
+                        "val_accuracy": info.get("val_accuracy"),
+                        "val_top3": info.get("val_top3"),
                         "active": path.name == config.get("active_version"),
                         "draft": path.name == config.get("draft_version"),
                     }

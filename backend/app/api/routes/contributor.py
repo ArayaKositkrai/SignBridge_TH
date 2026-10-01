@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.services import dataset_service as ds
+from app.services import model_registry as mr
 
 # กลุ่ม route สำหรับล่าม/ผู้ช่วยเก็บข้อมูล: อัดคลิป ดูคลังคำศัพท์
 router = APIRouter(prefix="/api/contributor", tags=["contributor"])
@@ -82,9 +83,17 @@ def list_words():
 
 
 # คลังคำศัพท์ทั้งหมด (คำที่ต้องอัด + คำจากชุดข้อมูล TSL) พร้อมสถิติคลิปที่อัดแล้ว
+# และสถานะในโมเดล (อยู่ในโมเดลที่ใช้/draft ไหม ทายถูกกี่ %) ให้ล่ามรู้ว่าคำไหนควรอัดเพิ่ม
 @router.get("/vocabulary")
 def vocabulary():
-    return {"items": ds.vocabulary_items()}
+    summary = mr.model_summary()
+    items = [{**v, "model": mr.word_model_status(v["word"], summary)} for v in ds.vocabulary_items()]
+    return {"items": items, "models": _public_models(summary)}
+
+
+# ข้อมูลสรุปโมเดลที่ส่งให้หน้าเว็บ (ตัดรายการคำและผลรายคำออก เพราะอยู่ในแต่ละคำแล้ว)
+def _public_models(summary: dict) -> dict:
+    return {k: {kk: vv for kk, vv in v.items() if kk not in ("words", "per_word")} | {"word_count": len(v["words"])} for k, v in summary.items()}
 
 
 # รายการคลิปของคำศัพท์หนึ่งคำ

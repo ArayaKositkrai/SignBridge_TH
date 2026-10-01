@@ -2,20 +2,36 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "../../components/ui/Card";
 import Icon from "../../components/ui/Icon";
 import { fmtBytes, fmtDate } from "../../lib/format";
+import type { ModelsBrief } from "../contributor/services/contributorApi";
 import ModelPanel from "./components/ModelPanel";
 import { getVocabulary, listModels, setActiveModel, type ModelFile, type VocabItem } from "./services/adminApi";
 
 // ตัวกรองคลังคำศัพท์
-type Filter = "all" | "to_record" | "not_in_model" | "no_avatar" | "no_data";
+type Filter = "all" | "to_record" | "in_model" | "weak" | "not_in_model" | "no_avatar" | "no_data";
 
 // ตัวเลือกตัวกรอง
 const FILTERS: { value: Filter; label: string; test: (v: VocabItem) => boolean }[] = [
   { value: "all", label: "ทั้งหมด", test: () => true },
   { value: "to_record", label: "ต้องอัดเอง", test: (v) => v.to_record },
+  { value: "in_model", label: "อยู่ในโมเดลที่ใช้", test: (v) => v.in_active_model },
+  { value: "weak", label: "แม่นต่ำ (<70%)", test: (v) => (v.model?.active.accuracy ?? 1) < 0.7 },
   { value: "not_in_model", label: "ยังไม่อยู่ในโมเดล", test: (v) => !v.in_active_model },
   { value: "no_data", label: "ยังไม่มีคลิป", test: (v) => !v.data?.samples },
   { value: "no_avatar", label: "ยังไม่มีท่าอวตาร", test: (v) => !v.avatar?.has_motion },
 ];
+
+// ช่องสถานะในโมเดลหนึ่งเวอร์ชัน: ✓ + ทายถูกกี่ % (ทดสอบกับคนใหม่)
+function InModel({ included, accuracy }: { included: boolean; accuracy: number | null }) {
+  if (!included) return <span className="text-ink/35">–</span>;
+  const tone =
+    accuracy == null ? "text-navy" : accuracy >= 0.7 ? "text-emerald-700" : accuracy >= 0.4 ? "text-amber-700" : "text-danger";
+  return (
+    <span className={`inline-flex items-center gap-1 font-semibold ${tone}`}>
+      <Icon name="check" size={15} />
+      {accuracy == null ? <span className="font-normal text-ink/50">ไม่ได้วัด</span> : `${Math.round(accuracy * 100)}%`}
+    </span>
+  );
+}
 
 // เครื่องหมายถูก/ขีด ในตาราง
 function Mark({ ok, label }: { ok: boolean; label?: string }) {
@@ -33,6 +49,7 @@ function Mark({ ok, label }: { ok: boolean; label?: string }) {
 export default function VersionsView() {
   const [models, setModels] = useState<ModelFile[]>([]);
   const [vocab, setVocab] = useState<VocabItem[]>([]);
+  const [brief, setBrief] = useState<ModelsBrief | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -41,7 +58,8 @@ export default function VersionsView() {
     try {
       const [m, v] = await Promise.all([listModels(), getVocabulary()]);
       setModels(m);
-      setVocab(v);
+      setVocab(v.items);
+      setBrief(v.models);
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ" });
     }
@@ -99,6 +117,13 @@ export default function VersionsView() {
                       {fmtDate(m.modified_at)} · {fmtBytes(m.bytes)}
                       {m.words != null && ` · ${m.words} คำ`}
                       {m.samples != null && ` · ${m.samples} คลิป`}
+                      {m.val_accuracy != null && (
+                        <span className="font-semibold text-navy">
+                          {" "}
+                          · ทดสอบกับคนใหม่: ถูก {Math.round(m.val_accuracy * 100)}%
+                          {m.val_top3 != null && ` (3 อันดับ ${Math.round(m.val_top3 * 100)}%)`}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {m.active && (
@@ -128,6 +153,21 @@ export default function VersionsView() {
       </div>
 
       <Card title={`คลังคำศัพท์และท่า (${vocab.length} คำ)`}>
+        <p className="mb-3 text-sm text-ink/70">
+          ตัวเลข % คือคำนั้นทายถูกกี่ครั้ง เมื่อทดสอบกับผู้แสดงที่โมเดลไม่เคยเห็น
+          {brief?.active.label && (
+            <>
+              {" "}· ใช้งาน <b className="text-navy">{brief.active.label}</b> ({brief.active.word_count} คำ
+              {brief.active.val_accuracy != null && `, รวม ${Math.round(brief.active.val_accuracy * 100)}%`})
+            </>
+          )}
+          {brief?.draft.label && (
+            <>
+              {" "}· Draft <b className="text-navy">{brief.draft.label}</b> ({brief.draft.word_count} คำ
+              {brief.draft.val_accuracy != null && `, รวม ${Math.round(brief.draft.val_accuracy * 100)}%`})
+            </>
+          )}
+        </p>
         <div className="mb-3 flex flex-wrap gap-1.5">
           {FILTERS.map((f) => (
             <button
@@ -150,8 +190,8 @@ export default function VersionsView() {
                 <th className="px-3 py-2 font-bold">หมวด</th>
                 <th className="px-3 py-2 text-right font-bold">คลิปที่อัด</th>
                 <th className="px-3 py-2 font-bold">ชุดข้อมูล TSL</th>
-                <th className="px-3 py-2 font-bold">โมเดลที่ใช้</th>
-                <th className="px-3 py-2 font-bold">Draft</th>
+                <th className="px-3 py-2 font-bold">ใช้งาน {brief?.active.label ?? ""}</th>
+                <th className="px-3 py-2 font-bold">Draft {brief?.draft.label ?? ""}</th>
                 <th className="px-3 py-2 font-bold">ท่าอวตาร (ข้อความ→ภาษามือ)</th>
               </tr>
             </thead>
@@ -176,10 +216,10 @@ export default function VersionsView() {
                       : "-"}
                   </td>
                   <td className="px-3 py-2">
-                    <Mark ok={v.in_active_model} />
+                    <InModel included={v.in_active_model} accuracy={v.model?.active.accuracy ?? null} />
                   </td>
                   <td className="px-3 py-2">
-                    <Mark ok={v.in_draft_model} />
+                    <InModel included={v.in_draft_model} accuracy={v.model?.draft.accuracy ?? null} />
                   </td>
                   <td className="px-3 py-2">
                     {v.avatar ? (

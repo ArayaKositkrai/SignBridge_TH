@@ -6,6 +6,8 @@ import { SignSocket } from "../services/signSocket";
 interface Options {
   frameRef: MutableRefObject<LandmarkFrame | null>;
   frameIdRef: MutableRefObject<number>;
+  aspect: number;
+  version?: "active" | "draft";
   enabled: boolean;
 }
 
@@ -23,7 +25,10 @@ const MAX_SENTENCES = 6;
 const SENTENCE_GAP_MS = 2500;
 
 // hook ส่ง landmarks ผ่าน WebSocket ต่อคำเป็นประโยค และจบประโยคเมื่อลดมือ
-export function useSignStream({ frameRef, frameIdRef, enabled }: Options) {
+export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version = "active" }: Options) {
+  // เก็บสัดส่วนภาพล่าสุดไว้ใน ref จะได้ไม่ต้องต่อ WebSocket ใหม่เมื่อค่าเปลี่ยน
+  const aspectRef = useRef(aspect);
+  aspectRef.current = aspect;
   const [status, setStatus] = useState<SocketStatus>("closed");
   const [result, setResult] = useState<SignResult | null>(null);
   const [words, setWords] = useState<string[]>([]);
@@ -76,7 +81,7 @@ export function useSignStream({ frameRef, frameIdRef, enabled }: Options) {
       setResult(null);
       return;
     }
-    const socket = new SignSocket(onResult, setStatus);
+    const socket = new SignSocket(onResult, setStatus, version);
     socket.connect();
 
     let lastSent = -1;
@@ -87,14 +92,14 @@ export function useSignStream({ frameRef, frameIdRef, enabled }: Options) {
       const frame = frameRef.current;
       if (!frame || frameIdRef.current === lastSent) return;
       lastSent = frameIdRef.current;
-      socket.send(frame);
+      socket.send(frame, aspectRef.current);
     }, SEND_INTERVAL_MS);
 
     return () => {
       window.clearInterval(timer);
       socket.close();
     };
-  }, [enabled, frameRef, frameIdRef, onResult, commit]);
+  }, [enabled, version, frameRef, frameIdRef, onResult, commit]);
 
   // ล้างคำและประโยคทั้งหมด
   const clear = useCallback(() => {

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Card from "../../components/ui/Card";
 import Icon from "../../components/ui/Icon";
 import ClipViewer from "./components/ClipViewer";
+import ModelBadge from "./components/ModelBadge";
 import RecorderPanel from "./components/RecorderPanel";
 import SampleList from "./components/SampleList";
 import { TARGET_SAMPLES } from "./constants";
@@ -14,7 +15,7 @@ const PRIORITY_RANK: Record<string, number> = { สูง: 0, กลาง: 1, �
 
 // หน้าอัดคลิป (พอดีจอบนจอกว้าง): เลือกคำ → อัด/อัปโหลด → ตรวจ → เก็บ พร้อมคลิปของคำนั้นด้านขวา
 export default function RecordView() {
-  const { words, vocab, refresh, signer, setError } = useContributor();
+  const { words, vocab, models, refresh, signer, setError } = useContributor();
   const [params, setParams] = useSearchParams();
   const [word, setWord] = useState(params.get("word") ?? "");
   const [samples, setSamples] = useState<SampleMeta[]>([]);
@@ -133,6 +134,7 @@ export default function RecordView() {
           {/* ข้อมูลของคำที่เลือกจากคลังคำศัพท์ */}
           {info && (
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink/70">
+              <ModelBadge status={info.model} models={models} />
               {info.category && <span>หมวด: {info.category}</span>}
               {info.priority && (
                 <span className={info.priority === "สูง" ? "font-semibold text-danger" : ""}>

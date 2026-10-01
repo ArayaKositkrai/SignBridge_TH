@@ -8,12 +8,13 @@ from app.services.recognition_service import Recognizer
 router = APIRouter()
 
 
-# WebSocket รับ landmarks จากกล้องทีละเฟรม แล้วส่งคำที่แปลได้กลับไป
+# WebSocket รับ landmarks จากกล้องทีละเฟรม แล้วส่งคำที่แปลได้กลับไป (?version=draft = ทดสอบโมเดล draft)
 @router.websocket("/ws/sign-to-text")
 async def sign_to_text(ws: WebSocket):
     await ws.accept()
-    # ตัวจำแนกท่าประจำการเชื่อมต่อนี้ (แยกกันต่อผู้ใช้)
-    recognizer = Recognizer()
+    # ตัวแปลประจำการเชื่อมต่อนี้ (แยกกันต่อผู้ใช้)
+    version = "draft" if ws.query_params.get("version") == "draft" else "active"
+    recognizer = Recognizer(version)
     try:
         # วนรับข้อความจากหน้าเว็บจนกว่าจะปิดการเชื่อมต่อ
         while True:
@@ -23,8 +24,15 @@ async def sign_to_text(ws: WebSocket):
                 continue
             if msg.get("type") != "landmarks":
                 continue
-            # จำแนกท่าจากมือซ้ายขวา แล้วส่งผลกลับ
-            result = recognizer.predict(msg.get("left_hand", []), msg.get("right_hand", []))
+            try:
+                aspect = float(msg.get("aspect") or 16 / 9)
+                ts = float(msg.get("ts") or 0)
+            except (TypeError, ValueError):
+                continue
+            # แปลจากลำตัวและมือซ้ายขวา แล้วส่งผลกลับ
+            result = recognizer.push(
+                ts, msg.get("pose") or [], msg.get("left_hand") or [], msg.get("right_hand") or [], aspect
+            )
             await ws.send_json({"type": "result", **result})
     except WebSocketDisconnect:
         pass

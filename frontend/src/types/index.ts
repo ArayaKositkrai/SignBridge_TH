@@ -24,6 +24,7 @@ export interface SignResult {
   text: string;
   confidence: number;
   candidates: SignCandidate[];
+  model?: string;
 }
 
 // สถานะการเชื่อมต่อ WebSocket

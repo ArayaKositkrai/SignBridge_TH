@@ -43,6 +43,34 @@ export interface WordStats {
   updated_at: string | null;
 }
 
+// สถานะของคำในโมเดลหนึ่งเวอร์ชัน: อยู่ในโมเดลไหม และทายถูกกี่ส่วน (ทดสอบกับคนใหม่, null = ไม่ได้วัด)
+export interface WordInModel {
+  included: boolean;
+  accuracy: number | null;
+}
+
+// สถานะของคำในโมเดลที่ใช้งานและ draft
+export interface WordModelStatus {
+  active: WordInModel;
+  draft: WordInModel;
+}
+
+// ข้อมูลสรุปโมเดลหนึ่งเวอร์ชัน
+export interface ModelBrief {
+  file: string | null;
+  label: string | null;
+  val_accuracy: number | null;
+  val_top3: number | null;
+  trained_at: string | null;
+  word_count: number;
+}
+
+// โมเดลที่ใช้งานและ draft
+export interface ModelsBrief {
+  active: ModelBrief;
+  draft: ModelBrief;
+}
+
 // คำหนึ่งคำในคลังคำศัพท์: หมวด ความสำคัญ ต้องอัดเองไหม คลิปในชุดข้อมูล TSL และคลิปที่อัดแล้ว
 export interface VocabEntry {
   word: string;
@@ -53,6 +81,7 @@ export interface VocabEntry {
   to_record: boolean;
   external: Record<string, { clips: number; signers: number }>;
   data: WordStats | null;
+  model?: WordModelStatus;
 }
 
 // ส่งคำขอแล้วแปลงผลเป็น JSON ถ้าผิดพลาดโยน Error พร้อมข้อความ detail จาก backend
@@ -72,7 +101,7 @@ const enc = encodeURIComponent;
 export const listWords = () => send<{ words: WordStats[] }>("/words").then((r) => r.words);
 
 // ดึงคลังคำศัพท์ทั้งหมด
-export const listVocabulary = () => send<{ items: VocabEntry[] }>("/vocabulary").then((r) => r.items);
+export const listVocabulary = () => send<{ items: VocabEntry[]; models: ModelsBrief }>("/vocabulary");
 
 // ดึงรายการคลิปของคำหนึ่งคำ
 export const listSamples = (word: string) =>

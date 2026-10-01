@@ -8,7 +8,7 @@ import { TARGET_SAMPLES } from "./constants";
 import type { ContributorContext } from "./context";
 import LibraryView from "./LibraryView";
 import RecordView from "./RecordView";
-import { listVocabulary, listWords, type VocabEntry, type WordStats } from "./services/contributorApi";
+import { listVocabulary, listWords, type ModelsBrief, type VocabEntry, type WordStats } from "./services/contributorApi";
 
 // key ที่จำผู้แสดงที่เลือกไว้ในเบราว์เซอร์
 const SIGNER_KEY = "signbridge.signer";
@@ -62,6 +62,7 @@ export default function ContributorPage() {
 function ContributorLayout() {
   const [words, setWords] = useState<WordStats[]>([]);
   const [vocab, setVocab] = useState<VocabEntry[]>([]);
+  const [models, setModels] = useState<ModelsBrief | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [signer, setSigner] = useState<string | null>(readSigner);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +72,8 @@ function ContributorLayout() {
     try {
       const [w, v] = await Promise.all([listWords(), listVocabulary()]);
       setWords(w);
-      setVocab(v);
+      setVocab(v.items);
+      setModels(v.models);
     } catch (e) {
       setError(e instanceof Error ? e.message : "เชื่อมต่อ backend ไม่ได้");
     }
@@ -219,7 +221,7 @@ function ContributorLayout() {
         </aside>
 
         <div className="min-w-0">
-          <Outlet context={{ words, vocab, refresh, signer, setError } satisfies ContributorContext} />
+          <Outlet context={{ words, vocab, models, refresh, signer, setError } satisfies ContributorContext} />
         </div>
       </div>
     </>

@@ -100,6 +100,7 @@ export default function ResultPanel(p: Props) {
             className={`h-1.5 w-1.5 rounded-full ${p.socket === "open" ? "bg-emerald-500" : "bg-ink/30"}`}
           />
           {SOCKET_LABEL[p.socket]}
+          {p.result?.model && <span className="ml-auto">โมเดล {p.result.model}</span>}
         </p>
       </Card>
 

@@ -13,4 +13,6 @@ RAW_DATA_DIR = ML_DIR / "data" / "raw"
 # โฟลเดอร์เก็บไฟล์โมเดลที่เทรนแล้ว
 MODELS_DIR = ML_DIR / "models"
 # สคริปต์เทรนโมเดล
-TRAIN_SCRIPT = ML_DIR / "src" / "train_lstm.py"
+TRAIN_SCRIPT = ML_DIR / "src" / "train.py"
+# โมดูลแปลง skeleton เป็น feature (ใช้ร่วมกับตอนเทรน)
+FEATURES_PATH = ML_DIR / "src" / "features.py"

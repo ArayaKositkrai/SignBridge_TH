@@ -3,19 +3,25 @@ import { Link } from "react-router-dom";
 import Card from "../../components/ui/Card";
 import Icon from "../../components/ui/Icon";
 import { fmtDate, fmtDuration, fmtNumber, fmtPct } from "../../lib/format";
+import ModelBadge from "./components/ModelBadge";
 import { TARGET_SAMPLES } from "./constants";
 import { useContributor } from "./context";
 import type { VocabEntry } from "./services/contributorApi";
 
-// กลุ่มคำที่ดู: ต้องอัดเอง / อัดแล้ว / ทั้งหมด
-type Tab = "plan" | "recorded" | "all";
+// กลุ่มคำที่ดู: ต้องอัดเอง / ควรอัดเพิ่ม / อยู่ในโมเดล / อัดแล้ว / ทั้งหมด
+type Tab = "plan" | "weak" | "model" | "recorded" | "all";
 
 // วิธีเรียงคำในคลัง
-type SortKey = "need" | "samples" | "updated" | "word";
+type SortKey = "need" | "accuracy" | "samples" | "updated" | "word";
 
-// ตัวเลือกกลุ่มคำ
+// ความแม่นยำของคำในโมเดลที่ใช้งาน (ไม่อยู่ในโมเดลหรือไม่ได้วัด = null)
+const acc = (v: VocabEntry) => (v.model?.active.included ? v.model.active.accuracy : null);
+
+// ตัวเลือกกลุ่มคำ ("ควรอัดเพิ่ม" = อยู่ในโมเดลแต่ทายถูกไม่ถึง 70%)
 const TABS: { value: Tab; label: string; test: (v: VocabEntry) => boolean }[] = [
   { value: "plan", label: "ต้องอัดเอง", test: (v) => v.to_record },
+  { value: "weak", label: "ควรอัดเพิ่ม (แม่นต่ำ)", test: (v) => (acc(v) ?? 1) < 0.7 },
+  { value: "model", label: "อยู่ในโมเดล", test: (v) => !!v.model?.active.included || !!v.model?.draft.included },
   { value: "recorded", label: "อัดแล้ว", test: (v) => !!v.data?.samples },
   { value: "all", label: "ทั้งหมด", test: () => true },
 ];
@@ -23,6 +29,7 @@ const TABS: { value: Tab; label: string; test: (v: VocabEntry) => boolean }[] = 
 // ตัวเลือกการเรียง
 const SORTS: { value: SortKey; label: string }[] = [
   { value: "need", label: "ต้องอัดเพิ่มก่อน" },
+  { value: "accuracy", label: "แม่นน้อย → มาก" },
   { value: "samples", label: "คลิปมาก → น้อย" },
   { value: "updated", label: "อัดล่าสุด" },
   { value: "word", label: "ชื่อคำ ก-ฮ" },
@@ -40,6 +47,7 @@ const SORTERS: Record<SortKey, (a: VocabEntry, b: VocabEntry) => number> = {
     Number(n(a) >= TARGET_SAMPLES) - Number(n(b) >= TARGET_SAMPLES) ||
     (PRIORITY_RANK[a.priority ?? ""] ?? 9) - (PRIORITY_RANK[b.priority ?? ""] ?? 9) ||
     n(a) - n(b),
+  accuracy: (a, b) => (acc(a) ?? 2) - (acc(b) ?? 2),
   samples: (a, b) => n(b) - n(a),
   updated: (a, b) => (b.data?.updated_at ?? "").localeCompare(a.data?.updated_at ?? ""),
   word: (a, b) => a.word.localeCompare(b.word, "th"),
@@ -47,7 +55,7 @@ const SORTERS: Record<SortKey, (a: VocabEntry, b: VocabEntry) => number> = {
 
 // คลังคำศัพท์: คำที่ต้องอัด คำจากชุดข้อมูล TSL และคำที่อัดแล้ว พร้อมสถิติและปุ่มไปอัด
 export default function LibraryView() {
-  const { vocab } = useContributor();
+  const { vocab, models } = useContributor();
   const [tab, setTab] = useState<Tab>("plan");
   const [category, setCategory] = useState("");
   const [query, setQuery] = useState("");
@@ -70,6 +78,18 @@ export default function LibraryView() {
 
   return (
     <Card title={`คลังคำศัพท์ · ${vocab.length} คำ · คำที่ต้องอัดครบแล้ว ${planDone}/${plan.length}`} className="min-w-0">
+      {/* โมเดลที่ใช้งานอยู่ */}
+      {models?.active.label && (
+        <p className="mb-3 text-sm text-ink/70">
+          โมเดลที่ใช้งาน <b className="text-navy">{models.active.label}</b> รู้จัก {models.active.word_count} คำ
+          {models.active.val_accuracy != null && <> · ทดสอบกับคนใหม่ทายถูก {Math.round(models.active.val_accuracy * 100)}%</>}
+          {models.draft.label && (
+            <>
+              {" "}· มี Draft <b className="text-navy">{models.draft.label}</b> รอทดสอบ
+            </>
+          )}
+        </p>
+      )}
       {/* กลุ่มคำ */}
       <div className="mb-3 flex flex-wrap gap-1.5">
         {TABS.map((t) => (
@@ -134,11 +154,12 @@ export default function LibraryView() {
         </p>
       ) : (
         <div className="scrollbar-thin max-h-[calc(100dvh-22rem)] min-h-[16rem] overflow-auto rounded-xl ring-1 ring-sky">
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="sticky top-0 z-10 bg-sky/90 text-left text-xs text-navy backdrop-blur">
               <tr>
                 <th className="px-3 py-2 font-bold">คำ</th>
                 <th className="px-3 py-2 font-bold">หมวด</th>
+                <th className="px-3 py-2 font-bold">โมเดล</th>
                 <th className="px-3 py-2 font-bold">คลิปที่อัด</th>
                 <th className="px-3 py-2 text-right font-bold">เฟรม</th>
                 <th className="px-3 py-2 text-right font-bold">ความยาว</th>
@@ -162,6 +183,9 @@ export default function LibraryView() {
                       {v.note && <div className="max-w-[16rem] truncate text-xs text-ink/50" title={v.note}>{v.note}</div>}
                     </td>
                     <td className="px-3 py-2 text-xs text-ink/70">{v.category ?? "-"}</td>
+                    <td className="px-3 py-2">
+                      <ModelBadge status={v.model} models={models} compact />
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-14 overflow-hidden rounded-full bg-sky/50">

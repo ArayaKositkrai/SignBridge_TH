@@ -8,7 +8,7 @@ type Pt = [number, number, number];
 const pack = (pts: { x: number; y: number; z?: number }[]): Pt[] =>
   pts.map((p) => [p.x, p.y, p.z ?? 0]);
 
-// ตัวจัดการ WebSocket ไป /ws/sign-to-text ต่อใหม่เองเมื่อหลุด
+// ตัวจัดการ WebSocket ไป /ws/sign-to-text ต่อใหม่เองเมื่อหลุด (version = draft ใช้ทดสอบโมเดลที่ยังไม่เผยแพร่)
 export class SignSocket {
   private ws: WebSocket | null = null;
   private retry = 0;
@@ -18,13 +18,15 @@ export class SignSocket {
   constructor(
     private onResult: (r: SignResult) => void,
     private onStatus: (s: SocketStatus) => void,
+    private version: "active" | "draft" = "active",
   ) {}
 
   // เปิดการเชื่อมต่อ (หลุดแล้วลองใหม่ด้วยเวลาที่เพิ่มขึ้นเรื่อย ๆ)
   connect() {
     this.closed = false;
     this.onStatus("connecting");
-    const ws = new WebSocket(`${WS_URL}/ws/sign-to-text`);
+    const query = this.version === "draft" ? "?version=draft" : "";
+    const ws = new WebSocket(`${WS_URL}/ws/sign-to-text${query}`);
     this.ws = ws;
 
     ws.onopen = () => {
@@ -48,8 +50,8 @@ export class SignSocket {
     ws.onerror = () => ws.close();
   }
 
-  // ส่ง landmarks ของหนึ่งเฟรม (ถ้ายังเชื่อมต่อไม่พร้อมจะข้าม)
-  send(frame: LandmarkFrame) {
+  // ส่ง landmarks ของหนึ่งเฟรม พร้อมสัดส่วนภาพ (กว้าง/สูง) ของกล้อง (ถ้ายังเชื่อมต่อไม่พร้อมจะข้าม)
+  send(frame: LandmarkFrame, aspect: number) {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
     this.ws.send(
       JSON.stringify({
@@ -58,6 +60,7 @@ export class SignSocket {
         pose: pack(frame.pose),
         left_hand: pack(frame.leftHand),
         right_hand: pack(frame.rightHand),
+        aspect,
       }),
     );
   }

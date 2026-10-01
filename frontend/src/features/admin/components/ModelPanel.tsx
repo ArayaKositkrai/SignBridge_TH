@@ -137,7 +137,7 @@ export default function ModelPanel({ totalSamples, totalWords, onChange }: Props
       </div>
 
       {message && <p className={message.ok ? "text-emerald-700" : "text-danger"}>{message.text}</p>}
-      <p className="text-xs text-ink/50">หมายเหตุ: ตอนนี้สคริปต์เทรนยังเป็นตัวจำลอง ยังไม่ได้สร้างโมเดลแปลภาษามือจริง</p>
+      <p className="text-xs text-ink/50">เทรนจากชุดข้อมูล TSL (คำใน ml/configs/train_words.json) และคลิปที่ล่ามอัดตั้งแต่ 5 คลิปต่อคำ ใช้เวลาประมาณ 4 นาที</p>
     </div>
   );
 }
