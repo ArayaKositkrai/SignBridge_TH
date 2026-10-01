@@ -47,6 +47,7 @@ ml/models/*.pt
 ml/models/*.pth
 ml/models/*.h5
 ml/models/*.onnx
+ml/models/*.json
 *.npy
 *.npz
 
@@ -59,4 +60,5 @@ docker-compose.override.yml
 
 # ---------- User data written by the backend ----------
 backend/app/data/custom_phrases.json
+backend/app/data/users.json
 backend/app/data/*.tmp

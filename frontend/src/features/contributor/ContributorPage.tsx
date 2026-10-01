@@ -1,96 +1,227 @@
-import React, { useState } from 'react';
-import PageTitle  from '../../components/ui/PageTitle';
-import Button from '../../components/ui/Button'; // เอาปีกกาออกเพื่อให้ตรงกับการ Export แบบ Default
+import { useCallback, useEffect, useState } from "react";
+import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom";
+import Icon, { type IconName } from "../../components/ui/Icon";
+import PageTitle from "../../components/ui/PageTitle";
+import { fmtDuration, fmtNumber } from "../../lib/format";
+import { listUsers, type User } from "../admin/services/adminApi";
+import { TARGET_SAMPLES } from "./constants";
+import type { ContributorContext } from "./context";
+import LibraryView from "./LibraryView";
+import RecordView from "./RecordView";
+import { listVocabulary, listWords, type VocabEntry, type WordStats } from "./services/contributorApi";
 
-export const ContributorPage: React.FC = () => {
-    const [word, setWord] = useState('');
-    const [videoFile, setVideoFile] = useState<File | null>(null);
-    const [status, setStatus] = useState('');
+// key ที่จำผู้แสดงที่เลือกไว้ในเบราว์เซอร์
+const SIGNER_KEY = "signbridge.signer";
 
-    const handleFileUpload = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!word || !videoFile) return alert('กรุณาระบุคำศัพท์และเลือกไฟล์วิดีโอ');
+// อ่านค่าที่จำไว้ (เบราว์เซอร์บางโหมดใช้ localStorage ไม่ได้)
+function readSigner(): string | null {
+  try {
+    return localStorage.getItem(SIGNER_KEY);
+  } catch {
+    return null;
+  }
+}
 
-        const formData = new FormData();
-        formData.append('word', word);
-        formData.append('file', videoFile);
+// จำผู้แสดงที่เลือกไว้ (ว่าง = ลบ)
+function writeSigner(name: string | null) {
+  try {
+    if (name) localStorage.setItem(SIGNER_KEY, name);
+    else localStorage.removeItem(SIGNER_KEY);
+  } catch {
+    // ไม่มีที่เก็บก็ใช้ต่อได้ แค่ไม่จำค่า
+  }
+}
 
-        setStatus('กำลังอัปโหลด...');
-        try {
-           const response = await fetch('http://localhost:8000/api/contributor/upload-video', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-            setStatus(data.message);
-        } catch (error) {
-            setStatus('เกิดข้อผิดพลาดในการอัปโหลด');
-        }
-    };
+// เคล็ดลับการอัดให้ได้ข้อมูลดี
+const TIPS = [
+  "ยืนให้เห็นตั้งแต่ศีรษะถึงเอว มืออยู่ในกรอบตลอดท่า",
+  "ให้มีคนเดียวในภาพ ระบบจับ skeleton ได้ทีละคน",
+  "เริ่มและจบด้วยมือวางข้างตัว ทำท่าเดียวต่อหนึ่งคลิป",
+  "อัดหลายรอบ เปลี่ยนความเร็ว ระยะ แสงเล็กน้อย",
+];
 
-    const handleTrain = async () => {
-        setStatus('กำลังสั่งเทรนโมเดล...');
-        await fetch('http://localhost:8000/api/contributor/train', { method: 'POST' });
-        setStatus('เริ่มการเทรนโมเดลแล้ว กรุณารอสักครู่...');
-    };
+// เมนูใน sidebar
+const MENU: { to: string; label: string; icon: IconName; end?: boolean }[] = [
+  { to: "/contributor", label: "อัดคลิป", icon: "camera", end: true },
+  { to: "/contributor/library", label: "คลังคำศัพท์", icon: "book" },
+];
 
-    const handlePublish = async () => {
-        setStatus('กำลังเผยแพร่โมเดล...');
-        const response = await fetch('http://localhost:8000/api/contributor/publish', { method: 'POST' });
-        const data = await response.json();
-        setStatus(data.message);
-    };
+// พื้นที่ล่าม: sidebar (ผู้แสดง เมนู สรุปข้อมูล) + หน้าอัดคลิป / คลังคำศัพท์
+export default function ContributorPage() {
+  return (
+    <Routes>
+      <Route element={<ContributorLayout />}>
+        <Route index element={<RecordView />} />
+        <Route path="library" element={<LibraryView />} />
+      </Route>
+    </Routes>
+  );
+}
 
-    return (
-        <div className="p-6 max-w-4xl mx-auto space-y-8">
-            <PageTitle title="Contributor Workspace" subtitle="ระบบเพิ่มคำศัพท์และจัดการโมเดล" />
+// โครงหน้าพื้นที่ล่าม: โหลดข้อมูลร่วม แล้วแสดง sidebar คู่กับหน้าย่อย
+function ContributorLayout() {
+  const [words, setWords] = useState<WordStats[]>([]);
+  const [vocab, setVocab] = useState<VocabEntry[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [signer, setSigner] = useState<string | null>(readSigner);
+  const [error, setError] = useState<string | null>(null);
 
-            {status && <div className="p-4 bg-blue-100 text-blue-800 rounded-md">{status}</div>}
+  // โหลดสถิติคำที่อัดแล้วและคลังคำศัพท์
+  const refresh = useCallback(async () => {
+    try {
+      const [w, v] = await Promise.all([listWords(), listVocabulary()]);
+      setWords(w);
+      setVocab(v);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "เชื่อมต่อ backend ไม่ได้");
+    }
+  }, []);
 
-            <div className="bg-white p-6 rounded-lg shadow-md border">
-                <h2 className="text-xl font-bold mb-4">1. เพิ่มคำศัพท์ใหม่ (อัปโหลดวิดีโอ)</h2>
-                <form onSubmit={handleFileUpload} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">คำศัพท์</label>
-                        <input
-                            type="text"
-                            value={word}
-                            onChange={(e) => setWord(e.target.value)}
-                            className="border p-2 rounded w-full"
-                            placeholder="เช่น โรงพยาบาล"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">ไฟล์วิดีโอ (.mp4)</label>
-                        <input
-                            type="file"
-                            accept="video/mp4"
-                            onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
-                            className="border p-2 rounded w-full"
-                        />
-                    </div>
-                    <Button type="submit">อัปโหลดวิดีโอ</Button>
-                </form>
-            </div>
+  // โหลดคำศัพท์และรายชื่อผู้แสดงตอนเปิดหน้า
+  useEffect(() => {
+    void refresh();
+    listUsers()
+      .then(setUsers)
+      .catch(() => setUsers([]));
+  }, [refresh]);
 
-            <div className="bg-white p-6 rounded-lg shadow-md border">
-                <h2 className="text-xl font-bold mb-4">2. ฝึกสอนโมเดล (Train)</h2>
-                <p className="text-gray-600 mb-4">เมื่อข้อมูลเพียงพอ ให้กดเพื่อสร้างโมเดลเวอร์ชันร่าง (Draft)</p>
-                <Button onClick={handleTrain} className="bg-purple-600 hover:bg-purple-700">เริ่มเทรนโมเดลใหม่</Button>
-            </div>
+  // เลือกผู้แสดงแล้วจำไว้
+  const chooseSigner = (name: string) => {
+    const value = name || null;
+    setSigner(value);
+    writeSigner(value);
+  };
 
-            <div className="bg-white p-6 rounded-lg shadow-md border">
-                <h2 className="text-xl font-bold mb-4">3. ทดสอบและเผยแพร่ (Publish)</h2>
-                <p className="text-gray-600 mb-4">เมื่อทดสอบแล้วมั่นใจ สามารถกดเผยแพร่ให้ผู้ใช้ทั่วไป (Normal User) ใช้งานได้ทันที</p>
-                <div className="space-x-4">
-                    <Button onClick={() => window.open('/sign-to-text?version=draft', '_blank')} className="bg-gray-600 hover:bg-gray-700">
-                        ทดสอบโมเดลร่าง
-                    </Button>
-                    <Button onClick={handlePublish} className="bg-green-600 hover:bg-green-700">
-                        เผยแพร่ (Publish)
-                    </Button>
-                </div>
-            </div>
+  const signers = users.filter((u) => u.active && u.role !== "user");
+  const total = {
+    words: words.filter((w) => w.samples).length,
+    samples: words.reduce((n, w) => n + w.samples, 0),
+    frames: words.reduce((n, w) => n + w.frames, 0),
+    duration: words.reduce((n, w) => n + w.duration_ms, 0),
+  };
+  const plan = vocab.filter((v) => v.to_record);
+  const planDone = plan.filter((v) => (v.data?.samples ?? 0) >= TARGET_SAMPLES).length;
+
+  return (
+    <>
+      <PageTitle icon="camera" title="พื้นที่ล่าม" subtitle="อัดท่าภาษามือเก็บเป็นข้อมูลสำหรับเทรนโมเดล" />
+
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl bg-danger/10 px-4 py-2 text-sm text-danger">
+          <Icon name="alert" size={16} />
+          {error}
+          <button type="button" className="ml-auto" onClick={() => setError(null)} aria-label="ปิด">
+            <Icon name="close" size={16} />
+          </button>
         </div>
-    );
-};
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
+        <aside className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
+          {/* ผู้แสดง */}
+          <div className="glass-card">
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand">
+              <Icon name="user" size={14} />
+              ผู้แสดง (ล่าม)
+            </label>
+            <select
+              value={signer ?? ""}
+              onChange={(e) => chooseSigner(e.target.value)}
+              className="h-10 w-full rounded-xl border border-sky bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              <option value="">ไม่ระบุ</option>
+              {signers.map((u) => (
+                <option key={u.id} value={u.name}>
+                  {u.name}
+                </option>
+              ))}
+              {signer && !signers.some((u) => u.name === signer) && <option value={signer}>{signer}</option>}
+            </select>
+            {!signers.length && (
+              <p className="mt-1.5 text-xs text-ink/60">
+                ยังไม่มีรายชื่อ เพิ่มได้ที่{" "}
+                <Link to="/admin/users" className="font-semibold text-brand underline">
+                  แอดมิน › ผู้ใช้
+                </Link>
+              </p>
+            )}
+          </div>
+
+          {/* เมนู */}
+          <nav className="glass-card flex gap-1 p-2 lg:flex-col" aria-label="เมนูพื้นที่ล่าม">
+            {MENU.map((m) => (
+              <NavLink
+                key={m.to}
+                to={m.to}
+                end={m.end}
+                className={({ isActive }) =>
+                  `flex flex-1 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                    isActive ? "bg-navy text-white shadow" : "text-navy hover:bg-sky/50"
+                  }`
+                }
+              >
+                <Icon name={m.icon} size={18} />
+                {m.label}
+                {m.to.endsWith("library") && (
+                  <span className="ml-auto rounded-full bg-sky/70 px-2 text-xs text-navy">{total.words}</span>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* สรุปข้อมูลทั้งหมด */}
+          <div className="glass-card hidden lg:block">
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-brand">ข้อมูลทั้งหมด</h3>
+            <dl className="grid grid-cols-2 gap-2 text-center">
+              {[
+                ["คำ", fmtNumber(total.words)],
+                ["คลิป", fmtNumber(total.samples)],
+              ].map(([k, v]) => (
+                <div key={k} className="rounded-xl bg-white/70 px-2 py-2 ring-1 ring-sky">
+                  <dd className="text-base font-bold text-navy">{v}</dd>
+                  <dt className="text-[11px] text-ink/60">{k}</dt>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {/* ความคืบหน้าคำที่ทีมต้องอัดเอง */}
+          {plan.length > 0 && (
+            <Link to="/contributor/library" className="glass-card hidden transition hover:ring-2 hover:ring-brand/30 lg:block">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-brand">คำที่ต้องอัด</h3>
+              <div className="mb-1 flex items-baseline justify-between text-sm">
+                <span className="text-ink/70">ครบ {TARGET_SAMPLES} คลิปแล้ว</span>
+                <b className="text-navy">
+                  {planDone}/{plan.length}
+                </b>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-sky/50">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-brand to-royal"
+                  style={{ width: `${(planDone / plan.length) * 100}%` }}
+                />
+              </div>
+            </Link>
+          )}
+
+          {/* เคล็ดลับการอัด */}
+          <div className="glass-card hidden lg:block">
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-brand">เคล็ดลับการอัด</h3>
+            <ul className="flex flex-col gap-1.5 text-xs text-ink/75">
+              {TIPS.map((t) => (
+                <li key={t} className="flex gap-1.5">
+                  <Icon name="check" size={14} className="mt-0.5 shrink-0 text-brand" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
+        <div className="min-w-0">
+          <Outlet context={{ words, vocab, refresh, signer, setError } satisfies ContributorContext} />
+        </div>
+      </div>
+    </>
+  );
+}

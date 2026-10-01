@@ -15,13 +15,27 @@ function describeError(err: unknown): string {
   return "ไม่สามารถเปิดกล้องได้";
 }
 
+// ค่าที่กล้องทำได้จริงหลังเปิด: เฟรมต่อวินาที และขนาดภาพ
+export interface CameraSettings {
+  fps: number | null;
+  width: number | null;
+  height: number | null;
+}
+
+// ตัวเลือกกล้อง: อัตราเฟรมที่ต้องการ (กล้องอาจให้ได้น้อยกว่า)
+interface Options {
+  frameRate?: number;
+}
+
 // hook เปิด/ปิด/สลับกล้อง และเชื่อมภาพเข้ากับ <video>
-export function useCamera() {
+export function useCamera({ frameRate }: Options = {}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<CameraStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [facing, setFacing] = useState<Facing>("user");
+  const [canFlip, setCanFlip] = useState(false);
+  const [settings, setSettings] = useState<CameraSettings>({ fps: null, width: null, height: null });
 
   // ปิดกล้องและปล่อยทรัพยากร
   const stop = useCallback(() => {
@@ -44,10 +58,17 @@ export function useCamera() {
       setError(null);
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: mode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            ...(frameRate ? { frameRate: { ideal: frameRate } } : {}),
+          },
           audio: false,
         });
         streamRef.current = stream;
+        const s = stream.getVideoTracks()[0]?.getSettings() ?? {};
+        setSettings({ fps: s.frameRate ?? null, width: s.width ?? null, height: s.height ?? null });
         const video = videoRef.current;
         if (video) {
           video.srcObject = stream;
@@ -55,12 +76,17 @@ export function useCamera() {
         }
         setFacing(mode);
         setStatus("on");
+        // มีกล้องมากกว่า 1 ตัวถึงจะสลับกล้องได้ (โน้ตบุ๊กส่วนใหญ่มีตัวเดียว)
+        navigator.mediaDevices
+          .enumerateDevices()
+          .then((list) => setCanFlip(list.filter((d) => d.kind === "videoinput").length > 1))
+          .catch(() => setCanFlip(false));
       } catch (err) {
         setError(describeError(err));
         setStatus("error");
       }
     },
-    [facing],
+    [facing, frameRate],
   );
 
   // สลับระหว่างกล้องหน้ากับกล้องหลัง
@@ -71,5 +97,5 @@ export function useCamera() {
   // ปิดกล้องอัตโนมัติเมื่อออกจากหน้า
   useEffect(() => () => stop(), [stop]);
 
-  return { videoRef, status, error, facing, start, stop, flip };
+  return { videoRef, status, error, facing, canFlip, settings, start, stop, flip };
 }

@@ -1,0 +1,127 @@
+import { API_URL } from "../../../config/env";
+import type { Point } from "../../../types";
+
+// ที่อยู่ API ของหน้า contributor
+const BASE = `${API_URL}/api/contributor`;
+
+// landmarks หนึ่งเฟรมที่เก็บไปเทรน (t = มิลลิวินาทีนับจากเริ่มอัด, ไม่เก็บใบหน้าเพื่อลดขนาดไฟล์)
+export interface CapturedFrame {
+  t: number;
+  pose: Point[];
+  leftHand: Point[];
+  rightHand: Point[];
+}
+
+// ข้อมูลสรุปของคลิปที่บันทึกแล้ว (fps = อัตราเฟรมของ skeleton)
+export interface SampleMeta {
+  id: string;
+  word: string;
+  source: "record" | "upload";
+  signer: string | null;
+  video: string | null;
+  video_bytes: number;
+  fps: number | null;
+  camera_fps?: number | null;
+  duration_ms: number | null;
+  width?: number | null;
+  height?: number | null;
+  frame_count: number;
+  lh_present_rate?: number;
+  rh_present_rate?: number;
+  created_at: string;
+}
+
+// สถิติของคำหนึ่งคำ: คลิป เฟรม ความยาวรวม ผู้แสดง และความครบของมือ
+export interface WordStats {
+  word: string;
+  samples: number;
+  frames: number;
+  duration_ms: number;
+  signers: string[];
+  without_landmarks: number;
+  hand_rate: number;
+  updated_at: string | null;
+}
+
+// คำหนึ่งคำในคลังคำศัพท์: หมวด ความสำคัญ ต้องอัดเองไหม คลิปในชุดข้อมูล TSL และคลิปที่อัดแล้ว
+export interface VocabEntry {
+  word: string;
+  category: string | null;
+  priority: "สูง" | "กลาง" | "ต่ำ" | null;
+  assigned?: string | null;
+  note?: string | null;
+  to_record: boolean;
+  external: Record<string, { clips: number; signers: number }>;
+  data: WordStats | null;
+}
+
+// ส่งคำขอแล้วแปลงผลเป็น JSON ถ้าผิดพลาดโยน Error พร้อมข้อความ detail จาก backend
+export async function send<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url.startsWith("http") ? url : `${BASE}${url}`, init);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(typeof body?.detail === "string" ? body.detail : `เกิดข้อผิดพลาด (${res.status})`);
+  }
+  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+// ใส่คำศัพท์ลง URL อย่างปลอดภัย
+const enc = encodeURIComponent;
+
+// ดึงรายการคำศัพท์ที่มีคลิปแล้ว
+export const listWords = () => send<{ words: WordStats[] }>("/words").then((r) => r.words);
+
+// ดึงคลังคำศัพท์ทั้งหมด
+export const listVocabulary = () => send<{ items: VocabEntry[] }>("/vocabulary").then((r) => r.items);
+
+// ดึงรายการคลิปของคำหนึ่งคำ
+export const listSamples = (word: string) =>
+  send<{ samples: SampleMeta[] }>(`/samples/${enc(word)}`).then((r) => r.samples);
+
+// ลิงก์สำหรับเล่นวิดีโอของคลิปที่บันทึกแล้ว
+export const sampleVideoUrl = (word: string, id: string) =>
+  `${BASE}/samples/${enc(word)}/${enc(id)}/video`;
+
+// ดึง skeleton ของคลิป (ไว้วาดทับวิดีโอตอนดูจอใหญ่)
+export const getSampleLandmarks = (word: string, id: string) =>
+  send<CapturedFrame[]>(`/samples/${enc(word)}/${enc(id)}/landmarks`);
+
+// ลบคลิป
+export const deleteSample = (word: string, id: string) =>
+  send<void>(`/samples/${enc(word)}/${enc(id)}`, { method: "DELETE" });
+
+// ข้อมูลที่ใช้บันทึกคลิปใหม่
+interface UploadArgs {
+  word: string;
+  source: "record" | "upload";
+  signer: string | null;
+  video: Blob;
+  fileName: string;
+  frames: CapturedFrame[];
+  fps: number;
+  cameraFps: number | null;
+  durationMs: number;
+  width: number;
+  height: number;
+}
+
+// อัปโหลดคลิปใหม่ (วิดีโอ + landmarks ถ้ามี)
+export function uploadSample(a: UploadArgs) {
+  const form = new FormData();
+  form.append("word", a.word);
+  form.append("source", a.source);
+  if (a.signer) form.append("signer", a.signer);
+  form.append("fps", String(a.fps));
+  if (a.cameraFps) form.append("camera_fps", String(Math.round(a.cameraFps * 100) / 100));
+  form.append("duration_ms", String(Math.round(a.durationMs)));
+  if (a.width && a.height) {
+    form.append("width", String(a.width));
+    form.append("height", String(a.height));
+  }
+  form.append("video", a.video, a.fileName);
+  if (a.frames.length) {
+    const json = new Blob([JSON.stringify(a.frames)], { type: "application/json" });
+    form.append("landmarks", json, "landmarks.json");
+  }
+  return send<SampleMeta>("/samples", { method: "POST", body: form });
+}

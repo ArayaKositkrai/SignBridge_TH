@@ -1,5 +1,7 @@
 {
-  "active_version": "model_v1.h5",
-  "draft_version": null,
-  "words": ["สวัสดี", "ขอบคุณ", "ขอโทษ"]
+    "active_version": "model_signBridge_v0.0.0.h5",
+    "draft_version": null,
+    "words": [
+        "หิว"
+    ]
 }

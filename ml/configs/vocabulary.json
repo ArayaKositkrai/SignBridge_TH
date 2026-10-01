@@ -1,0 +1,3526 @@
+[
+  {
+    "word": "เจ็บ",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ปวด",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ยา",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "หมอ",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "โรงพยาบาล",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "อันตราย",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ไฟไหม้",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ตำรวจ",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ช่วยด้วย",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": "ซ้ำกับวลีปุ่ม AAC ได้ แต่มีในคลัง recognition ด้วยจะดีกว่า",
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ห้องน้ำ",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": "คำสำคัญที่สุดที่ทั้งสอง dataset ไม่มีเลย",
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "น้ำ (ดื่ม)",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "หิว",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ต้องการ",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": "คำฟังก์ชันสำคัญสำหรับประกอบประโยคขอของ",
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "อยาก",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ใช่",
+    "category": "การตอบรับพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ไม่ใช่",
+    "category": "การตอบรับพื้นฐาน",
+    "priority": "สูง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ปวดหัว",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": "อาจ derive จาก ปวด+หัว ได้ถ้าจำเป็นต้องลดจำนวน",
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ปวดท้อง",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": "อาจ derive จาก ปวด+ท้อง ได้",
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "มีไข้",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "พยาบาล",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "รถพยาบาล",
+    "category": "สุขภาพ/ฉุกเฉิน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "กระหายน้ำ",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ไม่เอา",
+    "category": "ความต้องการพื้นฐาน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "มี",
+    "category": "การตอบรับพื้นฐาน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "ไม่มี",
+    "category": "การตอบรับพื้นฐาน",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": null,
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "เมื่อไหร่",
+    "category": "คำถาม (เสริม)",
+    "priority": "กลาง",
+    "assigned": null,
+    "note": "TSL-51 มี ทำไม/อะไร/ที่ไหน แล้ว แต่ยังไม่มี เมื่อไหร่/เท่าไหร่/ใคร",
+    "to_record": true,
+    "external": {}
+  },
+  {
+    "word": "กระโดดสูง",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "กอล์ฟ",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "กีฬา",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ขว้างจักร",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ตะกร้อ",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "ทุ่มน้ำหนัก",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "บาสเกตบอล",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "ปั่นจักรยาน",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ปิงปอง",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "พุ่งแหลน",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ฟุตบอล",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "มวย",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "มวยปล้ำ",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "ยิงธนู",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ยิงปืน",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ยิมนาสติก",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "ยูโด",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "วอลเลย์บอล",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "วิ่ง",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "ว่ายน้ำ",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "หมากรุก",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "เทนนิส",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "เปตอง",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "เรือใบ",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "แบดมินตัน",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "โบว์ลิ่ง",
+    "category": "กีฬา",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 20,
+        "signers": 20
+      }
+    }
+  },
+  {
+    "word": "ของสด",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "เนื้อกวาง",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "เนื้อปลา",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "เนื้อวัว",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "เนื้อหมู",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "เนื้อหมูป่า",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "เนื้อแกะ",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "ไข่",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "ไข่เค็ม",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "ไข่เป็ด",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "ไข่เยี่ยวม้า",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "ไข่ไก่",
+    "category": "ของสด",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 24,
+        "signers": 24
+      }
+    }
+  },
+  {
+    "word": "ครอบครัว",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ญาติ",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ตา",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ทวด (ชาย)",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ทวด (หญิง)",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "น้องชาย",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "น้องสาว",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "น้า",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ปู่",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ป้า",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ผู้ปกครอง",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "พี่ชาย",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "พี่สาว",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "พ่อ",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ภรรยา",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ยาย",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ย่า",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ลุง",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ลูก",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "ลูกพี่ลูกน้อง",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "สามี",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "หลาน",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "อา",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "เพื่อน",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "เพื่อนสนิท",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "เหลน",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "แฟน",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "แม่",
+    "category": "ครอบครัว",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "กรุงเทพ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "กลัว (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "กิน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ขนมปัง (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ขอบคุณ_เปิดมือสองข้าง",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ขอโทษ_อายุเท่ากันหรือน้อยกว่า",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ข้าว (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "คุณ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ง่วง (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 21,
+        "signers": 2
+      }
+    }
+  },
+  {
+    "word": "ฉัน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ฉัน (แบบ 2)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ชอบ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ชื่อ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ดี (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ด้วยกัน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 33,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ตลาด (แบบ 4)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ถาม_ทำท่ามือถามไปยังผู้นั้น",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ทำงาน (แบบ 2)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ทำไม (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ที่ไหน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "น้อง (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "บ้าน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "พรุ่งนี้ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 20,
+        "signers": 2
+      }
+    }
+  },
+  {
+    "word": "พี่ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ภาษามือ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 35,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ยาย (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 21,
+        "signers": 2
+      }
+    }
+  },
+  {
+    "word": "ร้อน_สองมือ",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "วันนี้ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "วันหยุด (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 33,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "สบายดี (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "สวัสดี_อายุเท่ากันหรือน้อยกว่า",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "หูหนวก (แบบ 2)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "อยู่บ้าน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 20,
+        "signers": 2
+      }
+    }
+  },
+  {
+    "word": "อย่า (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "อะไร (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 20,
+        "signers": 2
+      }
+    }
+  },
+  {
+    "word": "เกิด (แบบ 2)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "เช้า (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "เที่ยว (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "เรียก (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "เรียน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 33,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "เหงา (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "เหนื่อย (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "แต่งงาน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "แฟน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "แมว (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "แม่ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "โกรธ (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "โรงเรียน (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 30,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "โสด (แบบ 1)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ไข่ (แบบ 2)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 32,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ไป (แบบ 2)",
+    "category": "คำในประโยค (TSL-51)",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-51": {
+        "clips": 31,
+        "signers": 3
+      }
+    }
+  },
+  {
+    "word": "ก ไก่",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ข ไข่",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ค ควาย",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฆ ระฆัง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ง งู",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "จ จาน",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฉ ฉิ่ง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ช ช้าง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ซ โซ่",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฌ เฌอ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ญ หญิง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฎ ชฎา",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฏ ปฏัก",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฐ ฐาน",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฑ มณโฑ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฒ ผู้เฒ่า",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ณ เณร",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ด เด็ก",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ต เต่า",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ถ ถุง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ท ทหาร",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ธ ธง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "น หนู",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "บ ใบไม้",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ป ปลา",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ผ ผึ้ง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฝ ฝา",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "พ พาน",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฟ ฟัน",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ภ สำเภา",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ม ม้า",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ย ยักษ์",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ร เรือ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ล ลิง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ว แหวน",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ศ ศาลา",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ษ ฤๅษี",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ส เสือ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระอิ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระอี",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระอุ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระอู",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระโอ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระใอ (ไม้ม้วน)",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "สระไอ (ไม้มลาย)",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ห หีบ",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฬ จุฬา",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "อ อ่าง",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ฮ นกฮูก",
+    "category": "ตัวอักษร/สระ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 25,
+        "signers": 25
+      }
+    }
+  },
+  {
+    "word": "ศูนย์",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "สอง",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "สาม",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "สิบ",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "สี่",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "หก",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "หนึ่ง",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "ห้า",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 26,
+        "signers": 26
+      }
+    }
+  },
+  {
+    "word": "เก้า",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "เจ็ด",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "แปด",
+    "category": "ตัวเลข",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 27,
+        "signers": 27
+      }
+    }
+  },
+  {
+    "word": "กัมพูชา",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "จีน",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "ประเทศ",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "ประเทศไทย",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "ปากีสถาน",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 21,
+        "signers": 21
+      }
+    }
+  },
+  {
+    "word": "มาเก๊า",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "ลาว",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "อิสราเอล",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "ฮ่องกง",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "เมียนมา",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "เวียดนาม",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "ไต้หวัน",
+    "category": "ประเทศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 22,
+        "signers": 22
+      }
+    }
+  },
+  {
+    "word": "ซาฟารีเวิลด์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ดรีมเวิลด์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ตลาดนัดจตุจักร",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ตลาดนัดรถไฟ",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ตลาดน้ำดำเนินสะดวก",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ทำเนียบรัฐบาล",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "บางลำพู",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "บิ๊กซี",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ฟาร์มจระเข้",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ฟิวเจอร์พาร์ค รังสิต",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ภูเขาทอง",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "วงเวียนใหญ่",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "วัดพระธาตุดอยสุเทพ",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "วัดพระธาตุพนม",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "วัดพระปฐมเจดีย์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "วัดพระแก้ว",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "วัดอรุณ",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "วัดเบญจมบพิตร",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "วัดโพธิ์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 16,
+        "signers": 16
+      }
+    }
+  },
+  {
+    "word": "สถานีรถไฟหัวลำโพง",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "สนามหลวง",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "สยามสแควร์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "สวนจตุจักร",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "สวนลุมพินี",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "สวนสยาม",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "สวนอัมพร",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "ห้างเซ็นทรัล",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ห้างเดอะมอลล์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "ห้างโรบินสัน",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "อนุสาวรีย์ชัยสมรภูมิ",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "อนุสาวรีย์ท้าวสุรนารี",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "อนุสาวรีย์ประชาธิปไตย",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "เทสโก้ โลตัส",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "เยาวราช",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "เสาชิงช้า",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "เอ็มบีเค เซ็นเตอร์",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "แม็คโคร",
+    "category": "สถานที่",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 18,
+        "signers": 18
+      }
+    }
+  },
+  {
+    "word": "LGBTQ+",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "กะเทย",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "คนข้ามเพศ",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "ทอม",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 17,
+        "signers": 17
+      }
+    }
+  },
+  {
+    "word": "ผู้ชาย",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "ผู้หญิง",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "เกย์",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "เพศ",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  },
+  {
+    "word": "เลสเบียน",
+    "category": "เพศ",
+    "priority": null,
+    "assigned": null,
+    "note": null,
+    "to_record": false,
+    "external": {
+      "TSL-ONE-S": {
+        "clips": 19,
+        "signers": 19
+      }
+    }
+  }
+]

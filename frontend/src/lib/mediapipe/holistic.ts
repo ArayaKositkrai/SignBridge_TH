@@ -34,13 +34,17 @@ export function loadHolistic(): Promise<HolisticLandmarker> {
 const toPoints = (list?: Point[][]): Point[] =>
   list?.[0]?.map((p) => ({ x: p.x, y: p.y, z: p.z })) ?? [];
 
+// เวลาล่าสุดที่ส่งให้โมเดล (MediaPipe ต้องการเวลาที่เพิ่มขึ้นเรื่อย ๆ ห้ามซ้ำ)
+let lastTimestamp = 0;
+
 // ตรวจจับท่าทางจากเฟรมวิดีโอหนึ่งเฟรม
 export function detect(
   landmarker: HolisticLandmarker,
   video: HTMLVideoElement,
   timestampMs: number,
 ): LandmarkFrame {
-  const r = landmarker.detectForVideo(video, timestampMs);
+  lastTimestamp = Math.max(timestampMs, lastTimestamp + 1);
+  const r = landmarker.detectForVideo(video, lastTimestamp);
   return {
     pose: toPoints(r.poseLandmarks),
     leftHand: toPoints(r.leftHandLandmarks),

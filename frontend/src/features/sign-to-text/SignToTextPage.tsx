@@ -34,6 +34,7 @@ export default function SignToTextPage() {
         camera={cam.status}
         cameraError={cam.error}
         facing={cam.facing}
+        canFlip={cam.canFlip}
         model={mp.status}
         handsVisible={mp.handsVisible}
         bodyVisible={mp.bodyVisible}

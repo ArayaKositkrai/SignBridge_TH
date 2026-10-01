@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import emergency, sign_to_text, text_to_sign
-from app.api.routes import contributor
+from app.api.routes import admin, contributor
 
 # สร้างแอป FastAPI หลักของ backend
 app = FastAPI(title="SignBridge TH API")
@@ -23,6 +23,7 @@ app.include_router(sign_to_text.router)
 app.include_router(text_to_sign.router)
 app.include_router(emergency.router)
 app.include_router(contributor.router)
+app.include_router(admin.router)
 
 
 # หน้าแรกของ backend ใช้เช็กว่าเซิร์ฟเวอร์ทำงานอยู่

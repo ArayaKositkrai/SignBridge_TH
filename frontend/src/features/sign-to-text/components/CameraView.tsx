@@ -13,6 +13,7 @@ interface Props {
   camera: CameraStatus;
   cameraError: string | null;
   facing: Facing;
+  canFlip: boolean;
   model: ModelStatus;
   handsVisible: boolean;
   bodyVisible: boolean;
@@ -53,7 +54,7 @@ export default function CameraView(p: Props) {
             muted
             className={`absolute inset-0 h-full w-full object-cover transition-opacity ${on ? "opacity-100" : "opacity-0"}`}
           />
-          <LandmarkOverlay videoRef={p.videoRef} frameRef={p.frameRef} showHands={showHands} />
+          <LandmarkOverlay videoRef={p.videoRef} frameRef={p.frameRef} showHands={showHands} mirror={mirror} />
         </div>
 
         {on && !p.bodyVisible && (
@@ -115,7 +116,7 @@ export default function CameraView(p: Props) {
         <Button variant="ghost" icon="stop" onClick={p.onStop} disabled={!on}>
           หยุดกล้อง
         </Button>
-        <Button variant="ghost" icon="refresh" onClick={p.onFlip} disabled={!on}>
+        <Button variant="ghost" icon="refresh" onClick={p.onFlip} disabled={!on || !p.canFlip}>
           สลับกล้อง
         </Button>
         <label className="ml-auto flex cursor-pointer select-none items-center gap-2 text-sm font-medium text-navy">
