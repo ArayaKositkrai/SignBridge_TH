@@ -3,9 +3,10 @@ import io
 import re
 from typing import Literal
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
+from app.api.deps import require_admin
 from app.services import activity_log
 
 # กลุ่ม route ของ log การใช้งาน: รับ event จากหน้าเว็บ และให้แอดมินดู/ดาวน์โหลด
@@ -75,7 +76,7 @@ def _filters(actor, kind, q, date_from, date_to) -> dict:
 
 
 # รายการ log สำหรับแอดมิน (กรองตามผู้ทำ ประเภท คำค้น ช่วงวันที่ และแบ่งหน้า)
-@router.get("/api/admin/logs")
+@router.get("/api/admin/logs", dependencies=[Depends(require_admin)])
 def list_logs(
     actor: str | None = None, kind: str | None = None, q: str | None = None,
     date_from: str | None = None, date_to: str | None = None,
@@ -86,7 +87,7 @@ def list_logs(
 
 
 # ดาวน์โหลด log ตามตัวกรองเป็นไฟล์ CSV (เปิดใน Excel ภาษาไทยได้)
-@router.get("/api/admin/logs/export.csv")
+@router.get("/api/admin/logs/export.csv", dependencies=[Depends(require_admin)])
 def export_logs(
     actor: str | None = None, kind: str | None = None, q: str | None = None,
     date_from: str | None = None, date_to: str | None = None,
