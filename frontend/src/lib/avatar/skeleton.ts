@@ -32,14 +32,27 @@ const ease = (t: number) => t * t * (3 - 2 * t);
 // ค่าระหว่าง a กับ b ตามสัดส่วน t
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-// ผสมท่ามือสองท่าตามสัดส่วน t
+// ค่า z ของท่าพักเมื่อผสมกับท่าที่มี z (ท่าพักไม่มี z ของตัวเอง)
+const REST_Z = 0.12;
+
+// ผสมท่ามือสองท่าตามสัดส่วน t (z มีเมื่อท่าใดท่าหนึ่งมี z)
 function mix(a: MotionHand, b: MotionHand, t: number): MotionHand {
-  return {
+  const out: MotionHand = {
     x: lerp(a.x, b.x, t),
     y: lerp(a.y, b.y, t),
     a: lerp(a.a, b.a, t),
     c: a.c.map((v, i) => lerp(v, b.c[i] ?? v, t)),
   };
+  if (a.z !== undefined || b.z !== undefined) out.z = lerp(a.z ?? REST_Z, b.z ?? REST_Z, t);
+  // ทิศฝ่ามือ: ใช้ของท่าที่มีข้อมูล (ท่าพักไม่มี) ถ้ามีทั้งคู่ผสมกัน และสลับด้านฝ่ามือที่ครึ่งทาง
+  if (a.w && b.w) {
+    out.w = [lerp(a.w[0], b.w[0], t), lerp(a.w[1], b.w[1], t), lerp(a.w[2], b.w[2], t)];
+    out.p = t < 0.5 ? a.p : b.p;
+  } else if (a.w || b.w) {
+    out.w = a.w ?? b.w;
+    out.p = a.w ? a.p : b.p;
+  }
+  return out;
 }
 
 // หาท่ามือ ณ เวลา t (0-1) ของคลิป โดยไล่ระหว่าง keyframe

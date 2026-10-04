@@ -10,7 +10,7 @@ interface Props {
   onDelete: (p: EmergencyPhrase) => void;
 }
 
-// กริดปุ่มวลีฉุกเฉิน (ในโหมดแก้ไขจะมีปุ่มลบบนวลีที่เพิ่มเอง)
+// กริดปุ่มวลีฉุกเฉิน: ไอคอน → ชื่อปุ่ม → ข้อความที่พูด (ในโหมดแก้ไข แตะเพื่อแก้ และมีปุ่มลบบนวลีที่เพิ่มเอง)
 export default function PhraseGrid({ phrases, activeId, editing, onPick, onDelete }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -21,7 +21,7 @@ export default function PhraseGrid({ phrases, activeId, editing, onPick, onDelet
         return (
           <div key={p.id} className="relative" style={{ animationDelay: `${i * 45}ms` }}>
             <button
-              onClick={() => (deletable ? undefined : onPick(p))}
+              onClick={() => onPick(p)}
               disabled={editing && !p.custom}
               className={`group flex min-h-[6.5rem] w-full animate-fadeUp flex-col items-center justify-center gap-2.5 rounded-2xl p-3 text-base font-semibold transition duration-200 active:scale-[.97] disabled:opacity-50 ${
                 ghost
@@ -29,7 +29,7 @@ export default function PhraseGrid({ phrases, activeId, editing, onPick, onDelet
                   : active
                     ? "bg-gradient-to-br from-brand to-navy text-white shadow-[0_14px_28px_-12px_rgba(24,80,121,.8)]"
                     : "glass-card !p-3 text-navy hover:-translate-y-1 hover:shadow-[0_18px_30px_-14px_rgba(24,80,121,.55)]"
-              } ${deletable ? "animate-pulse" : ""}`}
+              } ${deletable ? "ring-2 ring-brand/60" : ""}`}
             >
               <span
                 className={`grid h-11 w-11 place-items-center rounded-xl transition ${
@@ -43,6 +43,15 @@ export default function PhraseGrid({ phrases, activeId, editing, onPick, onDelet
                 <Icon name={p.icon === "more" ? "plus" : p.icon} size={24} />
               </span>
               <span className="line-clamp-2 break-words px-1 text-center leading-snug">{p.label}</span>
+              {p.speak && p.speak !== p.label && (
+                <span
+                  className={`-mt-1.5 line-clamp-1 break-all px-1 text-center text-[11px] font-normal ${
+                    active ? "text-white/80" : "text-ink/55"
+                  }`}
+                >
+                  {p.speak}
+                </span>
+              )}
             </button>
 
             {deletable && (

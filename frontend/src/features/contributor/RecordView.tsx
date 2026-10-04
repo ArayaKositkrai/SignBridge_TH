@@ -7,6 +7,7 @@ import ModelBadge from "./components/ModelBadge";
 import RecorderPanel from "./components/RecorderPanel";
 import SampleList from "./components/SampleList";
 import { TARGET_SAMPLES } from "./constants";
+import { logEvent } from "../../lib/activityLog";
 import { useContributor } from "./context";
 import { deleteSample, listSamples, type SampleMeta } from "./services/contributorApi";
 
@@ -224,7 +225,10 @@ export default function RecordView() {
             word={current}
             samples={samples}
             loading={loading}
-            onOpen={setViewing}
+            onOpen={(i) => {
+              logEvent("ดูคลิปจอใหญ่", current);
+              setViewing(i);
+            }}
             onDelete={(s) => void handleDelete(s)}
           />
         </div>

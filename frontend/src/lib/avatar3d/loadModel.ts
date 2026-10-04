@@ -20,8 +20,12 @@ export interface Rig {
   bind: Map<string, BindPose>;
   // แกนที่ใช้งอแต่ละข้อนิ้ว (อยู่ในกรอบพิกัดของกระดูกข้อนั้นเอง ตอน bind)
   fingerAxis: Map<string, THREE.Vector3>;
-  // แกนที่ใช้บิดข้อมือ (อยู่ในกรอบพิกัดของกระดูกมือเอง ตอน bind)
+  // แกนที่ใช้บิดข้อมือ = ทิศนิ้ว (อยู่ในกรอบพิกัดของกระดูกมือเอง ตอน bind)
   handTwistAxis: Record<Side, THREE.Vector3>;
+  // แนวกว้างฝ่ามือ โคนนิ้วชี้ → โคนนิ้วก้อย (กรอบพิกัดของกระดูกมือ ตอน bind)
+  handWidthAxis: Record<Side, THREE.Vector3>;
+  // ทิศที่ด้านฝ่ามือหันออกไป (กรอบพิกัดของกระดูกมือ ตอน bind)
+  palmOutAxis: Record<Side, THREE.Vector3>;
   // แกนเอียงศีรษะ (อยู่ในกรอบพิกัดของกระดูกหัวเอง ตอน bind)
   headTiltAxis: THREE.Vector3;
   // ตัวคูณแปลงหน่วยพิกัด 0-1 ของระบบท่าทางเดิม เป็นหน่วยจริงของโมเดลนี้
@@ -107,26 +111,17 @@ async function build(): Promise<Rig> {
   // ---- แกนงอนิ้ว: หาจากทิศของนิ้วชี้กับนิ้วก้อยตอน bind (ตั้งฉากกับฝ่ามือ) ----
   const fingerAxis = new Map<string, THREE.Vector3>();
   const handTwistAxis: Record<Side, THREE.Vector3> = { r: new THREE.Vector3(), l: new THREE.Vector3() };
+  const handWidthAxis: Record<Side, THREE.Vector3> = { r: new THREE.Vector3(), l: new THREE.Vector3() };
+  const palmOutAxis: Record<Side, THREE.Vector3> = { r: new THREE.Vector3(), l: new THREE.Vector3() };
 
   (["r", "l"] as Side[]).forEach((side) => {
     const handPos = bind.get(ARM_BONES[side][2])!.pos;
     const idxPos = bind.get(fingerBones(side, "Index")[0])!.pos;
     const pinkyPos = bind.get(fingerBones(side, "Pinky")[0])!.pos;
     const midPos = bind.get(fingerBones(side, "Middle")[0])!.pos;
-    const v1 = idxPos.clone().sub(handPos).normalize();
-    const v2 = pinkyPos.clone().sub(handPos).normalize();
-    // ทิศทางของแกนสลับเครื่องหมายกันระหว่างมือซ้าย/ขวาเพราะเรขาคณิตกลับด้านกัน
-    const sign = side === "r" ? 1 : -1;
-    const palmNormalWorld = v1.clone().cross(v2).normalize().multiplyScalar(sign);
+    const thumbEnd = bind.get(fingerBones(side, "Thumb")[2])!.pos;
 
-    FINGERS.forEach((finger) => {
-      fingerBones(side, finger).forEach((name) => {
-        const b = bind.get(name)!;
-        const axis = palmNormalWorld.clone().applyQuaternion(b.worldQuat.clone().invert()).normalize();
-        fingerAxis.set(name, axis);
-      });
-    });
-
+    // ทิศนิ้ว (ข้อมือ → โคนนิ้วชี้/กลาง/ก้อยเฉลี่ย) และแนวกว้างฝ่ามือ (โคนนิ้วชี้ → โคนนิ้วก้อย)
     const forward = idxPos
       .clone()
       .add(pinkyPos)
@@ -134,8 +129,29 @@ async function build(): Promise<Rig> {
       .multiplyScalar(1 / 3)
       .sub(handPos)
       .normalize();
+    const width = pinkyPos.clone().sub(idxPos);
+    width.addScaledVector(forward, -width.dot(forward)).normalize();
+    // ด้านฝ่ามือ = แนวตั้งฉากกับฝ่ามือ ฝั่งเดียวกับนิ้วโป้ง (นิ้วโป้งอยู่ฝั่งฝ่ามือเสมอ)
+    const palmOut = forward.clone().cross(width).normalize();
+    if (palmOut.dot(thumbEnd.clone().sub(handPos)) < 0) palmOut.negate();
+
+    // แกนงอของแต่ละนิ้ว = ขวางกับทิศของนิ้วนั้นและขนานกับฝ่ามือ หมุนมุมบวกแล้วปลายนิ้วงอเข้าหาฝ่ามือ
+    // (เดิมใช้แกนตั้งฉากกับฝ่ามือ ซึ่งทำให้นิ้วกวาดไปด้านข้างแทนที่จะงอ)
+    FINGERS.forEach((finger) => {
+      const [b1, , b3] = fingerBones(side, finger);
+      const dir = bind.get(b3)!.pos.clone().sub(bind.get(b1)!.pos).normalize();
+      const axisWorld = dir.clone().cross(palmOut).normalize();
+      fingerBones(side, finger).forEach((name) => {
+        const b = bind.get(name)!;
+        fingerAxis.set(name, axisWorld.clone().applyQuaternion(b.worldQuat.clone().invert()).normalize());
+      });
+    });
+
     const handBind = bind.get(ARM_BONES[side][2])!;
-    handTwistAxis[side] = forward.applyQuaternion(handBind.worldQuat.clone().invert()).normalize();
+    const toLocal = handBind.worldQuat.clone().invert();
+    handTwistAxis[side] = forward.clone().applyQuaternion(toLocal).normalize();
+    handWidthAxis[side] = width.applyQuaternion(toLocal).normalize();
+    palmOutAxis[side] = palmOut.applyQuaternion(toLocal).normalize();
   });
 
   // ---- แกนเอียงศีรษะ: ใช้แกน Z ของโลก (เข้า-ออกจากกล้อง) แปลงเป็นพิกัดของกระดูกหัวเอง ----
@@ -153,6 +169,8 @@ async function build(): Promise<Rig> {
     bind,
     fingerAxis,
     handTwistAxis,
+    handWidthAxis,
+    palmOutAxis,
     headTiltAxis,
     armScale,
     frame: { headTop: headTopBind.pos.clone(), chest, height },

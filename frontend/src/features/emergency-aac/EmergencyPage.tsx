@@ -1,61 +1,56 @@
 import { useMemo, useState } from "react";
-import Button from "../../components/ui/Button";
 import Icon from "../../components/ui/Icon";
-import Modal from "../../components/ui/Modal";
 import PageTitle from "../../components/ui/PageTitle";
 import { EMERGENCY_PHRASES, HELP_PHRASE } from "../../config/emergencyPhrases";
+import { logEvent } from "../../lib/activityLog";
 import type { EmergencyPhrase } from "../../types";
 import EmergencyButton from "./components/EmergencyButton";
+import PhraseDialog from "./components/PhraseDialog";
 import PhraseGrid from "./components/PhraseGrid";
 import { useCustomPhrases } from "./hooks/useCustomPhrases";
 import { useSpeak } from "./hooks/useSpeak";
+import type { PhraseInput } from "./services/emergencyApi";
 
 // ปุ่มเพิ่มคำใหม่ (ดึงมาจากรายการสำเร็จรูป)
 const ADD_TILE = EMERGENCY_PHRASES.find((p) => p.icon === "more")!;
 // วลีสำเร็จรูป (ไม่รวมปุ่มเพิ่มคำ)
 const BUILT_IN = EMERGENCY_PHRASES.filter((p) => p.icon !== "more");
-// ความยาวสูงสุดของชื่อบนปุ่ม
-const LABEL_MAX = 30;
 
-// หน้าฉุกเฉิน: ปุ่มช่วยด้วย วลีสำเร็จรูป และวลีที่ผู้ใช้เพิ่มเอง
+// หน้าฉุกเฉิน: ปุ่มช่วยด้วย วลีสำเร็จรูป และวลีที่ผู้ใช้เพิ่มเอง (เพิ่ม/แก้ไข/ลบได้)
 export default function EmergencyPage() {
   const { say, last, supported } = useSpeak();
   const custom = useCustomPhrases();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [speakText, setSpeakText] = useState("");
-  const [label, setLabel] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [target, setTarget] = useState<EmergencyPhrase | null>(null);
 
   // รวมวลีสำเร็จรูป วลีที่เพิ่มเอง และปุ่มเพิ่มคำ (ซ่อนตอนแก้ไข)
   const phrases = useMemo(
-    () => [...BUILT_IN, ...custom.phrases, ...(editing ? [] : [{ ...ADD_TILE, label: "เพิ่มคำใหม่" }])],
+    () => [...BUILT_IN, ...custom.phrases, ...(editing ? [] : [{ ...ADD_TILE, label: "เพิ่มคำใหม่", speak: "" }])],
     [custom.phrases, editing],
   );
 
-  // กดปุ่มวลี: พูดออกเสียง หรือเปิดหน้าต่างเพิ่มคำถ้าเป็นปุ่มเพิ่ม
+  // เปิดหน้าต่างเพิ่มปุ่มใหม่ (target = null) หรือแก้ไขปุ่มเดิม
+  const openDialog = (p: EmergencyPhrase | null) => {
+    setTarget(p);
+    setDialogOpen(true);
+  };
+
+  // กดปุ่มวลี: โหมดแก้ไข = เปิดหน้าต่างแก้ไข, ปุ่มเพิ่ม = เปิดหน้าต่างเพิ่ม, อื่น ๆ = พูดออกเสียง
   const pick = (p: EmergencyPhrase) => {
-    if (p.icon === "more") return setDialogOpen(true);
+    if (p.icon === "more") {
+      logEvent("เปิดหน้าต่างเพิ่มปุ่ม AAC");
+      return openDialog(null);
+    }
+    if (editing && p.custom) return openDialog(p);
     setActiveId(p.id);
-    say(p.speak);
+    logEvent("กดปุ่ม AAC", p.label);
+    say(p.speak || p.label);
   };
 
-  // ปิดหน้าต่างเพิ่มคำและล้างช่องกรอก
-  const closeDialog = () => {
-    setDialogOpen(false);
-    setSpeakText("");
-    setLabel("");
-  };
-
-  // บันทึกวลีใหม่เก็บไว้ที่ backend (ชื่อบนปุ่มว่างจะใช้ข้อความที่พูดแทน)
-  const save = async () => {
-    setSaving(true);
-    const text = speakText.trim();
-    const ok = await custom.add((label.trim() || text).slice(0, LABEL_MAX), text);
-    setSaving(false);
-    if (ok) closeDialog();
-  };
+  // บันทึกจากหน้าต่าง: เพิ่มใหม่หรือแก้ไขตามปุ่มที่เลือก
+  const save = (input: PhraseInput) => (target ? custom.update(target.id, input) : custom.add(input));
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-5">
@@ -70,6 +65,7 @@ export default function EmergencyPage() {
         label="ช่วยด้วย"
         onPress={() => {
           setActiveId(null);
+          logEvent("กดปุ่มช่วยด้วย");
           say(HELP_PHRASE);
         }}
       />
@@ -88,6 +84,8 @@ export default function EmergencyPage() {
         </button>
       </div>
 
+      {editing && <p className="-mt-3 text-xs text-ink/60">แตะปุ่มที่เพิ่มเองเพื่อแก้ไขชื่อ ข้อความ หรือไอคอน</p>}
+
       <PhraseGrid
         phrases={phrases}
         activeId={activeId}
@@ -96,7 +94,7 @@ export default function EmergencyPage() {
         onDelete={(p) => void custom.remove(p.id)}
       />
 
-      {custom.error && (
+      {custom.error && !dialogOpen && (
         <p role="alert" className="rounded-xl bg-danger/10 px-4 py-2.5 text-sm text-danger-dark">
           {custom.error}
         </p>
@@ -116,49 +114,18 @@ export default function EmergencyPage() {
         </p>
       </div>
 
-      <Modal open={dialogOpen} title="เพิ่มคำใหม่" onClose={closeDialog}>
-        <label className="mb-1 block text-xs font-semibold text-navy">ข้อความที่จะพูด</label>
-        <textarea
-          autoFocus
-          value={speakText}
-          onChange={(e) => setSpeakText(e.target.value)}
-          rows={3}
-          maxLength={200}
-          className="w-full resize-none rounded-xl border-0 bg-white p-3 ring-1 ring-sky focus:ring-2 focus:ring-brand"
-          placeholder="เช่น ฉันแพ้ยาเพนนิซิลลิน"
-        />
-        <label className="mb-1 mt-3 block text-xs font-semibold text-navy">
-          ชื่อบนปุ่ม <span className="font-normal text-ink/50">(ไม่ใส่ก็ได้ จะใช้ข้อความที่พูดแทน)</span>
-        </label>
-        <input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          maxLength={LABEL_MAX}
-          className="h-11 w-full rounded-xl border-0 bg-white px-3 ring-1 ring-sky focus:ring-2 focus:ring-brand"
-          placeholder="เช่น แพ้ยา"
-        />
-        {custom.error && (
-          <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger-dark">
-            {custom.error}
-          </p>
-        )}
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button
-            variant="ghost"
-            icon="volume"
-            disabled={!speakText.trim()}
-            onClick={() => {
-              setActiveId(null);
-              say(speakText);
-            }}
-          >
-            ลองพูด
-          </Button>
-          <Button icon="star" disabled={!speakText.trim() || saving} onClick={() => void save()}>
-            {saving ? "กำลังบันทึก…" : "บันทึกเป็นปุ่ม"}
-          </Button>
-        </div>
-      </Modal>
+      <PhraseDialog
+        open={dialogOpen}
+        editing={target}
+        error={custom.error}
+        onClose={() => setDialogOpen(false)}
+        onSay={(text) => {
+          setActiveId(null);
+          logEvent("ลองพูดในหน้าต่างปุ่ม AAC");
+          say(text);
+        }}
+        onSave={save}
+      />
     </div>
   );
 }

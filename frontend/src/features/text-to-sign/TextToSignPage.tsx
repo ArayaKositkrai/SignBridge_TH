@@ -11,6 +11,7 @@ import TextInput from "./components/TextInput";
 import VoiceInput from "./components/VoiceInput";
 import { useSignPlayback } from "./hooks/useSignPlayback";
 import { translateText } from "./services/textToSignApi";
+import { logEvent } from "../../lib/activityLog";
 
 // ประโยคตัวอย่างให้กดลองแปล
 const EXAMPLES = ["สวัสดี ขอบคุณ", "ช่วยด้วย ผมเจ็บ", "ขอโทษ ไม่เข้าใจ"];
@@ -55,7 +56,13 @@ export default function TextToSignPage() {
         <Card title="ข้อความที่ต้องการแปล">
           <TextInput value={text} onChange={setText} onSubmit={() => void submit()} />
           <div className="mt-3 grid items-start gap-2 sm:grid-cols-2">
-            <VoiceInput onText={setText} onFinal={(t) => void submit(t)} />
+            <VoiceInput
+              onText={setText}
+              onFinal={(t) => {
+                logEvent("ใช้เสียงพูดแทนการพิมพ์");
+                void submit(t);
+              }}
+            />
             <Button icon="play" onClick={() => void submit()} disabled={!text.trim() || loading}>
               แปลเป็นภาษามือ
             </Button>

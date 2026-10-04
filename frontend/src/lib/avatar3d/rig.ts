@@ -28,7 +28,7 @@ function toWorldPoint(rig: Rig, side: Side, p: { x: number; y: number }, forward
 
 // หมุนกระดูก "ต้นแขน" และ "ท่อนแขนล่าง" ให้ปลายมือไปถึงจุดเป้าหมายในโลก 3D
 // (แปลงจากผล IK แบบ 2D ที่มีอยู่แล้ว แล้วเติมความลึก z เอาเอง)
-function poseArm(rig: Rig, side: Side, arm: Arm): void {
+function poseArm(rig: Rig, side: Side, arm: Arm, z?: number): void {
   const [upperName, foreName] = ARM_BONES[side];
   const shoulderBind = rig.bind.get(upperName)!;
   const foreBind = rig.bind.get(foreName)!;
@@ -41,8 +41,11 @@ function poseArm(rig: Rig, side: Side, arm: Arm): void {
   const restY = REST[side].y;
   const raise = Math.min(Math.max((restY - arm.wrist.y) / (restY - HEAD.y), 0), 1);
 
-  const elbowTarget = toWorldPoint(rig, side, arm.elbow, ELBOW_FORWARD_BASE + ELBOW_FORWARD_GAIN * raise);
-  const wristTarget = toWorldPoint(rig, side, arm.wrist, FORWARD_BASE + FORWARD_GAIN * raise);
+  // ท่าจากข้อมูลจริงบอกระยะยื่นมา (z) เอง ท่าเขียนมือใช้การเดา: ยิ่งยกมือสูงยิ่งยื่นไปข้างหน้า
+  const wristForward = z ?? FORWARD_BASE + FORWARD_GAIN * raise;
+  const elbowForward = z !== undefined ? z * 0.5 : ELBOW_FORWARD_BASE + ELBOW_FORWARD_GAIN * raise;
+  const elbowTarget = toWorldPoint(rig, side, arm.elbow, elbowForward);
+  const wristTarget = toWorldPoint(rig, side, arm.wrist, wristForward);
 
   // ---- ต้นแขน: หมุนจากทิศตอน bind ไปยังทิศที่ชี้ไปข้อศอกเป้าหมาย ----
   const restUpperDir = foreBind.pos.clone().sub(shoulderBind.pos).normalize();
@@ -70,9 +73,52 @@ function poseArm(rig: Rig, side: Side, arm: Arm): void {
 function poseWrist(rig: Rig, side: Side, hand: HandPair["r"]) {
   const handName = ARM_BONES[side][2];
   const bindLocal = rig.bind.get(handName)!.localQuat;
+  if (hand.z !== undefined) return aimHand(rig, side, hand);
   const twist = (hand.a - REST_ANGLE) * WRIST_TWIST_GAIN;
   const delta = new THREE.Quaternion().setFromAxisAngle(rig.handTwistAxis[side], twist);
   rig.bones.get(handName)!.quaternion.copy(bindLocal.clone().multiply(delta));
+}
+
+// สร้างการหมุนที่พาแกน (นิ้ว, กว้างฝ่ามือ) ในกรอบพิกัดของมือ ไปตรงกับทิศเป้าหมายในโลก 3D
+function basisQuat(fLocal: THREE.Vector3, wLocal: THREE.Vector3, fWorld: THREE.Vector3, wWorld: THREE.Vector3) {
+  const ortho = (f: THREE.Vector3, w: THREE.Vector3) => {
+    const ww = w.clone().addScaledVector(f, -w.dot(f)).normalize();
+    return new THREE.Matrix4().makeBasis(f, ww, f.clone().cross(ww));
+  };
+  const m = ortho(fWorld, wWorld).multiply(ortho(fLocal, wLocal).transpose());
+  return new THREE.Quaternion().setFromRotationMatrix(m);
+}
+
+// หันมือตามข้อมูลจริงเมื่อมองจากด้านหน้า: ปลายนิ้วชี้ไปตามมุม a และฝ่ามือหันตามแนวกว้าง/ด้านที่เห็นในภาพ
+// (มุม a วัดจากภาพ 2 มิติ ไม่ใช่การบิดข้อมือรอบแขน) ถ้าไม่มีข้อมูลฝ่ามือ จะหันแค่ปลายนิ้ว
+function aimHand(rig: Rig, side: Side, hand: HandPair["r"]) {
+  const handName = ARM_BONES[side][2];
+  const bone = rig.bones.get(handName)!;
+  bone.quaternion.copy(rig.bind.get(handName)!.localQuat);
+  bone.parent!.updateWorldMatrix(true, false);
+  const parentWorld = bone.parent!.getWorldQuaternion(new THREE.Quaternion());
+  const currentWorld = parentWorld.clone().multiply(bone.quaternion);
+  const want = new THREE.Vector3(Math.sin(hand.a), Math.cos(hand.a), 0.25).normalize();
+
+  let targetWorld: THREE.Quaternion;
+  if (hand.w) {
+    // แนวกว้างฝ่ามือบนจอ (แกน y ของจอชี้ลง แต่ของโลก 3D ชี้ขึ้น) + ความลึกจากสัดส่วนที่เห็นเต็มฝ่า
+    const [wx, wy, seen] = hand.w;
+    const vis = Math.min(Math.max(seen, 0), 1);
+    const depth = Math.sqrt(Math.max(0, 1 - vis * vis));
+    const pick = [1, -1].map((sz) => {
+      const w = new THREE.Vector3(wx * vis, -wy * vis, sz * depth);
+      const q = basisQuat(rig.handTwistAxis[side], rig.handWidthAxis[side], want, w);
+      const palm = rig.palmOutAxis[side].clone().applyQuaternion(q);
+      return { q, score: palm.z * (hand.p ?? 1) };
+    });
+    // เลือกแบบที่ด้านฝ่ามือหันเข้า/ออกจากกล้องตรงกับข้อมูล
+    targetWorld = pick[0].score >= pick[1].score ? pick[0].q : pick[1].q;
+  } else {
+    const fingerDir = rig.handTwistAxis[side].clone().applyQuaternion(currentWorld);
+    targetWorld = new THREE.Quaternion().setFromUnitVectors(fingerDir, want).multiply(currentWorld);
+  }
+  bone.quaternion.copy(parentWorld.invert().multiply(targetWorld));
 }
 
 // งอนิ้วทั้งห้าตามค่า curl (0 = กางตรง, 1 = กำแน่น) ของท่ามือ
@@ -103,7 +149,7 @@ export function applyPose(rig: Rig, hands: HandPair, face: Face) {
 
   (["r", "l"] as Side[]).forEach((side) => {
     const arm = side === "r" ? figure.armR : figure.armL;
-    poseArm(rig, side, arm);
+    poseArm(rig, side, arm, hands[side].z);
     poseWrist(rig, side, hands[side]);
     poseFingers(rig, side, hands[side]);
   });

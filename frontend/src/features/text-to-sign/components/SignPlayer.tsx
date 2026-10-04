@@ -17,10 +17,25 @@ interface Props {
   onVideoProgress: (ratio: number) => void;
 }
 
+// ชื่อแหล่งที่มาของท่าภาษาไทย
+const SOURCE_LABEL: Record<string, string> = {
+  tsl51_expert: "ผู้เชี่ยวชาญ TSL-51",
+  tsl51_user: "ผู้ใช้ TSL-51",
+  "TSL-ONE-S": "ชุดข้อมูล TSL-ONE",
+  ล่าม: "คลิปที่ล่ามอัด",
+};
+
+// ข้อความใต้ชื่อคำ: ท่ามาจากข้อมูลจริงของใคร หรือยังเป็นท่าตัวอย่าง
+function motionNote(clip: SignClip): string {
+  const src = clip.motion?.source?.dataset;
+  if (!clip.motion) return "คำนี้ยังไม่มีท่าทางในระบบ";
+  if (src && SOURCE_LABEL[src]) return `ท่าจากการทำท่าจริงของ${SOURCE_LABEL[src]}`;
+  return "ท่าทางประกอบตัวอย่าง ยังไม่ใช่ท่ามาตรฐานภาษามือไทย";
+}
+
 // ตัวเล่นภาษามือ: วิดีโอ (ถ้ามี) หรือตัวละครทำท่า พร้อมชื่อคำและแถบความคืบหน้า
 export default function SignPlayer(p: Props) {
   const hasVideo = Boolean(p.clip?.url);
-  const hasMotion = Boolean(p.clip?.motion);
 
   return (
     <div className="stage relative flex aspect-[4/3] flex-col overflow-hidden rounded-3xl shadow-card ring-2 ring-navy/30 md:aspect-video lg:aspect-[4/3]">
@@ -72,9 +87,7 @@ export default function SignPlayer(p: Props) {
             <p className="text-3xl font-bold tracking-wide text-white drop-shadow">{p.clip.word}</p>
             {!hasVideo && (
               <p className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-sky/90">
-                {hasMotion
-                  ? "ท่าทางประกอบตัวอย่าง ยังไม่ใช่ท่ามาตรฐานภาษามือไทย"
-                  : "คำนี้ยังไม่มีท่าทางในระบบ"}
+                {motionNote(p.clip)}
               </p>
             )}
           </div>

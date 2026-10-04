@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { LandmarkFrame, SignResult, SocketStatus } from "../../../types";
+import { logEvent } from "../../../lib/activityLog";
 import { SignSocket } from "../services/signSocket";
 
 // ค่าที่ hook รับ: ผลตรวจจับล่าสุด และเปิดใช้งานหรือไม่
@@ -48,6 +49,8 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
   const commit = useCallback(() => {
     const sentence = wordsRef.current.join(" ").trim();
     if (!sentence) return;
+    // บันทึกแค่จำนวนคำที่แปลได้ ไม่บันทึกตัวคำ
+    logEvent("แปลภาษามือได้ 1 ประโยค", `${wordsRef.current.length} คำ`);
     setSentences((s) => [...s, sentence].slice(-MAX_SENTENCES));
     setWordList([]);
     pending.current = { text: "", hits: 0 };

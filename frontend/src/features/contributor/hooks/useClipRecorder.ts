@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { logEvent } from "../../../lib/activityLog";
 import type { CapturedFrame } from "../services/contributorApi";
 import { extractFromVideo } from "../services/extractLandmarks";
 
@@ -155,6 +156,7 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
     }
     setTake(null);
     setError(null);
+    logEvent("เริ่มอัดคลิป");
     if (countdownSec <= 0) {
       begin(stream, mime);
       return;
@@ -175,11 +177,15 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
 
   // หยุดอัดก่อนครบเวลา (ได้คลิปเท่าที่อัดไว้)
   const stop = useCallback(() => {
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    if (recorderRef.current?.state === "recording") {
+      logEvent("หยุดอัดคลิป");
+      recorderRef.current.stop();
+    }
   }, []);
 
   // ยกเลิกระหว่างนับถอยหลัง กำลังอัด หรือกำลังสร้าง skeleton (ไม่เก็บคลิป)
   const cancel = useCallback(() => {
+    logEvent("ยกเลิกการอัด/สร้าง skeleton");
     window.clearInterval(timerRef.current);
     extractRef.current?.abort();
     if (recorderRef.current?.state === "recording") {
@@ -192,6 +198,13 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
 
   // ทิ้งคลิปที่ตรวจอยู่ กลับไปพร้อมอัด
   const discard = useCallback(() => {
+    logEvent("ทิ้งคลิป");
+    setTake(null);
+    setState("idle");
+  }, []);
+
+  // ล้างคลิปหลังบันทึกสำเร็จ กลับไปพร้อมอัด (ไม่นับเป็นการทิ้ง)
+  const reset = useCallback(() => {
     setTake(null);
     setState("idle");
   }, []);
@@ -205,6 +218,7 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
         return;
       }
       setError(null);
+      logEvent("อัปโหลดไฟล์วิดีโอ");
       process(file, file.name, "upload");
     },
     [process],
@@ -224,5 +238,5 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
     [],
   );
 
-  return { state, count, elapsed, maxSec, progress, take, error, start, stop, cancel, discard, loadFile };
+  return { state, count, elapsed, maxSec, progress, take, error, start, stop, cancel, discard, reset, loadFile };
 }

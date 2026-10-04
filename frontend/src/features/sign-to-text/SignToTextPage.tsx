@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import PageTitle from "../../components/ui/PageTitle";
+import { logEvent } from "../../lib/activityLog";
 import { useCamera } from "../../hooks/useCamera";
 import { speak } from "../../lib/tts";
 import CameraView from "./components/CameraView";
@@ -49,9 +50,18 @@ export default function SignToTextPage() {
         model={mp.status}
         handsVisible={mp.handsVisible}
         bodyVisible={mp.bodyVisible}
-        onStart={() => void cam.start()}
-        onStop={cam.stop}
-        onFlip={cam.flip}
+        onStart={() => {
+          logEvent("เปิดกล้องแปลภาษามือ", version === "draft" ? "ทดสอบ Draft" : undefined);
+          void cam.start();
+        }}
+        onStop={() => {
+          logEvent("ปิดกล้องแปลภาษามือ");
+          cam.stop();
+        }}
+        onFlip={() => {
+          logEvent("สลับกล้อง");
+          cam.flip();
+        }}
       />
       <ResultPanel
         result={stream.result}
@@ -59,9 +69,18 @@ export default function SignToTextPage() {
         sentences={stream.sentences}
         socket={stream.status}
         cameraOn={on}
-        onSpeak={speak}
-        onCommit={stream.commit}
-        onClear={stream.clear}
+        onSpeak={(t) => {
+          logEvent("อ่านออกเสียงประโยค");
+          speak(t);
+        }}
+        onCommit={() => {
+          logEvent("กดจบประโยค");
+          stream.commit();
+        }}
+        onClear={() => {
+          logEvent("ล้างประโยค");
+          stream.clear();
+        }}
       />
     </div>
     </>
