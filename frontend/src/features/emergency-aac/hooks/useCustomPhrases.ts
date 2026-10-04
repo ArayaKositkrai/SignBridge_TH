@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EmergencyPhrase } from "../../../types";
-import { createCustomPhrase, deleteCustomPhrase, fetchCustomPhrases } from "../services/emergencyApi";
+import {
+  createCustomPhrase,
+  deleteCustomPhrase,
+  fetchCustomPhrases,
+  updateCustomPhrase,
+  type PhraseInput,
+} from "../services/emergencyApi";
 
-// hook จัดการวลีที่ผู้ใช้เพิ่มเอง: โหลด เพิ่ม ลบ (เก็บที่ backend)
+// hook จัดการวลีที่ผู้ใช้เพิ่มเอง: โหลด เพิ่ม แก้ไข ลบ (เก็บที่ backend)
 export function useCustomPhrases() {
   const [phrases, setPhrases] = useState<EmergencyPhrase[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -15,14 +21,27 @@ export function useCustomPhrases() {
   }, []);
 
   // เพิ่มวลีใหม่ คืน true เมื่อบันทึกสำเร็จ
-  const add = useCallback(async (label: string, speak: string) => {
+  const add = useCallback(async (input: PhraseInput) => {
     try {
-      const created = await createCustomPhrase(label, speak);
+      const created = await createCustomPhrase(input);
       setPhrases((p) => [...p, created]);
       setError(null);
       return true;
     } catch {
       setError("บันทึกไม่สำเร็จ (อาจเชื่อมต่อ backend ไม่ได้ หรือเพิ่มครบ 30 คำแล้ว)");
+      return false;
+    }
+  }, []);
+
+  // แก้ไขวลี คืน true เมื่อบันทึกสำเร็จ
+  const update = useCallback(async (id: string, input: PhraseInput) => {
+    try {
+      const updated = await updateCustomPhrase(id, input);
+      setPhrases((p) => p.map((x) => (x.id === id ? updated : x)));
+      setError(null);
+      return true;
+    } catch {
+      setError("แก้ไขไม่สำเร็จ ลองใหม่อีกครั้ง");
       return false;
     }
   }, []);
@@ -38,5 +57,5 @@ export function useCustomPhrases() {
     }
   }, []);
 
-  return { phrases, error, add, remove };
+  return { phrases, error, add, update, remove };
 }

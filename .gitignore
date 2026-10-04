@@ -61,4 +61,5 @@ docker-compose.override.yml
 # ---------- User data written by the backend ----------
 backend/app/data/custom_phrases.json
 backend/app/data/users.json
+backend/app/data/activity_log.db*
 backend/app/data/*.tmp

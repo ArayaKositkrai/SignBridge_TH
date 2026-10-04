@@ -112,6 +112,30 @@ def clip_features(seq: np.ndarray, aspect: float) -> np.ndarray | None:
     return np.concatenate([pos, present, vel], axis=1).astype(np.float32)
 
 
+# ความยาวต้นแขนตอนแขนห้อย / ความกว้างไหล่ ของคนจริง (วัดจากคลิปที่อัดด้วยระบบซึ่งรู้สัดส่วนภาพ)
+UPPER_ARM_RATIO = 0.815
+
+
+# ประมาณสัดส่วนภาพ (กว้าง/สูง) ของคลิปที่ไม่รู้ขนาดวิดีโอ จากความยาวต้นแขนตอนห้อยเทียบความกว้างไหล่
+#   ต้นแขนที่ห้อยตรงยาวตามแกนตั้งล้วน จึงเทียบกับความกว้างไหล่ (แกนนอน) แล้วได้อัตราส่วนของสองแกน
+#   คืน NaN ถ้าไม่มีช่วงที่แขนห้อยให้วัด
+def estimate_aspect(seq: np.ndarray) -> float:
+    seq = np.asarray(seq, dtype=np.float64)
+    sw = np.nanmedian(np.abs(seq[:, L_SH, 0] - seq[:, R_SH, 0]))
+    vals = []
+    for sh, el, wr in ((L_SH, L_EL, L_WR), (R_SH, R_EL, R_WR)):
+        wy = seq[:, wr, 1]
+        if not np.isfinite(wy).any():
+            continue
+        rest = wy >= np.nanpercentile(wy, 75)
+        up = np.abs(seq[rest, el, 1] - seq[rest, sh, 1])
+        dx = np.abs(seq[rest, el, 0] - seq[rest, sh, 0])
+        vals += list(up[dx < 0.5 * up])
+    if not vals or not sw > 0:
+        return float("nan")
+    return float(np.nanmedian(vals) / sw / UPPER_ARM_RATIO)
+
+
 # ---------- ตัวโมเดลแบบ numpy (ใช้ตอนแปลจริง ไม่ต้องลง torch) ----------
 
 

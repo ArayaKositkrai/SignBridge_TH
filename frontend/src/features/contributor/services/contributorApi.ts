@@ -1,4 +1,5 @@
 import { API_URL } from "../../../config/env";
+import { logHeaders } from "../../../lib/activityLog";
 import type { Point } from "../../../types";
 
 // ที่อยู่ API ของหน้า contributor
@@ -87,7 +88,8 @@ export interface VocabEntry {
 // ส่งคำขอแล้วแปลงผลเป็น JSON ถ้าผิดพลาดโยน Error พร้อมข้อความ detail จาก backend
 // ส่ง cookie session ไปด้วยทุกครั้ง (credentials: include)
 export async function send<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url.startsWith("http") ? url : `${BASE}${url}`, { credentials: "include", ...init });
+  const headers = { ...logHeaders(), ...(init?.headers as Record<string, string> | undefined) };
+  const res = await fetch(url.startsWith("http") ? url : `${BASE}${url}`, { credentials: "include", ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(typeof body?.detail === "string" ? body.detail : `เกิดข้อผิดพลาด (${res.status})`);

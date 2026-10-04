@@ -108,3 +108,45 @@ export function versionLabel(file: string | null | undefined): string | null {
   const m = /_v(\d+\.\d+\.\d+)\.[a-z0-9]+$/i.exec(file);
   return m ? `v${m[1]}` : file;
 }
+
+// log หนึ่งรายการ: ใคร ทำอะไร ที่หน้าไหน/ฟังก์ชันไหน ผลลัพธ์ และเครื่อง
+export interface LogEntry {
+  id: number;
+  ts: string;
+  actor: "แอดมิน" | "ล่าม" | "ผู้ใช้";
+  kind: "ปุ่ม" | "ฟังก์ชัน" | "เปิดหน้า";
+  action: string;
+  detail: string | null;
+  page: string | null;
+  method: string | null;
+  path: string | null;
+  status: number | null;
+  device: string | null;
+  ip: string | null;
+}
+
+// ตัวกรอง log
+export interface LogFilter {
+  actor?: string;
+  kind?: string;
+  q?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// แปลงตัวกรองเป็น query string (ข้ามช่องที่ว่าง)
+const logQuery = (f: LogFilter) =>
+  new URLSearchParams(
+    Object.entries(f)
+      .filter(([, v]) => v !== undefined && v !== "")
+      .map(([k, v]) => [k, String(v)]),
+  ).toString();
+
+// ดึงรายการ log ตามตัวกรอง พร้อมจำนวนทั้งหมด และจำนวนวันนี้แยกตามผู้ทำ
+export const listLogs = (f: LogFilter) =>
+  send<{ items: LogEntry[]; total: number; today: Record<string, number> }>(`${BASE}/logs?${logQuery(f)}`);
+
+// ลิงก์ดาวน์โหลด log ตามตัวกรองเป็นไฟล์ CSV
+export const logsCsvUrl = (f: LogFilter) => `${BASE}/logs/export.csv?${logQuery({ ...f, limit: undefined, offset: undefined })}`;

@@ -9,7 +9,9 @@ Coordinates: x/y in a unit square, x=0.5 is the body centre, y grows downward.
 rotation in radians (0 = fingers up, pi = fingers down) and `c` is the curl of
 [thumb, index, middle, ring, pinky] from 0 (open) to 1 (fist).
 """
+import json
 import math
+from pathlib import Path
 
 # รูปแบบการงอนิ้ว [โป้ง, ชี้, กลาง, นาง, ก้อย] ตั้งแต่ 0 (กางตรง) ถึง 1 (กำแน่น)
 OPEN = [0.0, 0.0, 0.0, 0.0, 0.0]
@@ -167,6 +169,34 @@ MOTIONS: dict[str, dict] = {
 }
 
 
-# ดึงท่าทางของคำตาม gloss (คืน None ถ้ายังไม่มีท่า)
+# ไฟล์ท่าที่สร้างจาก skeleton ของคนทำท่าจริง (สร้างด้วย ml/src/build_motions.py)
+DATA_MOTIONS_PATH = Path(__file__).resolve().parent.parent / "data" / "motions.json"
+# ท่าจากข้อมูลจริงที่โหลดไว้ (จำเวลาแก้ไขไฟล์ เพื่อโหลดใหม่เมื่อสร้างไฟล์ใหม่)
+_data_cache: dict = {"mtime": None, "motions": {}}
+
+
+# โหลดท่าจากข้อมูลจริง (ไม่มีไฟล์หรือไฟล์เสีย = ไม่มีท่าจากข้อมูลจริง)
+def _data_motions() -> dict[str, dict]:
+    try:
+        mtime = DATA_MOTIONS_PATH.stat().st_mtime
+    except OSError:
+        return {}
+    if _data_cache["mtime"] != mtime:
+        try:
+            _data_cache["motions"] = json.loads(DATA_MOTIONS_PATH.read_text(encoding="utf-8")).get("motions", {})
+        except (OSError, ValueError):
+            _data_cache["motions"] = {}
+        _data_cache["mtime"] = mtime
+    return _data_cache["motions"]
+
+
+# ดึงท่าทางของคำตาม gloss: ใช้ท่าจากข้อมูลจริงก่อน (ใส่สีหน้าที่เขียนไว้เดิมถ้ามี) ไม่มีค่อยใช้ท่าเขียนมือ
 def get_motion(gloss: str) -> dict | None:
-    return MOTIONS.get(gloss)
+    data = _data_motions().get(gloss)
+    hand_made = MOTIONS.get(gloss)
+    if data:
+        face = hand_made["face"] if hand_made else []
+        return {"duration": data["duration"], "frames": data["frames"], "face": face, "source": data.get("source")}
+    if hand_made:
+        return {**hand_made, "source": {"dataset": "เขียนมือ (ยังไม่มีข้อมูลจริง)"}}
+    return None

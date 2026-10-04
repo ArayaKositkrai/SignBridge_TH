@@ -1,11 +1,15 @@
 import { API_URL } from "../config/env";
+import { logHeaders } from "./activityLog";
 
 // ส่งคำขอ HTTP ไป backend แล้วแปลงผลเป็น JSON (สถานะ 204 = ไม่มีเนื้อหา)
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     credentials: "include",
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers: {
+      ...logHeaders(),
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API ${method} ${path} failed: ${res.status}`);
@@ -16,5 +20,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const apiGet = <T>(path: string) => request<T>("GET", path);
 // เรียก POST พร้อมส่ง JSON
 export const apiPost = <TReq, TRes>(path: string, body: TReq) => request<TRes>("POST", path, body);
+// เรียก PATCH พร้อมส่ง JSON
+export const apiPatch = <TReq, TRes>(path: string, body: TReq) => request<TRes>("PATCH", path, body);
 // เรียก DELETE
 export const apiDelete = (path: string) => request<void>("DELETE", path);

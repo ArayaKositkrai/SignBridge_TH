@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { logEvent } from "../../../lib/activityLog";
 import Button from "../../../components/ui/Button";
 import { getTrainStatus, publishModel, startTraining, versionLabel, type TrainStatus } from "../services/adminApi";
 
@@ -120,7 +121,10 @@ export default function ModelPanel({ totalSamples, totalWords, onChange }: Props
           size="sm"
           variant="ghost"
           icon="play"
-          onClick={() => window.open("/?version=draft", "_blank")}
+          onClick={() => {
+            logEvent("ทดสอบโมเดล Draft", versionLabel(info?.draft_version) ?? undefined);
+            window.open("/?version=draft", "_blank");
+          }}
           disabled={!info?.draft_version}
         >
           ทดสอบ Draft

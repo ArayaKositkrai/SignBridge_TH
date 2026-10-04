@@ -2,6 +2,7 @@ import { NavLink, Outlet, Route, Routes } from "react-router-dom";
 import Icon, { type IconName } from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
 import DashboardView from "./DashboardView";
+import LogsView from "./LogsView";
 import UsersView from "./UsersView";
 import VersionsView from "./VersionsView";
 
@@ -10,9 +11,10 @@ const TABS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: "/admin", label: "แดชบอร์ด", icon: "chart", end: true },
   { to: "/admin/users", label: "ผู้ใช้", icon: "users" },
   { to: "/admin/versions", label: "คลังคำ & เวอร์ชัน", icon: "layers" },
+  { to: "/admin/logs", label: "Log", icon: "clock" },
 ];
 
-// พื้นที่แอดมิน: แถบเมนู แดชบอร์ด / ผู้ใช้ / คลังคำศัพท์และเวอร์ชันโมเดล
+// พื้นที่แอดมิน: แถบเมนู แดชบอร์ด / ผู้ใช้ / คลังคำศัพท์และเวอร์ชันโมเดล / Log การใช้งาน
 export default function AdminPage() {
   return (
     <Routes>
@@ -20,6 +22,7 @@ export default function AdminPage() {
         <Route index element={<DashboardView />} />
         <Route path="users" element={<UsersView />} />
         <Route path="versions" element={<VersionsView />} />
+        <Route path="logs" element={<LogsView />} />
       </Route>
     </Routes>
   );

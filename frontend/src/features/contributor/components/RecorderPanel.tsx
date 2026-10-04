@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Button from "../../../components/ui/Button";
 import Icon, { type IconName } from "../../../components/ui/Icon";
 import { useCamera } from "../../../hooks/useCamera";
+import { logEvent } from "../../../lib/activityLog";
 import { SIDE_COLOR } from "../../../lib/mediapipe/draw";
 import LandmarkOverlay from "../../sign-to-text/components/LandmarkOverlay";
 import { useMediaPipe } from "../../sign-to-text/hooks/useMediaPipe";
@@ -187,7 +188,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
         width: take.width,
         height: take.height,
       });
-      rec.discard();
+      rec.reset();
       setToast(`เก็บแล้ว · คลิปที่ ${savedCount + 1} ของ "${sample.word}"`);
       onSaved(sample);
     } catch (e) {
@@ -215,7 +216,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
       if (e.code === "Space" && rec.state !== "review" && rec.state !== "processing") k.primary();
       else if (e.key === "Enter" && rec.state === "review") void k.save();
       else if (e.key.toLowerCase() === "r" && rec.state === "review" && on) k.retake();
-      else if (e.key === "Escape") rec.state === "review" ? rec.discard() : rec.cancel();
+      else if (e.key === "Escape" && rec.state !== "idle") rec.state === "review" ? rec.discard() : rec.cancel();
       else return;
       e.preventDefault();
     };
@@ -378,9 +379,25 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
               />
               <div className="flex justify-end gap-2">
                 {cam.canFlip && (
-                  <StageButton icon="refresh" label="สลับกล้องหน้า/หลัง" onClick={cam.flip} disabled={capturing} />
+                  <StageButton
+                    icon="refresh"
+                    label="สลับกล้องหน้า/หลัง"
+                    onClick={() => {
+                      logEvent("สลับกล้อง");
+                      cam.flip();
+                    }}
+                    disabled={capturing}
+                  />
                 )}
-                <StageButton icon="cameraOff" label="ปิดกล้อง" onClick={cam.stop} disabled={capturing} />
+                <StageButton
+                  icon="cameraOff"
+                  label="ปิดกล้อง"
+                  onClick={() => {
+                    logEvent("ปิดกล้องอัดคลิป");
+                    cam.stop();
+                  }}
+                  disabled={capturing}
+                />
               </div>
             </div>
           </div>
@@ -397,7 +414,15 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
                 {cam.status === "error" ? cam.error : "เปิดกล้องเพื่ออัดท่าภาษามือ หรืออัปโหลดคลิปที่มีอยู่แล้ว"}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                <Button icon="camera" size="lg" onClick={() => void cam.start()} disabled={cam.status === "starting"}>
+                <Button
+                  icon="camera"
+                  size="lg"
+                  onClick={() => {
+                    logEvent("เปิดกล้องอัดคลิป");
+                    void cam.start();
+                  }}
+                  disabled={cam.status === "starting"}
+                >
                   {cam.status === "starting" ? "กำลังเปิดกล้อง…" : "เปิดกล้อง"}
                 </Button>
                 <Button
