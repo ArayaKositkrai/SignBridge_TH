@@ -11,6 +11,7 @@ export type Role = "admin" | "contributor" | "user";
 export interface User {
   id: string;
   name: string;
+  email: string | null;
   role: Role;
   active: boolean;
   created_at: string;

@@ -79,7 +79,7 @@ signbridge-th/
 | `app/data/custom_phrases.json` | วลีฉุกเฉินที่ผู้ใช้เพิ่มเอง (backend สร้างเองตอนรัน อยู่ใน `.gitignore`) |
 | `tests/` | ยังไม่มี unit test |
 | `Dockerfile` | สร้าง image ของ backend |
-| `requirements.txt` | Python dependencies (`fastapi`, `uvicorn`) |
+| `requirements.txt` | Python dependencies (`fastapi`, `uvicorn`, `sqlalchemy`, `psycopg`, `PyJWT`, `httpx`) |
 
 > ไฟล์เหล่านี้ยังเป็นโครงเปล่า (0 byte) รอการพัฒนาจริง ไม่ได้ผูกกับ route หรือถูกเรียกใช้ที่ไหน: `app/api/routes/vocabulary.py`, `app/api/routes/health.py` (health check จริงอยู่ใน `main.py`), `app/core/config.py`, `app/core/logging.py`, `app/schemas/`, `app/ml/preprocessing.py`, `app/ml/model_loader.py`, `app/ml/classifier.py`, `app/nlp/gloss_mapper.py`, `app/data/emergency_phrases.json`
 
@@ -115,6 +115,15 @@ signbridge-th/
 - Node.js 18+
 - Python 3.10+
 - Docker Desktop
+
+### ตั้งค่า .env (ต้องทำก่อนรัน)
+
+คัดลอก `.env.example` เป็น `.env` ที่รากโปรเจค แล้วใส่ `DATABASE_URL` (Supabase) และ `AUTH_SECRET` (สุ่มด้วยคำสั่งที่เขียนไว้ในไฟล์) ทั้ง Docker และการรันแยกอ่านไฟล์นี้
+
+**ระบบล็อกอิน**: หน้า "อัดคลิปล่าม" ต้องเป็นล่ามหรือแอดมิน ส่วนหน้า "แอดมิน" ต้องเป็นแอดมิน หน้าแปลภาษามือและฉุกเฉินใช้ได้โดยไม่ต้องล็อกอิน
+- สมัครด้วยอีเมล/รหัสผ่านที่ `/login` บัญชีใหม่เป็นผู้ใช้ทั่วไป
+- ตั้งแอดมินคนแรก: `cd backend && python -m app.scripts.set_role you@example.com admin` (หรือใส่อีเมล Google ใน `ADMIN_EMAILS` แล้วล็อกอินด้วย Google)
+- ปุ่ม Google / LINE จะขึ้นเมื่อใส่ client id/secret ใน `.env` และลงทะเบียน callback URL ตามที่เขียนไว้ใน `.env.example`
 
 ### วิธีที่ 1: Docker
 

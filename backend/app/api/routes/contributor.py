@@ -4,15 +4,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app.api.deps import require_staff
 from app.services import dataset_service as ds
 from app.services import model_registry as mr
 
 # กลุ่ม route สำหรับล่าม/ผู้ช่วยเก็บข้อมูล: อัดคลิป ดูคลังคำศัพท์
-router = APIRouter(prefix="/api/contributor", tags=["contributor"])
+router = APIRouter(prefix="/api/contributor", tags=["contributor"], dependencies=[Depends(require_staff)])
 
 # ขนาดวิดีโอสูงสุดต่อคลิป (100 MB)
 MAX_VIDEO_BYTES = 100 * 1024 * 1024

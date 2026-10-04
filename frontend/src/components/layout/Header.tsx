@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import Icon from "../ui/Icon";
 import { StaffNav, TopNav } from "./Navbar";
+import UserMenu from "./UserMenu";
 
-// แถบด้านบน: โลโก้ เมนู และปุ่มฉุกเฉิน
+// แถบด้านบน: โลโก้ เมนู ปุ่มฉุกเฉิน และผู้ใช้
 export default function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-sky/60 bg-cream/70 backdrop-blur-xl">
@@ -27,6 +28,7 @@ export default function Header() {
             <Icon name="alert" size={16} />
             ฉุกเฉิน
           </Link>
+          <UserMenu />
         </div>
       </div>
     </header>

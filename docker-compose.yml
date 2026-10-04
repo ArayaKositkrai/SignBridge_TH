@@ -8,6 +8,8 @@ services:
       - ./backend/app:/app/app          # แก้โค้ดแล้ว reload อัตโนมัติ
       - ./ml/models:/app/models:ro      # โมเดลที่เทรนแล้ว
       - ./ml:/ml                        # ข้อมูลดิบ config และสคริปต์เทรน (หน้า contributor)
+    env_file:
+      - .env                            # DATABASE_URL
     environment:
       - MODEL_DIR=/app/models
       - ML_DIR=/ml

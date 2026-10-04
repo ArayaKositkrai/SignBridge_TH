@@ -8,9 +8,10 @@ from collections import Counter
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 
+from app.api.deps import require_admin, require_staff
 from app.core.config import MODEL_CONFIG_PATH, MODELS_DIR, TRAIN_SCRIPT
 from app.services import dataset_service as ds
 from app.services import model_registry as mr
@@ -19,7 +20,10 @@ from app.services.motion_library import get_motion
 from app.services.retrieval_service import load_vocabulary
 
 # กลุ่ม route ของแอดมิน: แดชบอร์ด ผู้ใช้ คลังคำศัพท์ และเวอร์ชันโมเดล
+# ทุก route ต้องเป็นแอดมิน ยกเว้นดูรายชื่อผู้ใช้ที่ล่ามใช้เลือกผู้แสดงด้วย
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+ADMIN = [Depends(require_admin)]
+STAFF = [Depends(require_staff)]
 
 # นามสกุลไฟล์ที่นับเป็นไฟล์โมเดล
 MODEL_EXTS = {".npz", ".h5", ".keras", ".pt", ".pth", ".onnx", ".pkl", ".joblib", ".tflite"}
@@ -93,7 +97,7 @@ def _train_state() -> tuple[str, int | None]:
 
 
 # ภาพรวมระบบ: จำนวนคำ คลิป เฟรม ความยาว ผู้แสดง คุณภาพ คลิปล่าสุด และโมเดลที่ใช้
-@router.get("/dashboard")
+@router.get("/dashboard", dependencies=ADMIN)
 def dashboard():
     samples = ds.all_samples()
     words = ds.all_word_stats()
@@ -127,13 +131,13 @@ def dashboard():
 
 
 # รายชื่อผู้ใช้ทั้งหมด
-@router.get("/users")
+@router.get("/users", dependencies=STAFF)
 def list_users():
     return {"users": user_service.list_users()}
 
 
 # เพิ่มผู้ใช้
-@router.post("/users", status_code=201)
+@router.post("/users", status_code=201, dependencies=ADMIN)
 def add_user(body: UserIn):
     try:
         return user_service.add_user(body.name, body.role)
@@ -143,7 +147,10 @@ def add_user(body: UserIn):
 
 # แก้ไขบทบาท/สถานะผู้ใช้
 @router.patch("/users/{user_id}")
-def update_user(user_id: str, body: UserPatch):
+def update_user(user_id: str, body: UserPatch, me: dict = Depends(require_admin)):
+    # กันแอดมินลดสิทธิ์หรือปิดบัญชีตัวเองจนไม่มีใครเข้าหน้าแอดมินได้
+    if user_id == me["id"] and (body.role not in (None, "admin") or body.active is False):
+        raise HTTPException(status_code=400, detail="เปลี่ยนบทบาทหรือปิดบัญชีของตัวเองไม่ได้")
     user = user_service.update_user(user_id, body.model_dump())
     if user is None:
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
@@ -152,7 +159,9 @@ def update_user(user_id: str, body: UserPatch):
 
 # ลบผู้ใช้
 @router.delete("/users/{user_id}", status_code=204)
-def delete_user(user_id: str):
+def delete_user(user_id: str, me: dict = Depends(require_admin)):
+    if user_id == me["id"]:
+        raise HTTPException(status_code=400, detail="ลบบัญชีของตัวเองไม่ได้")
     if not user_service.delete_user(user_id):
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
     return Response(status_code=204)
@@ -162,7 +171,7 @@ def delete_user(user_id: str):
 
 
 # รวมคลังคำ (คำที่ต้องอัด + ชุดข้อมูล TSL + คลิปที่อัด) กับสถานะในแต่ละเวอร์ชันโมเดล และคลังท่าของอวตาร
-@router.get("/vocabulary")
+@router.get("/vocabulary", dependencies=ADMIN)
 def vocabulary():
     summary = mr.model_summary()
     active_words = set(summary["active"]["words"])
@@ -198,7 +207,7 @@ def vocabulary():
 
 
 # รายการไฟล์โมเดลทั้งหมด พร้อมบอกว่าตัวไหนใช้งานอยู่/เป็น draft
-@router.get("/models")
+@router.get("/models", dependencies=ADMIN)
 def list_models():
     config = load_config()
     models = []
@@ -239,7 +248,7 @@ def list_models():
 
 
 # เลือกเวอร์ชันโมเดลที่ระบบใช้ (ย้อนกลับไปเวอร์ชันเก่าได้)
-@router.post("/models/active")
+@router.post("/models/active", dependencies=ADMIN)
 def set_active_model(body: ActiveModelIn):
     name = os.path.basename(body.version)
     if name != body.version or not (MODELS_DIR / name).is_file():
@@ -255,7 +264,7 @@ def set_active_model(body: ActiveModelIn):
 
 
 # สั่งเทรนโมเดลในพื้นหลัง (รันได้ทีละครั้ง)
-@router.post("/train", status_code=202)
+@router.post("/train", status_code=202, dependencies=ADMIN)
 def train_model():
     with _train_lock:
         if _train_state()[0] == "running":
@@ -284,7 +293,7 @@ def train_model():
 
 
 # ดูสถานะการเทรนล่าสุด พร้อม log ท้าย ๆ และเวอร์ชัน draft
-@router.get("/train/status")
+@router.get("/train/status", dependencies=ADMIN)
 def train_status():
     with _train_lock:
         status, code = _train_state()
@@ -304,7 +313,7 @@ def train_status():
 
 
 # เผยแพร่โมเดล: สลับเวอร์ชัน draft ขึ้นเป็น active
-@router.post("/publish")
+@router.post("/publish", dependencies=ADMIN)
 def publish_model():
     with _train_lock:
         if _train_state()[0] == "running":

@@ -72,8 +72,8 @@ export default function UsersView() {
       <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
         <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
         <span>
-          ตอนนี้ยังไม่มีระบบล็อกอิน รายชื่อนี้ใช้เป็นตัวเลือก "ผู้แสดง" ในพื้นที่ล่าม และบันทึกว่าใครอัดคลิปไหน
-          ทุกคนที่เปิดหน้านี้ได้ยังแก้ไขได้
+          คนที่สมัครเองจะเป็นผู้ใช้ทั่วไป เปลี่ยนบทบาทเป็นล่ามเพื่อให้เข้าพื้นที่ล่ามได้ ผู้ใช้ที่เพิ่มจากฟอร์มนี้ไม่มีอีเมล
+          จึงล็อกอินไม่ได้ ใช้เป็นชื่อ "ผู้แสดง" ในพื้นที่ล่ามเท่านั้น
         </span>
       </div>
 
@@ -123,7 +123,10 @@ export default function UsersView() {
               <tbody className="divide-y divide-sky/60">
                 {users.map((u) => (
                   <tr key={u.id} className={u.active ? "" : "opacity-55"}>
-                    <td className="py-2 pr-3 font-semibold text-navy">{u.name}</td>
+                    <td className="py-2 pr-3">
+                      <p className="font-semibold text-navy">{u.name}</p>
+                      {u.email && <p className="text-xs text-ink/60">{u.email}</p>}
+                    </td>
                     <td className="py-2 pr-3">
                       <select
                         value={u.role}
