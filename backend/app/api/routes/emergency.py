@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 
+from app.api.deps import require_login
 from app.services import emergency_service
 
-# กลุ่ม route ของวลีฉุกเฉินที่ผู้ใช้เพิ่มเอง
+# กลุ่ม route ของวลีฉุกเฉินที่ผู้ใช้เพิ่มเอง (ดูได้ทุกคน เพิ่ม/แก้/ลบต้องล็อกอิน)
 router = APIRouter(prefix="/api/emergency-phrases", tags=["emergency"])
+LOGIN = [Depends(require_login)]
 
 
 # ข้อมูลที่รับตอนเพิ่ม/แก้วลี: ชื่อบนปุ่ม (บังคับ) ข้อความที่จะพูด (ไม่ใส่ = พูดตามชื่อปุ่ม) และไอคอน
@@ -44,7 +46,7 @@ def list_phrases():
 
 
 # เพิ่มปุ่มข้อความฉุกเฉิน
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=LOGIN)
 def add_phrase(body: PhraseIn):
     try:
         return emergency_service.add_phrase(body.label, body.speak, body.icon)
@@ -53,7 +55,7 @@ def add_phrase(body: PhraseIn):
 
 
 # แก้ไขปุ่มข้อความฉุกเฉิน (ชื่อ ข้อความ ไอคอน)
-@router.patch("/{phrase_id}")
+@router.patch("/{phrase_id}", dependencies=LOGIN)
 def update_phrase(phrase_id: str, body: PhraseIn):
     item = emergency_service.update_phrase(phrase_id, body.label, body.speak, body.icon)
     if item is None:
@@ -62,7 +64,7 @@ def update_phrase(phrase_id: str, body: PhraseIn):
 
 
 # ลบปุ่มข้อความฉุกเฉิน
-@router.delete("/{phrase_id}", status_code=204)
+@router.delete("/{phrase_id}", status_code=204, dependencies=LOGIN)
 def delete_phrase(phrase_id: str):
     if not emergency_service.delete_phrase(phrase_id):
         raise HTTPException(status_code=404, detail="phrase not found")

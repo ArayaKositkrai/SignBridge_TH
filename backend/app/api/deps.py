@@ -25,6 +25,7 @@ def require_roles(*roles: str):
     return check
 
 
-# ใช้กับ route: แอดมินเท่านั้น / แอดมินหรือล่าม
+# ใช้กับ route: แอดมินเท่านั้น / แอดมินหรือล่าม / ใครก็ได้ที่ล็อกอิน
 require_admin = require_roles("admin")
 require_staff = require_roles("admin", "contributor")
+require_login = require_roles("admin", "contributor", "user")

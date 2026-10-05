@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Icon from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
 import { EMERGENCY_PHRASES, HELP_PHRASE } from "../../config/emergencyPhrases";
 import { logEvent } from "../../lib/activityLog";
+import { useAuth } from "../auth/AuthContext";
 import type { EmergencyPhrase } from "../../types";
 import EmergencyButton from "./components/EmergencyButton";
 import PhraseDialog from "./components/PhraseDialog";
@@ -16,19 +18,27 @@ const ADD_TILE = EMERGENCY_PHRASES.find((p) => p.icon === "more")!;
 // วลีสำเร็จรูป (ไม่รวมปุ่มเพิ่มคำ)
 const BUILT_IN = EMERGENCY_PHRASES.filter((p) => p.icon !== "more");
 
-// หน้าฉุกเฉิน: ปุ่มช่วยด้วย วลีสำเร็จรูป และวลีที่ผู้ใช้เพิ่มเอง (เพิ่ม/แก้ไข/ลบได้)
+// หน้าฉุกเฉิน: ปุ่มช่วยด้วย วลีสำเร็จรูป และวลีที่ผู้ใช้เพิ่มเอง (กดพูดได้ทุกคน เพิ่ม/แก้ไข/ลบต้องล็อกอิน)
 export default function EmergencyPage() {
   const { say, last, supported } = useSpeak();
+  const { user } = useAuth();
   const custom = useCustomPhrases();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editingMode, setEditing] = useState(false);
+  // ยังไม่ล็อกอิน (หรือเพิ่งออกจากระบบ) = แก้ไขไม่ได้
+  const canEdit = user !== null;
+  const editing = canEdit && editingMode;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [target, setTarget] = useState<EmergencyPhrase | null>(null);
 
-  // รวมวลีสำเร็จรูป วลีที่เพิ่มเอง และปุ่มเพิ่มคำ (ซ่อนตอนแก้ไข)
+  // รวมวลีสำเร็จรูป วลีที่เพิ่มเอง และปุ่มเพิ่มคำ (ซ่อนตอนแก้ไข และตอนยังไม่ล็อกอิน)
   const phrases = useMemo(
-    () => [...BUILT_IN, ...custom.phrases, ...(editing ? [] : [{ ...ADD_TILE, label: "เพิ่มคำใหม่", speak: "" }])],
-    [custom.phrases, editing],
+    () => [
+      ...BUILT_IN,
+      ...custom.phrases,
+      ...(editing || !canEdit ? [] : [{ ...ADD_TILE, label: "เพิ่มคำใหม่", speak: "" }]),
+    ],
+    [custom.phrases, editing, canEdit],
   );
 
   // เปิดหน้าต่างเพิ่มปุ่มใหม่ (target = null) หรือแก้ไขปุ่มเดิม
@@ -72,16 +82,26 @@ export default function EmergencyPage() {
 
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-bold uppercase tracking-wider text-brand">วลีสำเร็จรูป</h2>
-        <button
-          onClick={() => setEditing((v) => !v)}
-          disabled={!custom.phrases.length && !editing}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40 ${
-            editing ? "bg-navy text-white" : "bg-sky/50 text-navy hover:bg-sky"
-          }`}
-        >
-          <Icon name={editing ? "close" : "edit"} size={13} />
-          {editing ? "เสร็จสิ้น" : "แก้ไขปุ่มของฉัน"}
-        </button>
+        {canEdit ? (
+          <button
+            onClick={() => setEditing((v) => !v)}
+            disabled={!custom.phrases.length && !editing}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40 ${
+              editing ? "bg-navy text-white" : "bg-sky/50 text-navy hover:bg-sky"
+            }`}
+          >
+            <Icon name={editing ? "close" : "edit"} size={13} />
+            {editing ? "เสร็จสิ้น" : "แก้ไขปุ่มของฉัน"}
+          </button>
+        ) : (
+          <Link
+            to="/login?next=/emergency"
+            className="flex items-center gap-1.5 rounded-full bg-sky/50 px-3 py-1 text-xs font-semibold text-navy transition hover:bg-sky"
+          >
+            <Icon name="user" size={13} />
+            เข้าสู่ระบบเพื่อเพิ่ม/แก้ไขปุ่ม
+          </Link>
+        )}
       </div>
 
       {editing && <p className="-mt-3 text-xs text-ink/60">แตะปุ่มที่เพิ่มเองเพื่อแก้ไขชื่อ ข้อความ หรือไอคอน</p>}
