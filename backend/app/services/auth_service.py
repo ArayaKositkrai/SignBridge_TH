@@ -192,7 +192,8 @@ def redirect_uri(provider: str) -> str:
 
 
 # สร้าง URL ไปหน้าล็อกอินของผู้ให้บริการ พร้อม state ที่เซ็นไว้ (เก็บใน cookie)
-def oauth_start(provider: str, return_to: str) -> tuple[str, str]:
+# link_user_id = ผูกบัญชีนี้เข้ากับผู้ใช้ที่ล็อกอินอยู่ แทนการล็อกอิน
+def oauth_start(provider: str, return_to: str, link_user_id: str | None = None) -> tuple[str, str]:
     cfg = PROVIDERS[provider]
     state = secrets.token_urlsafe(24)
     params = {
@@ -206,7 +207,14 @@ def oauth_start(provider: str, return_to: str) -> tuple[str, str]:
         params["prompt"] = "select_account"
     exp = datetime.now(timezone.utc) + timedelta(minutes=OAUTH_STATE_MINUTES)
     cookie = jwt.encode(
-        {"state": state, "provider": provider, "return_to": return_to, "exp": exp, "typ": "oauth"},
+        {
+            "state": state,
+            "provider": provider,
+            "return_to": return_to,
+            "link": link_user_id,
+            "exp": exp,
+            "typ": "oauth",
+        },
         AUTH_SECRET,
         algorithm="HS256",
     )
@@ -294,7 +302,7 @@ def oauth_login(provider: str, code: str) -> str:
             user = db.get(User, identity.user_id)
         else:
             if verified_email and _find_by_email(db, verified_email):
-                raise AuthError("อีเมลนี้มีบัญชีอยู่แล้ว กรุณาล็อกอินด้วยอีเมลและรหัสผ่าน", 409)
+                raise AuthError("อีเมลนี้มีบัญชีอยู่แล้ว ให้ล็อกอินด้วยรหัสผ่าน แล้วกด \"ผูกบัญชี Google\" ที่เมนูผู้ใช้", 409)
             user = User(
                 first_name=profile["first_name"][:50],
                 last_name=profile["last_name"],
@@ -315,3 +323,31 @@ def oauth_login(provider: str, code: str) -> str:
         user.last_login_at = func.now()
         db.commit()
         return user.id
+
+
+# ผูกบัญชี Google/LINE เข้ากับผู้ใช้ที่ล็อกอินอยู่ (ปลอดภัย เพราะรู้แน่ว่าเป็นเจ้าของบัญชีทั้งสองฝั่ง)
+def link_identity(provider: str, code: str, user_id: str) -> None:
+    profile = _fetch_profile(provider, code)
+    email = (profile["email"] or "").strip().lower() or None
+    with SessionLocal() as db:
+        user = db.get(User, user_id)
+        if user is None or not user.active:
+            raise AuthError("ไม่พบผู้ใช้", 404)
+        identity = db.scalar(
+            select(UserIdentity).where(
+                UserIdentity.provider == provider, UserIdentity.provider_user_id == profile["sub"]
+            )
+        )
+        if identity and identity.user_id != user.id:
+            raise AuthError(f"บัญชี {provider} นี้ผูกกับผู้ใช้อื่นอยู่แล้ว", 409)
+        if identity is None:
+            if db.scalar(
+                select(UserIdentity.id).where(UserIdentity.user_id == user.id, UserIdentity.provider == provider)
+            ):
+                raise AuthError(f"ผูกบัญชี {provider} อื่นไว้แล้ว", 409)
+            identity = UserIdentity(
+                user_id=user.id, provider=provider, provider_user_id=profile["sub"], provider_email=email
+            )
+            db.add(identity)
+        identity.last_used_at = func.now()
+        db.commit()

@@ -116,15 +116,18 @@ def logout():
 
 
 # ไปหน้าล็อกอินของ Google/LINE (return_to = หน้าเว็บที่จะกลับไปหลังล็อกอิน)
+# link=true = ผูกบัญชีเข้ากับผู้ใช้ที่ล็อกอินอยู่ (ใช้ล็อกอินด้วยบัญชีนั้นได้ครั้งต่อไป)
 @router.get("/{provider}/start")
-def oauth_start(provider: str, return_to: str):
+def oauth_start(provider: str, return_to: str, link: bool = False, user: dict | None = Depends(current_user)):
     if provider not in auth_service.enabled_providers():
         raise HTTPException(status_code=404, detail="ยังไม่ได้เปิดใช้การล็อกอินด้วยวิธีนี้")
     # กันการพาไปเว็บอื่น: ให้กลับได้เฉพาะหน้าเว็บที่อนุญาตใน CORS
     parts = urlsplit(return_to)
     if not is_allowed_origin(f"{parts.scheme}://{parts.netloc}"):
         raise HTTPException(status_code=400, detail="return_to ไม่ได้รับอนุญาต")
-    url, state_cookie = auth_service.oauth_start(provider, return_to)
+    if link and user is None:
+        raise HTTPException(status_code=401, detail="กรุณาเข้าสู่ระบบก่อนผูกบัญชี")
+    url, state_cookie = auth_service.oauth_start(provider, return_to, user["id"] if link else None)
     response = RedirectResponse(url, status_code=302)
     response.set_cookie(
         OAUTH_COOKIE, state_cookie, max_age=600, httponly=True, samesite="lax", secure=COOKIE_SECURE, path="/api/auth"
@@ -134,15 +137,31 @@ def oauth_start(provider: str, return_to: str):
 
 # Google/LINE ส่งผู้ใช้กลับมาที่นี่ แลก code เป็นข้อมูลผู้ใช้ แล้วพากลับไปหน้าเว็บ
 @router.get("/{provider}/callback")
-def oauth_callback(provider: str, request: Request, code: str | None = None, state: str | None = None):
+def oauth_callback(
+    provider: str,
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    user: dict | None = Depends(current_user),
+):
     saved = auth_service.read_oauth_cookie(request.cookies.get(OAUTH_COOKIE))
     if saved is None or saved["provider"] != provider:
         raise HTTPException(status_code=400, detail="หมดเวลาล็อกอิน กรุณาลองใหม่")
     parts = urlsplit(saved["return_to"])
     login_page = f"{parts.scheme}://{parts.netloc}/login"
 
+    # โหมดผูกบัญชี: กลับไปหน้าเดิมพร้อมผลลัพธ์ (ผู้ใช้ที่ล็อกอินต้องเป็นคนเดียวกับตอนเริ่ม)
+    if saved.get("link"):
+        sep = "&" if parts.query else "?"
+        try:
+            if not code or state != saved["state"] or user is None or user["id"] != saved["link"]:
+                raise AuthError("ผูกบัญชีไม่สำเร็จ")
+            auth_service.link_identity(provider, code, saved["link"])
+            response = RedirectResponse(f"{saved['return_to']}{sep}auth_linked={provider}", status_code=302)
+        except AuthError as e:
+            response = RedirectResponse(f"{saved['return_to']}{sep}auth_error={quote(e.message)}", status_code=302)
     # ผู้ใช้กดยกเลิก หรือ state ไม่ตรง (อาจถูกปลอมคำขอ)
-    if not code or state != saved["state"]:
+    elif not code or state != saved["state"]:
         response = RedirectResponse(f"{login_page}?error={quote('ล็อกอินไม่สำเร็จ')}", status_code=302)
     else:
         try:

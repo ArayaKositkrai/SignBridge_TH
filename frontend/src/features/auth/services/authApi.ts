@@ -52,3 +52,10 @@ export const logout = () => send<void>(`${BASE}/logout`, { method: "POST" });
 // ลิงก์ไปล็อกอินที่ Google/LINE แล้วกลับมาที่หน้า returnTo
 export const providerLoginUrl = (provider: Provider, returnTo: string) =>
   `${BASE}/${provider}/start?return_to=${encodeURIComponent(returnTo)}`;
+
+// ลิงก์ผูกบัญชี Google/LINE เข้ากับผู้ใช้ที่ล็อกอินอยู่ แล้วกลับมาที่หน้า returnTo
+export const providerLinkUrl = (provider: Provider, returnTo: string) =>
+  `${providerLoginUrl(provider, returnTo)}&link=true`;
+
+// ชื่อผู้ให้บริการที่แสดงบนหน้าเว็บ
+export const PROVIDER_NAMES: Record<Provider, string> = { google: "Google", line: "LINE" };

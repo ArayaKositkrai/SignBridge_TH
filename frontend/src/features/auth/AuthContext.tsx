@@ -21,8 +21,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // เช็ก session ตอนเปิดเว็บ
+  // เช็ก session ตอนเปิดเว็บ และแจ้งผลการผูกบัญชีที่ backend ส่งกลับมาทาง URL
   useEffect(() => {
+    const url = new URL(window.location.href);
+    const linked = url.searchParams.get("auth_linked") as Provider | null;
+    const error = url.searchParams.get("auth_error");
+    if (linked || error) {
+      url.searchParams.delete("auth_linked");
+      url.searchParams.delete("auth_error");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      window.alert(error ?? `ผูกบัญชี ${api.PROVIDER_NAMES[linked!] ?? linked} แล้ว ครั้งหน้าล็อกอินด้วยบัญชีนี้ได้เลย`);
+    }
+
     api
       .getMe()
       .then((r) => {
