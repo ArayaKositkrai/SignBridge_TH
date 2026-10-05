@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
-from app.api.deps import require_admin
+from app.api.deps import current_user, require_admin
 from app.services import activity_log
 
 # กลุ่ม route ของ log การใช้งาน: รับ event จากหน้าเว็บ และให้แอดมินดู/ดาวน์โหลด
@@ -58,12 +58,12 @@ def client_info(request: Request) -> tuple[str | None, str | None]:
 
 # รับ event การกดปุ่ม/เปิดหน้าจากหน้าเว็บ (ผู้ทำดูจากหน้าที่ใช้งาน)
 @router.post("/api/logs/events", status_code=204)
-def add_events(body: EventsIn, request: Request):
+def add_events(body: EventsIn, request: Request, user: dict | None = Depends(current_user)):
     device, ip = client_info(request)
     device = device or body.device  # sendBeacon ตอนปิดหน้าแนบ header ไม่ได้ จึงส่งมาใน body
     for e in body.events:
         activity_log.add(
-            actor=activity_log.actor_for(e.page), kind=e.kind, action=e.action, detail=e.detail,
+            actor=activity_log.actor_for(e.page, user), user_id=user["id"] if user else None, kind=e.kind, action=e.action, detail=e.detail,
             page=e.page, device=device, ip=ip, ts=e.ts if e.ts and TS_RE.match(e.ts) else None,
         )
     return Response(status_code=204)

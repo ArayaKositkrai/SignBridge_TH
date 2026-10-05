@@ -1,4 +1,4 @@
-"""สร้างคลังคำศัพท์ของระบบ (ml/configs/vocabulary.json) จากไฟล์ของทีม
+"""สร้าง/อัปเดตคลังคำศัพท์ของระบบ (ตาราง words และ word_external_sources ใน database) จากไฟล์ของทีม
 
 ใช้:
     pip install openpyxl
@@ -7,17 +7,21 @@
 รวม 2 แหล่ง:
 - ชีต "คำที่ต้องเก็บเอง" ใน tracker = คำที่ล่ามต้องอัดเอง (มีหมวด ระดับความสำคัญ ผู้รับผิดชอบ หมายเหตุ)
 - tsl_merged_meta_th.csv ใน zip = คำจากชุดข้อมูล TSL-51 / TSL-ONE-S พร้อมจำนวนคลิปและผู้แสดงที่มีอยู่แล้ว
+คำเดิมใน database อัปเดตทับ (ไม่แตะ gloss, in_train_set) คำที่ไม่อยู่ในไฟล์ไม่ถูกลบ
 """
 import argparse
 import csv
 import io
-import json
+import sys
 import zipfile
 from collections import defaultdict
 from pathlib import Path
 
-# ไฟล์ผลลัพธ์ (อ้างจากตำแหน่งสคริปต์)
-OUT_PATH = Path(__file__).resolve().parents[1] / "configs" / "vocabulary.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import db  # noqa: E402
+
+# ชื่อชุดข้อมูลในไฟล์ → ค่าที่ตาราง word_external_sources รับ
+SOURCE_KEYS = {"TSL-51": "tsl51", "TSL-ONE-S": "tsl_one"}
 # ชื่อชีตคำที่ต้องอัดเอง
 SELF_SHEET = "คำที่ต้องเก็บเอง"
 # หมวดของคลาส "ไม่มีท่า" ที่ไม่นับเป็นคำ
@@ -99,15 +103,39 @@ def build(tracker: Path, merged_zip: Path) -> list[dict]:
     return items
 
 
-# รับพาธไฟล์จาก command line แล้วเขียน vocabulary.json
+# บันทึกคำลง database (อัปเดตคำเดิม เพิ่มคำใหม่)
+def save(items: list[dict]) -> None:
+    with db.connect() as conn, conn.transaction():
+        for it in items:
+            word_id = conn.execute(
+                """
+                INSERT INTO words (word, category, priority, note, to_record)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (word) DO UPDATE SET category = EXCLUDED.category, priority = EXCLUDED.priority,
+                    note = EXCLUDED.note, to_record = EXCLUDED.to_record
+                RETURNING id
+                """,
+                (it["word"], it["category"], it["priority"], it["note"], it["to_record"]),
+            ).fetchone()[0]
+            for name, e in it["external"].items():
+                conn.execute(
+                    """
+                    INSERT INTO word_external_sources (word_id, source, clips, contributors) VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (word_id, source) DO UPDATE SET clips = EXCLUDED.clips, contributors = EXCLUDED.contributors
+                    """,
+                    (word_id, SOURCE_KEYS[name], e["clips"], e["signers"]),
+                )
+
+
+# รับพาธไฟล์จาก command line แล้วบันทึกลง database
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tracker", type=Path, required=True)
     ap.add_argument("--merged", type=Path, required=True)
     args = ap.parse_args()
     items = build(args.tracker, args.merged)
-    OUT_PATH.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"เขียน {len(items)} คำ ({sum(i['to_record'] for i in items)} คำที่ต้องอัดเอง) -> {OUT_PATH}")
+    save(items)
+    print(f"บันทึก {len(items)} คำ ({sum(i['to_record'] for i in items)} คำที่ต้องอัดเอง) ลง database แล้ว")
 
 
 if __name__ == "__main__":

@@ -123,6 +123,9 @@ export interface LogEntry {
   status: number | null;
   device: string | null;
   ip: string | null;
+  // ผู้ใช้ที่ล็อกอินตอนทำ (null = ไม่ได้ล็อกอิน)
+  user_id: string | null;
+  user_name: string | null;
 }
 
 // ตัวกรอง log

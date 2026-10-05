@@ -5,34 +5,31 @@
 
 แหล่งข้อมูล (เลือกคลิปตัวแทนคำละ 1 คลิป):
     1. ml/data/processed/tsl_skeleton.npz  — ชุดข้อมูล TSL (ให้ผู้เชี่ยวชาญ TSL-51 ก่อน แล้วค่อย TSL-ONE-S)
-    2. ml/data/raw/<คำ>/*.landmarks.json   — คลิปที่ล่ามอัดผ่านระบบ
+    2. คลิปที่ล่ามอัดผ่านระบบ (ตาราง samples + ไฟล์ใน Supabase Storage)
 
-ผลลัพธ์: backend/app/data/motions.json และเพิ่มคำใหม่ลง backend/app/data/vocabulary.json
+คำเป้าหมาย: คำที่อวตารทำท่าได้ (words.gloss) + คำที่เทรนโมเดล + คำที่ล่ามอัด
+ผลลัพธ์: ตาราง motions (source = extracted) และตั้ง gloss ให้คำที่ได้ท่าใหม่ (อวตารจะทำท่าคำนั้นได้)
 
 การแปลงพิกัดไปเป็นพิกัดตัวละคร (ดู frontend/src/lib/avatar/skeleton.ts):
     - แกนนอน: ความกว้างไหล่จริง = ความกว้างไหล่ตัวละคร (0.2)
     - แกนตั้งเหนือไหล่: ยืดให้ระดับปากจริงตรงกับปากตัวละคร (หัวตัวละครอยู่สูงกว่าคนจริง)
     - แกนตั้งใต้ไหล่: ย่อ/ขยายให้ข้อมือตอนพักตรงกับท่าพักของตัวละคร
 """
-import json
 import math
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import db  # noqa: E402
 import features as F  # noqa: E402
+from psycopg.types.json import Jsonb  # noqa: E402
 
 # โฟลเดอร์หลัก
 ROOT = Path(__file__).resolve().parents[2]
 ML_DIR = ROOT / "ml"
 TSL_PATH = ML_DIR / "data" / "processed" / "tsl_skeleton.npz"
-RAW_PATH = ML_DIR / "data" / "raw"
-WORDS_PATH = ML_DIR / "configs" / "train_words.json"
-OUT_PATH = ROOT / "backend" / "app" / "data" / "motions.json"
-AVATAR_VOCAB = ROOT / "backend" / "app" / "data" / "vocabulary.json"
 
 # ตำแหน่งในพิกัดตัวละคร (ต้องตรงกับ skeleton.ts)
 SHOULDER_Y = 0.42
@@ -263,31 +260,18 @@ def load_tsl():
     return out
 
 
-# จุดมือ 21 จุดแบบ 3 มิติ (x แก้สัดส่วนภาพแล้ว, z ของ MediaPipe อยู่ในหน่วยเดียวกับ x) ไม่มีมือ = NaN
-def hand_xyz(points, aspect: float) -> np.ndarray:
-    if not points or len(points) != 21:
-        return np.full((21, 3), np.nan)
-    return np.array([[p["x"] * aspect, p["y"], p.get("z", 0.0) * aspect] for p in points], dtype=np.float64)
-
-
-# โหลดคลิปที่ล่ามอัดผ่านระบบ
-def load_recorded():
+# โหลดคลิปที่ล่ามอัดผ่านระบบจาก database + Storage
+#   ไฟล์รูปแบบกลางเก็บแค่ x,y จึงไม่มีมือ 3 มิติ (ท่าจากคลิปล่ามใช้มือแบบ 2 มิติเหมือนชุดข้อมูล TSL)
+def load_recorded(conn):
     out = []
-    for f in sorted(RAW_PATH.glob("*/*.landmarks.json")):
-        meta_file = f.with_name(f.name.replace(".landmarks.json", ".meta.json"))
-        meta = json.loads(meta_file.read_text(encoding="utf-8")) if meta_file.is_file() else {}
-        frames = json.loads(f.read_text(encoding="utf-8"))
-        if len(frames) < 5:
+    for c in db.recorded_samples(conn):
+        if len(c["points"]) < 5:
             continue
-        seq = np.stack([F.from_mediapipe(x.get("pose"), x.get("leftHand"), x.get("rightHand")) for x in frames])
-        aspect_ = meta["width"] / meta["height"] if meta.get("width") and meta.get("height") else 1.0
-        hands3d = {s: np.stack([hand_xyz(x.get(k), aspect_) for x in frames]) for s, k in (("l", "leftHand"), ("r", "rightHand"))}
-        span = (frames[-1].get("t", 0) - frames[0].get("t", 0)) / 1000
-        fps = meta.get("fps") or ((len(frames) - 1) / span if span > 0 else 30)
-        aspect = meta["width"] / meta["height"] if meta.get("width") and meta.get("height") else 1.0
-        out.append({"word": f.parent.name, "seq": seq, "aspect": aspect, "fps": float(fps),
-                    "source": "ล่าม", "signer": meta.get("signer") or "ไม่ระบุ", "clip": meta.get("id", f.stem),
-                    "hands3d": hands3d})
+        t = c["t_ms"]
+        span = (int(t[-1]) - int(t[0])) / 1000
+        fps = c["fps"] or ((len(t) - 1) / span if span > 0 else 30)
+        out.append({"word": c["word"], "seq": c["points"], "aspect": c["aspect"], "fps": float(fps),
+                    "source": "ล่าม", "signer": c["signer"] or "ไม่ระบุ", "clip": c["id"]})
     return out
 
 
@@ -320,16 +304,19 @@ def per_signer_aspect(clips) -> None:
             c["aspect"] = medians[c["signer"]]
 
 
-# สร้าง motions.json สำหรับคำในคลังตัวละคร + คำที่เทรนโมเดล
+# สร้างท่าจากข้อมูลจริงให้คำในคลังตัวละคร + คำที่เทรนโมเดล + คำที่ล่ามอัด แล้วบันทึกลงตาราง motions
 def main():
-    vocab = json.loads(AVATAR_VOCAB.read_text(encoding="utf-8"))
-    targets = [v["gloss"] for v in vocab]
-    if WORDS_PATH.is_file():
-        targets += json.loads(WORDS_PATH.read_text(encoding="utf-8"))["words"]
-    targets += sorted({f.parent.name for f in RAW_PATH.glob("*/*.landmarks.json")})
-    targets = list(dict.fromkeys(targets))
+    conn = db.connect()
+    targets = [r[0] for r in conn.execute(
+        """
+        SELECT word FROM words
+        WHERE gloss IS NOT NULL OR in_train_set
+           OR id IN (SELECT word_id FROM samples WHERE status <> 'rejected' AND source IN ('record', 'upload'))
+        ORDER BY id
+        """
+    )]
 
-    clips = load_tsl() + load_recorded()
+    clips = load_tsl() + load_recorded(conn)
     per_signer_aspect(clips)
     by_word: dict[str, list] = {}
     for c in clips:
@@ -337,38 +324,42 @@ def main():
             norm = normalize(c["seq"], c["aspect"])
             if norm is not None:
                 by_word.setdefault(c["word"], []).append({**c, "seq": norm})
+    if not by_word:
+        raise SystemExit("ไม่มีคลิปของคำเป้าหมาย (รัน import_tsl.py หรืออัดคลิปก่อน)")
     down_gain = (REST_Y - SHOULDER_Y) / rest_depth([c["seq"] for cs in by_word.values() for c in cs])
 
-    motions = {}
-    for word in targets:
-        cands = by_word.get(word)
-        if not cands:
-            continue
-        best = pick_clip(cands)
-        m = build_motion(best["seq"], best["fps"], down_gain, best.get("hands3d"))
-        if m is None:
-            continue
-        m["source"] = {"dataset": best["source"], "signer": best["signer"], "clip": best["clip"],
-                       "aspect": round(best["aspect"], 2), "candidates": len(cands)}
-        motions[word] = m
-        print(f"  {word}: {len(m['frames'])} keyframe · {m['duration']} ms · {best['source']} ({best['clip']})")
+    made = []
+    with conn.transaction():
+        for word in targets:
+            cands = by_word.get(word)
+            if not cands:
+                continue
+            best = pick_clip(cands)
+            m = build_motion(best["seq"], best["fps"], down_gain, best.get("hands3d"))
+            if m is None:
+                continue
+            # ท่าใหม่แทนท่าเดิมของคำ (เก็บสีหน้าเดิมไว้ เพราะข้อมูลจริงยังไม่มีสีหน้า)
+            word_id = db.word_id(conn, word)
+            conn.execute(
+                """
+                INSERT INTO motions (word_id, duration_ms, frames, face, source, source_dataset, source_contributor, source_clip)
+                VALUES (%s, %s, %s, '[]'::jsonb, 'extracted', %s, %s, %s)
+                ON CONFLICT (word_id) DO UPDATE SET duration_ms = EXCLUDED.duration_ms, frames = EXCLUDED.frames,
+                    source = 'extracted', source_dataset = EXCLUDED.source_dataset,
+                    source_contributor = EXCLUDED.source_contributor, source_clip = EXCLUDED.source_clip
+                """,
+                (word_id, m["duration"], Jsonb(m["frames"]), best["source"], best["signer"], best["clip"]),
+            )
+            # ให้อวตารทำท่าคำนี้ได้ (คำที่ยังไม่มี gloss ใช้ชื่อคำเป็น gloss)
+            conn.execute("UPDATE words SET gloss = word WHERE id = %s AND gloss IS NULL", (word_id,))
+            made.append(word)
+            print(f"  {word}: {len(m['frames'])} keyframe · {m['duration']} ms · {best['source']} ({best['clip']})")
+    conn.close()
 
-    OUT_PATH.write_text(
-        json.dumps({"generated_at": datetime.now().isoformat(timespec="seconds"), "motions": motions},
-                   ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
-    # เพิ่มคำที่ได้ท่าจากข้อมูลจริงเข้าคลังของตัวละคร (คำเดิมคงไว้)
-    known = {v["word"] for v in vocab}
-    added = [w for w in motions if w not in known]
-    vocab += [{"gloss": w, "word": w, "clip": None} for w in added]
-    AVATAR_VOCAB.write_text(
-        "[\n" + ",\n".join(f"  {json.dumps(v, ensure_ascii=False)}" for v in vocab) + "\n]\n", encoding="utf-8"
-    )
-    missing = [w for w in targets if w not in motions]
-    print(f"สร้างท่าจากข้อมูลจริง {len(motions)} คำ · เพิ่มคำใหม่ในคลังตัวละคร {len(added)} คำ")
+    missing = [w for w in targets if w not in made]
+    print(f"สร้างท่าจากข้อมูลจริง {len(made)} คำ")
     if missing:
-        print(f"ไม่มีข้อมูลจริง (ใช้ท่าเขียนมือเดิม): {', '.join(missing)}")
+        print(f"ไม่มีข้อมูลจริง (ใช้ท่าเดิมใน database ถ้ามี): {', '.join(missing)}")
 
 
 if __name__ == "__main__":

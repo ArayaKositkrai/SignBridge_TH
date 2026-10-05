@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 
-from app.api.deps import require_login
+from app.api.deps import current_user, require_login
 from app.services import emergency_service
 
-# กลุ่ม route ของวลีฉุกเฉินที่ผู้ใช้เพิ่มเอง (ดูได้ทุกคน เพิ่ม/แก้/ลบต้องล็อกอิน)
+# กลุ่ม route ของปุ่มฉุกเฉินที่ผู้ใช้เพิ่มเอง (ปุ่มแยกตามผู้ใช้ ต้องล็อกอินถึงจะเพิ่ม/แก้/ลบได้)
 router = APIRouter(prefix="/api/emergency-phrases", tags=["emergency"])
-LOGIN = [Depends(require_login)]
 
 
 # ข้อมูลที่รับตอนเพิ่ม/แก้วลี: ชื่อบนปุ่ม (บังคับ) ข้อความที่จะพูด (ไม่ใส่ = พูดตามชื่อปุ่ม) และไอคอน
@@ -39,33 +38,33 @@ class PhraseIn(BaseModel):
         return v
 
 
-# ดึงปุ่มข้อความฉุกเฉินที่เพิ่มไว้ทั้งหมด
+# ดึงปุ่มของผู้ใช้ที่ล็อกอินอยู่ (ยังไม่ล็อกอิน = ไม่มีปุ่มที่เพิ่มเอง)
 @router.get("")
-def list_phrases():
-    return {"phrases": emergency_service.list_phrases()}
+def list_phrases(user: dict | None = Depends(current_user)):
+    return {"phrases": emergency_service.list_phrases(user["id"]) if user else []}
 
 
 # เพิ่มปุ่มข้อความฉุกเฉิน
-@router.post("", status_code=201, dependencies=LOGIN)
-def add_phrase(body: PhraseIn):
+@router.post("", status_code=201)
+def add_phrase(body: PhraseIn, user: dict = Depends(require_login)):
     try:
-        return emergency_service.add_phrase(body.label, body.speak, body.icon)
+        return emergency_service.add_phrase(user["id"], body.label, body.speak, body.icon)
     except emergency_service.LimitReached:
         raise HTTPException(status_code=409, detail="phrase limit reached")
 
 
 # แก้ไขปุ่มข้อความฉุกเฉิน (ชื่อ ข้อความ ไอคอน)
-@router.patch("/{phrase_id}", dependencies=LOGIN)
-def update_phrase(phrase_id: str, body: PhraseIn):
-    item = emergency_service.update_phrase(phrase_id, body.label, body.speak, body.icon)
+@router.patch("/{phrase_id}")
+def update_phrase(phrase_id: str, body: PhraseIn, user: dict = Depends(require_login)):
+    item = emergency_service.update_phrase(user["id"], phrase_id, body.label, body.speak, body.icon)
     if item is None:
         raise HTTPException(status_code=404, detail="phrase not found")
     return item
 
 
 # ลบปุ่มข้อความฉุกเฉิน
-@router.delete("/{phrase_id}", status_code=204, dependencies=LOGIN)
-def delete_phrase(phrase_id: str):
-    if not emergency_service.delete_phrase(phrase_id):
+@router.delete("/{phrase_id}", status_code=204)
+def delete_phrase(phrase_id: str, user: dict = Depends(require_login)):
+    if not emergency_service.delete_phrase(user["id"], phrase_id):
         raise HTTPException(status_code=404, detail="phrase not found")
     return Response(status_code=204)

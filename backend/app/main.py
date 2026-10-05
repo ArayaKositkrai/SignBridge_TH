@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.deps import current_user
 from app.api.routes import emergency, sign_to_text, text_to_sign
 from app.api.routes import admin, auth, contributor, logs
 from app.core.cors import ORIGIN_REGEX, ORIGINS
@@ -50,8 +52,12 @@ async def log_api_calls(request: Request, call_next):
         route = request.scope.get("route")
         template = getattr(route, "path", path)
         params = request.scope.get("path_params") or {}
-        activity_log.add(
-            actor=activity_log.actor_for(path),
+        # อ่านผู้ใช้และเขียน log ต้องคุยกับ database จึงทำใน thread แยก ไม่ให้เซิร์ฟเวอร์ค้าง
+        user = await run_in_threadpool(current_user, request)
+        await run_in_threadpool(
+            activity_log.add,
+            actor=activity_log.actor_for(path, user),
+            user_id=user["id"] if user else None,
             kind="ฟังก์ชัน",
             action=logs.ACTION_NAMES.get(f"{request.method} {template}", f"{request.method} {template}"),
             detail=", ".join(f"{v}" for v in params.values()) or None,

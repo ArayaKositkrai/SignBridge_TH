@@ -1,28 +1,29 @@
 import json
-import shutil
-from datetime import datetime
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import require_staff
 from app.services import dataset_service as ds
 from app.services import model_registry as mr
+from app.services import storage
 
 # กลุ่ม route สำหรับล่าม/ผู้ช่วยเก็บข้อมูล: อัดคลิป ดูคลังคำศัพท์
 router = APIRouter(prefix="/api/contributor", tags=["contributor"], dependencies=[Depends(require_staff)])
 
-# ขนาดวิดีโอสูงสุดต่อคลิป (100 MB)
-MAX_VIDEO_BYTES = 100 * 1024 * 1024
+# ขนาดวิดีโอสูงสุดต่อคลิป (50 MB = ขนาดไฟล์สูงสุดของ Supabase Storage แบบฟรี)
+MAX_VIDEO_BYTES = 50 * 1024 * 1024
+# ชนิดวิดีโอที่รับ
+VIDEO_TYPES = {"video/webm", "video/mp4", "video/quicktime", "video/x-matroska"}
+# เดาชนิดจากนามสกุลเมื่อเบราว์เซอร์ไม่บอกชนิดไฟล์มา (เช่นไฟล์ .mkv)
+VIDEO_EXT_TYPES = {".webm": "video/webm", ".mp4": "video/mp4", ".mov": "video/quicktime", ".mkv": "video/x-matroska"}
 # ขนาดไฟล์ landmarks สูงสุดต่อคลิป (20 MB)
 MAX_LANDMARKS_BYTES = 20 * 1024 * 1024
 # จำนวนเฟรม landmarks สูงสุดต่อคลิป (30 วินาทีที่ 50 fps ยังไม่เกิน)
 MAX_FRAMES = 2000
-# ขนาดก้อนที่อ่าน/เขียนไฟล์ทีละครั้ง (1 MB)
-CHUNK_SIZE = 1024 * 1024
 
 # ที่มาของคลิป: อัดจากกล้อง หรืออัปโหลดไฟล์
 Source = Literal["record", "upload"]
@@ -34,25 +35,6 @@ class LandmarksIn(BaseModel):
     signer: str | None = Field(default=None, max_length=40)
     fps: float | None = Field(default=None, gt=0, le=240)
     frames: list[dict] = Field(min_length=1, max_length=MAX_FRAMES)
-
-
-# บันทึกไฟล์อัปโหลดลงดิสก์ทีละก้อน และหยุดถ้าใหญ่เกินกำหนด
-async def save_upload(upload: UploadFile, dest: Path, limit: int) -> int:
-    size = 0
-    try:
-        with open(dest, "wb") as out:
-            while chunk := await upload.read(CHUNK_SIZE):
-                size += len(chunk)
-                if size > limit:
-                    raise HTTPException(status_code=413, detail="ไฟล์มีขนาดใหญ่เกินไป")
-                out.write(chunk)
-    except BaseException:
-        dest.unlink(missing_ok=True)
-        raise
-    if size == 0:
-        dest.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail="ไฟล์ว่างเปล่า")
-    return size
 
 
 # อ่านและตรวจไฟล์ landmarks (ต้องเป็น JSON array ของเฟรม)
@@ -71,10 +53,20 @@ async def read_landmarks(upload: UploadFile) -> list[dict]:
     return frames
 
 
-# ตัดช่องว่างชื่อผู้แสดง (ว่าง = ไม่ระบุ)
-def clean_signer(signer: str | None) -> str | None:
-    signer = (signer or "").strip()[:40]
-    return signer or None
+# อ่านไฟล์วิดีโอ (จำกัดขนาด) คืน (ข้อมูล, ชนิดไฟล์)
+async def read_video(upload: UploadFile) -> tuple[bytes, str]:
+    content_type = (upload.content_type or "").split(";")[0].strip().lower()
+    if content_type not in VIDEO_TYPES:
+        ext = "." + (upload.filename or "").rsplit(".", 1)[-1].lower()
+        content_type = VIDEO_EXT_TYPES.get(ext, content_type)
+    if content_type not in VIDEO_TYPES:
+        raise HTTPException(status_code=400, detail="รองรับเฉพาะวิดีโอ webm, mp4, mov, mkv")
+    data = await upload.read(MAX_VIDEO_BYTES + 1)
+    if len(data) > MAX_VIDEO_BYTES:
+        raise HTTPException(status_code=413, detail="วิดีโอใหญ่เกิน 50 MB")
+    if not data:
+        raise HTTPException(status_code=400, detail="ไฟล์วิดีโอว่างเปล่า")
+    return data, content_type
 
 
 # รายการคำศัพท์ที่มีข้อมูล พร้อมสถิติ (คลิป เฟรม ความยาว ผู้แสดง)
@@ -100,102 +92,66 @@ def _public_models(summary: dict) -> dict:
 # รายการคลิปของคำศัพท์หนึ่งคำ
 @router.get("/samples/{word}")
 def get_samples(word: str):
-    folder = ds.word_dir(word)
-    return {"word": folder.name, "samples": ds.list_samples(folder)}
+    word = ds.clean_word(word)
+    return {"word": word, "samples": ds.list_samples(word)}
 
 
-# บันทึกคลิปใหม่ (อัดจากกล้องหรืออัปโหลด) พร้อม landmarks และข้อมูลวิดีโอ (fps = อัตราเฟรมของ skeleton)
+# บันทึกคลิปใหม่ (อัดจากกล้องหรืออัปโหลด) — เก็บ skeleton และวิดีโอ (ถ้าส่งมา) ใน Storage
+# fps = อัตราเฟรมของ skeleton, width/height = ขนาดภาพ (ใช้คำนวณสัดส่วนภาพตอนเทรน)
 @router.post("/samples", status_code=201)
 async def add_sample(
     word: str = Form(...),
     source: Source = Form("upload"),
     signer: str | None = Form(None),
     fps: float | None = Form(None, gt=0, le=240),
-    camera_fps: float | None = Form(None, gt=0, le=240),
-    duration_ms: float | None = Form(None, ge=0),
     width: int | None = Form(None, gt=0, le=8192),
     height: int | None = Form(None, gt=0, le=8192),
-    video: UploadFile = File(...),
-    landmarks: UploadFile | None = File(None),
+    landmarks: UploadFile = File(...),
+    video: UploadFile | None = File(None),
+    user: dict = Depends(require_staff),
 ):
-    folder = ds.word_dir(word)
-    ext = Path(video.filename or "").suffix.lower()
-    if ext not in ds.VIDEO_EXTS:
-        raise HTTPException(status_code=400, detail=f"รองรับเฉพาะไฟล์ {', '.join(sorted(ds.VIDEO_EXTS))}")
-
-    frames = await read_landmarks(landmarks) if landmarks is not None else None
-    folder.mkdir(parents=True, exist_ok=True)
-    sid = ds.new_sample_id()
-    video_name = f"{sid}{ext}"
-    size = await save_upload(video, folder / video_name, MAX_VIDEO_BYTES)
-
-    meta = {
-        "id": sid,
-        "word": folder.name,
-        "source": source,
-        "signer": clean_signer(signer),
-        "video": video_name,
-        "video_bytes": size,
-        "fps": fps,
-        "camera_fps": camera_fps,
-        "duration_ms": round(duration_ms) if duration_ms is not None else None,
-        "width": width,
-        "height": height,
-        "created_at": datetime.now().isoformat(timespec="seconds"),
-    }
-    return ds.write_sample(folder, meta, frames)
+    frames = await read_landmarks(landmarks)
+    if not frames:
+        raise HTTPException(status_code=400, detail="ไม่พบท่าทางในคลิป")
+    video_data, video_type = await read_video(video) if video is not None else (None, None)
+    return await run_in_threadpool(
+        ds.create_sample, word=word, frames=frames, source=source, signer=signer,
+        uploaded_by=user["id"], fps=fps, width=width, height=height, video=video_data, video_type=video_type,
+    )
 
 
-# บันทึกเฉพาะ landmarks ของท่าทาง (ไม่มีไฟล์วิดีโอ)
+# บันทึกเฉพาะ landmarks ของท่าทาง (ส่งเป็น JSON)
 @router.post("/landmarks", status_code=201)
-def add_landmarks(body: LandmarksIn):
-    folder = ds.word_dir(body.word)
-    folder.mkdir(parents=True, exist_ok=True)
-    meta = {
-        "id": ds.new_sample_id(),
-        "word": folder.name,
-        "source": "record",
-        "signer": clean_signer(body.signer),
-        "video": None,
-        "video_bytes": 0,
-        "fps": body.fps,
-        "duration_ms": body.frames[-1].get("t") if isinstance(body.frames[-1].get("t"), (int, float)) else None,
-        "created_at": datetime.now().isoformat(timespec="seconds"),
-    }
-    return ds.write_sample(folder, meta, body.frames)
+def add_landmarks(body: LandmarksIn, user: dict = Depends(require_staff)):
+    return ds.create_sample(
+        word=body.word, frames=body.frames, source="record", signer=body.signer,
+        uploaded_by=user["id"], fps=body.fps, width=None, height=None,
+    )
 
 
-# ส่งไฟล์วิดีโอของคลิปกลับไปให้เล่นดูซ้ำ
+# เปิดวิดีโอของคลิป: ส่งต่อไปยังลิงก์ชั่วคราวของ Storage (เลื่อนดูได้ และ backend ไม่ต้องส่งไฟล์เอง)
 @router.get("/samples/{word}/{sample_id}/video")
 def get_sample_video(word: str, sample_id: str):
-    folder = ds.word_dir(word)
-    sid = ds.check_sample_id(sample_id)
-    for path in folder.glob(f"{sid}.*"):
-        if path.suffix.lower() in ds.VIDEO_EXTS:
-            return FileResponse(path)
-    raise HTTPException(status_code=404, detail="ไม่พบวิดีโอของคลิปนี้")
+    sample = ds.find_sample(ds.clean_word(word), ds.check_sample_id(sample_id))
+    url = storage.signed_url(ds.video_path(sample.word_id, sample.id)) if sample else None
+    if url is None:
+        raise HTTPException(status_code=404, detail="คลิปนี้ไม่มีวิดีโอ")
+    return RedirectResponse(url, status_code=307)
 
 
-# ส่ง skeleton ของคลิปกลับไปวาดทับวิดีโอ
+# ส่ง skeleton ของคลิปกลับไปวาดบนหน้าเว็บ (แปลงจากไฟล์ใน Storage)
 @router.get("/samples/{word}/{sample_id}/landmarks")
 def get_sample_landmarks(word: str, sample_id: str):
-    folder = ds.word_dir(word)
-    path = folder / f"{ds.check_sample_id(sample_id)}.landmarks.json"
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="คลิปนี้ไม่มี skeleton")
-    return FileResponse(path, media_type="application/json")
+    sample = ds.find_sample(ds.clean_word(word), ds.check_sample_id(sample_id))
+    data = storage.download(sample.file_path) if sample else None
+    if data is None:
+        raise HTTPException(status_code=404, detail="ไม่พบ skeleton ของคลิปนี้")
+    return ds.decode_frames(data)
 
 
-# ลบคลิป (วิดีโอ + landmarks + ข้อมูลสรุป) และลบโฟลเดอร์คำถ้าไม่เหลือคลิป
+# ลบคลิป (ไฟล์ใน Storage + ข้อมูลในตาราง)
 @router.delete("/samples/{word}/{sample_id}", status_code=204)
 def delete_sample(word: str, sample_id: str):
-    folder = ds.word_dir(word)
-    sid = ds.check_sample_id(sample_id)
-    files = list(folder.glob(f"{sid}.*"))
-    if not files:
+    if not ds.delete_sample(ds.clean_word(word), ds.check_sample_id(sample_id)):
         raise HTTPException(status_code=404, detail="ไม่พบคลิปนี้")
-    for path in files:
-        path.unlink(missing_ok=True)
-    if folder.is_dir() and not any(folder.iterdir()):
-        shutil.rmtree(folder, ignore_errors=True)
     return Response(status_code=204)

@@ -40,9 +40,9 @@ class SignModel:
         stem = self.path.stem
         return stem[stem.find("_v") + 1 :] if "_v" in stem else stem
 
-    # ทำนายจาก skeleton (T,48,2) คืนรายการ (คำ, ความน่าจะเป็น) เรียงจากมากไปน้อย หรือ None ถ้าข้อมูลไม่พอ
-    def predict(self, seq: np.ndarray, aspect: float) -> list[tuple[str, float]] | None:
-        feats = features().clip_features(seq, aspect)
+    # ทำนายจาก skeleton (T,48,2) และจุดใบหน้า (T,47,2) คืนรายการ (คำ, ความน่าจะเป็น) เรียงจากมากไปน้อย หรือ None ถ้าข้อมูลไม่พอ
+    def predict(self, seq: np.ndarray, aspect: float, face: np.ndarray | None = None) -> list[tuple[str, float]] | None:
+        feats = features().clip_features(seq, aspect, face)
         if feats is None:
             return None
         probs = features().predict_proba(self.weights, feats)

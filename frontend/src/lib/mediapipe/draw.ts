@@ -1,4 +1,5 @@
 import type { LandmarkFrame, Point } from "../../types";
+import { FACE_KEYPOINT_LINES } from "./faceKeypoints";
 import { FACE_CONTOURS, HAND_CONNECTIONS, POSE_CONNECTIONS } from "./holistic";
 
 // สีที่ใช้วาดเส้นและจุด
@@ -7,6 +8,7 @@ const COLOR = {
   joint: "#ffffff",
   hand: "#ffffff",
   face: "rgba(187,214,225,0.35)",
+  faceKeypoints: "rgba(187,214,225,0.8)",
 };
 
 // สีประจำข้างซ้าย/ขวาของคน (ใช้กับมือ แขน และป้ายกำกับ)
@@ -66,6 +68,21 @@ function drawConnections(
   ctx.stroke();
 }
 
+// วาดจุดสำคัญของใบหน้า (คิ้ว ตา ปาก) เป็นเส้นตามกลุ่ม
+function drawFaceKeypoints(ctx: CanvasRenderingContext2D, pts: Point[], w: number, h: number) {
+  ctx.strokeStyle = COLOR.faceKeypoints;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (const group of FACE_KEYPOINT_LINES) {
+    for (let i = 1; i < group.length; i++) {
+      const a = pts[group[i - 1]];
+      const b = pts[group[i]];
+      if (a && b) line(ctx, a, b, w, h);
+    }
+  }
+  ctx.stroke();
+}
+
 // วาดจุดข้อต่อ
 function drawDots(
   ctx: CanvasRenderingContext2D,
@@ -78,7 +95,8 @@ function drawDots(
 ) {
   ctx.fillStyle = color;
   pts.forEach((p, i) => {
-    if (i > maxIndex) return;
+    // ข้ามจุดที่ไม่มีข้อมูล (skeleton จากไฟล์รูปแบบกลางมีเฉพาะจุดแขน)
+    if (!p || i > maxIndex) return;
     ctx.beginPath();
     ctx.arc(p.x * w, p.y * h, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -152,6 +170,7 @@ export function drawFrame(
   ctx.lineJoin = "round";
   ctx.shadowBlur = 0;
   drawConnections(ctx, frame.face, FACE_CONTOURS, w, h, COLOR.face, 1.2);
+  if (frame.faceKeypoints?.length) drawFaceKeypoints(ctx, frame.faceKeypoints, w, h);
 
   ctx.shadowColor = "rgba(56, 133, 171, 0.95)";
   ctx.shadowBlur = 10;

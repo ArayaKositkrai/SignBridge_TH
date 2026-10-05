@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -44,3 +45,16 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # ค่าจาก LINE Developers Console (LINE Login channel)
 LINE_CHANNEL_ID = os.getenv("LINE_CHANNEL_ID", "")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
+
+# ---------- Supabase Storage (เก็บไฟล์ skeleton ของคลิป) ----------
+# ที่อยู่โปรเจกต์ Supabase (ไม่ตั้ง = เดาจาก DATABASE_URL ที่มีรหัสโปรเจกต์ในชื่อผู้ใช้ postgres.<ref>)
+def _guess_supabase_url() -> str:
+    m = re.search(r"//postgres\.([a-z0-9]+)[:@]", DATABASE_URL)
+    return f"https://{m.group(1)}.supabase.co" if m else ""
+
+
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or _guess_supabase_url()).rstrip("/")
+# service role key (Project Settings > API) ใช้ฝั่ง backend เท่านั้น ห้ามส่งให้หน้าเว็บ
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+# ชื่อ bucket ที่เก็บไฟล์ (private)
+STORAGE_BUCKET = os.getenv("STORAGE_BUCKET", "signbridge-datasets")

@@ -255,6 +255,7 @@ export default function LogsView() {
                         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${ACTOR_TONE[r.actor]}`}>
                           {r.actor}
                         </span>
+                        {r.user_name && <p className="mt-0.5 whitespace-nowrap text-xs text-ink/60">{r.user_name}</p>}
                       </td>
                       <td className="px-3 py-2">
                         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs ${KIND_TONE[r.kind]}`}>{r.kind}</span>

@@ -1,3 +1,4 @@
+import { pickFaceKeypoints } from "../../../lib/mediapipe/faceKeypoints";
 import { detect, loadHolistic } from "../../../lib/mediapipe/holistic";
 import type { LandmarkFrame, Point } from "../../../types";
 import type { CapturedFrame } from "./contributorApi";
@@ -17,13 +18,14 @@ const round = (v: number) => Math.round(v * 1e4) / 1e4;
 const roundPts = (pts: Point[]): Point[] =>
   pts.map((p) => ({ x: round(p.x), y: round(p.y), z: round(p.z ?? 0) }));
 
-// แปลงผล MediaPipe หนึ่งเฟรมเป็นเฟรมที่เก็บไปเทรน (ไม่เก็บใบหน้า)
+// แปลงผล MediaPipe หนึ่งเฟรมเป็นเฟรมที่เก็บไปเทรน (ใบหน้าเก็บเฉพาะจุดสำคัญ ไม่เห็นหน้า = รายการว่าง)
 export function toCaptured(f: LandmarkFrame, t: number): CapturedFrame {
   return {
     t: Math.round(t),
     pose: roundPts(f.pose),
     leftHand: roundPts(f.leftHand),
     rightHand: roundPts(f.rightHand),
+    face: roundPts(pickFaceKeypoints(f.face)),
   };
 }
 
@@ -39,7 +41,8 @@ export function frameAt(frames: CapturedFrame[], ms: number): LandmarkFrame | nu
   }
   const best =
     lo > 0 && Math.abs(frames[lo - 1].t - ms) < Math.abs(frames[lo].t - ms) ? frames[lo - 1] : frames[lo];
-  return Math.abs(best.t - ms) > MAX_GAP_MS ? null : { ...best, face: [] };
+  // ใบหน้าที่เก็บเป็นแค่จุดสำคัญ จึงวาดแยกจากโครงหน้าเต็ม (faceKeypoints)
+  return Math.abs(best.t - ms) > MAX_GAP_MS ? null : { ...best, face: [], faceKeypoints: best.face ?? [] };
 }
 
 // รอ event ของวิดีโอ (ล้มเหลวถ้าไฟล์เสีย ถูกยกเลิก หรือรอนานเกินไป)

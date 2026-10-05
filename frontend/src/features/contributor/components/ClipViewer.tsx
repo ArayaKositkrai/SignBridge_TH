@@ -3,6 +3,7 @@ import Icon from "../../../components/ui/Icon";
 import { SIDE_COLOR } from "../../../lib/mediapipe/draw";
 import { fmtDate, fmtDuration, fmtPct } from "../../../lib/format";
 import { getSampleLandmarks, sampleVideoUrl, type CapturedFrame, type SampleMeta } from "../services/contributorApi";
+import SkeletonPlayer from "./SkeletonPlayer";
 import SkeletonVideo from "./SkeletonVideo";
 
 // ค่าที่ตัวดูคลิปรับ: รายการคลิป ลำดับที่เปิด เปลี่ยนคลิป ปิด และลบ
@@ -116,7 +117,7 @@ export default function ClipViewer({ samples, index, onIndex, onClose, onDelete 
               showSkeleton={showSkeleton}
             />
           ) : (
-            <p className="grid h-full place-items-center text-white/70">คลิปนี้ไม่มีไฟล์วิดีโอ</p>
+            <SkeletonPlayer key={s.id} frames={frames} showSkeleton={showSkeleton} />
           )}
         </div>
         <button

@@ -22,7 +22,7 @@ const BUILT_IN = EMERGENCY_PHRASES.filter((p) => p.icon !== "more");
 export default function EmergencyPage() {
   const { say, last, supported } = useSpeak();
   const { user } = useAuth();
-  const custom = useCustomPhrases();
+  const custom = useCustomPhrases(user?.id ?? null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editingMode, setEditing] = useState(false);
   // ยังไม่ล็อกอิน (หรือเพิ่งออกจากระบบ) = แก้ไขไม่ได้

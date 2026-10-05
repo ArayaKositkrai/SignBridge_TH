@@ -13,6 +13,8 @@ export interface LandmarkFrame {
   leftHand: Point[];
   rightHand: Point[];
   face: Point[];
+  // จุดสำคัญของใบหน้าตาม FACE_KEYPOINTS (มีเฉพาะตอนเล่นคลิปที่เก็บไว้ ซึ่งไม่มีใบหน้าเต็ม)
+  faceKeypoints?: Point[];
 }
 
 // คำที่ใกล้เคียงกับผลแปลหลัก

@@ -11,6 +11,8 @@ export interface CapturedFrame {
   pose: Point[];
   leftHand: Point[];
   rightHand: Point[];
+  // จุดสำคัญของใบหน้า ตามลำดับ FACE_KEYPOINTS (ว่าง = ไม่เห็นหน้า)
+  face?: Point[];
 }
 
 // ข้อมูลสรุปของคลิปที่บันทึกแล้ว (fps = อัตราเฟรมของ skeleton)
@@ -137,23 +139,20 @@ interface UploadArgs {
   height: number;
 }
 
-// อัปโหลดคลิปใหม่ (วิดีโอ + landmarks ถ้ามี)
+// อัปโหลดคลิปใหม่: วิดีโอ (ไว้เปิดดูซ้ำ) + skeleton (ใช้เทรน) และขนาดภาพไว้คำนวณสัดส่วนตอนเทรน
 export function uploadSample(a: UploadArgs) {
+  if (!a.frames.length) return Promise.reject(new Error("ไม่พบท่าทางในคลิป (ต้องเห็นตัวคนในวิดีโอ)"));
   const form = new FormData();
   form.append("word", a.word);
   form.append("source", a.source);
   if (a.signer) form.append("signer", a.signer);
   form.append("fps", String(a.fps));
-  if (a.cameraFps) form.append("camera_fps", String(Math.round(a.cameraFps * 100) / 100));
-  form.append("duration_ms", String(Math.round(a.durationMs)));
   if (a.width && a.height) {
     form.append("width", String(a.width));
     form.append("height", String(a.height));
   }
+  const json = new Blob([JSON.stringify(a.frames)], { type: "application/json" });
+  form.append("landmarks", json, "landmarks.json");
   form.append("video", a.video, a.fileName);
-  if (a.frames.length) {
-    const json = new Blob([JSON.stringify(a.frames)], { type: "application/json" });
-    form.append("landmarks", json, "landmarks.json");
-  }
   return send<SampleMeta>("/samples", { method: "POST", body: form });
 }

@@ -38,6 +38,8 @@ const VIDEO_BITRATE = 6_000_000;
 
 // นามสกุลไฟล์ที่อัปโหลดได้ (ต้องตรงกับ backend)
 export const UPLOAD_EXTS = [".mp4", ".webm", ".mov", ".mkv"];
+// ขนาดวิดีโอสูงสุด (MB) ต้องตรงกับ backend (ขนาดไฟล์สูงสุดของ Supabase Storage)
+export const MAX_VIDEO_MB = 50;
 
 // เลือกรูปแบบวิดีโอที่เบราว์เซอร์อัดได้ (null = อัดไม่ได้)
 function pickMime(): [string, string] | null {
@@ -215,6 +217,10 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
       const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
       if (!UPLOAD_EXTS.includes(ext)) {
         setError(`รองรับเฉพาะไฟล์ ${UPLOAD_EXTS.join(", ")}`);
+        return;
+      }
+      if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+        setError(`ไฟล์ใหญ่เกิน ${MAX_VIDEO_MB} MB กรุณาตัดคลิปให้สั้นลงหรือลดความละเอียด`);
         return;
       }
       setError(null);

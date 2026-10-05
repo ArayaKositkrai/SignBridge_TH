@@ -29,9 +29,10 @@ async def sign_to_text(ws: WebSocket):
                 ts = float(msg.get("ts") or 0)
             except (TypeError, ValueError):
                 continue
-            # แปลจากลำตัวและมือซ้ายขวา แล้วส่งผลกลับ
+            # แปลจากลำตัว มือซ้ายขวา และจุดสำคัญของใบหน้า แล้วส่งผลกลับ
             result = recognizer.push(
-                ts, msg.get("pose") or [], msg.get("left_hand") or [], msg.get("right_hand") or [], aspect
+                ts, msg.get("pose") or [], msg.get("left_hand") or [], msg.get("right_hand") or [], aspect,
+                msg.get("face") or [],
             )
             await ws.send_json({"type": "result", **result})
     except WebSocketDisconnect:

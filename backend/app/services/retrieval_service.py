@@ -1,18 +1,25 @@
-import json
-from functools import lru_cache
-from pathlib import Path
+import time
 
+from sqlalchemy import select
+
+from app.db.models import Word
+from app.db.session import SessionLocal
 from app.services.motion_library import get_motion
 
-# ไฟล์คลังคำศัพท์ภาษามือ
-DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "vocabulary.json"
+# จำคลังคำของอวตารไว้ช่วงสั้น ๆ (ตัดคำเรียกทุกครั้งที่แปล)
+CACHE_SECONDS = 30
+_cache: dict = {"at": 0.0, "vocab": {}}
 
 
-# โหลดคลังคำศัพท์ครั้งเดียวแล้วจำไว้ในหน่วยความจำ
-@lru_cache(maxsize=1)
+# คลังคำที่อวตารทำท่าได้ (คำที่มี gloss) จากตาราง words: {คำ: {gloss, word, clip}}
 def load_vocabulary() -> dict[str, dict]:
-    entries = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    return {e["word"]: e for e in entries}
+    now = time.monotonic()
+    if now - _cache["at"] > CACHE_SECONDS:
+        with SessionLocal() as db:
+            rows = db.execute(select(Word.word, Word.gloss, Word.clip_url).where(Word.gloss.isnot(None))).all()
+        _cache["vocab"] = {w: {"word": w, "gloss": g, "clip": c} for w, g, c in rows}
+        _cache["at"] = now
+    return _cache["vocab"]
 
 
 # ค้นหาคลิปและท่าทางของแต่ละคำ (ข้ามคำที่ไม่อยู่ในคลัง)

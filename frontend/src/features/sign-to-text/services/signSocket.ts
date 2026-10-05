@@ -1,4 +1,5 @@
 import { WS_URL } from "../../../config/env";
+import { pickFaceKeypoints } from "../../../lib/mediapipe/faceKeypoints";
 import type { LandmarkFrame, SignResult, SocketStatus } from "../../../types";
 
 // จุดหนึ่งจุดในรูปแบบ [x, y, z]
@@ -60,6 +61,8 @@ export class SignSocket {
         pose: pack(frame.pose),
         left_hand: pack(frame.leftHand),
         right_hand: pack(frame.rightHand),
+        // ส่งเฉพาะจุดสำคัญของใบหน้า (47 จุด) ให้โมเดลอ่านสีหน้า ไม่ส่งทั้ง 478 จุด
+        face: pack(pickFaceKeypoints(frame.face)),
         aspect,
       }),
     );

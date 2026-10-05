@@ -88,14 +88,14 @@ class Recognizer:
     # เลือกเวอร์ชันโมเดล (active หรือ draft) ถ้ายังไม่มีโมเดลจริงจะใช้ตัวนับนิ้วแทน
     def __init__(self, version: str = "active") -> None:
         self.version = version
-        self.frames: deque[tuple[float, np.ndarray]] = deque()
+        self.frames: deque[tuple[float, np.ndarray, np.ndarray]] = deque()
         self.last_predict = 0.0
         self.last_hands = 0.0
         self.result: dict = EMPTY
         self.fallback = FingerCountRecognizer()
 
     # รับ landmarks หนึ่งเฟรม คืนผลล่าสุด (คำ ความมั่นใจ คำใกล้เคียง และเวอร์ชันโมเดล)
-    def push(self, ts: float, pose: list, left_hand: list, right_hand: list, aspect: float) -> dict:
+    def push(self, ts: float, pose: list, left_hand: list, right_hand: list, aspect: float, face: list | None = None) -> dict:
         model = get_model(self.version)
         if model is None:
             return {**self.fallback.predict(left_hand, right_hand), "model": "นับนิ้ว (ยังไม่มีโมเดล)"}
@@ -108,13 +108,16 @@ class Recognizer:
             self.result = EMPTY
             return {**EMPTY, "model": model.version}
 
-        self.frames.append((ts, features().from_mediapipe(pose, left_hand, right_hand)))
+        F = features()
+        self.frames.append((ts, F.from_mediapipe(pose, left_hand, right_hand), F.face_from_mediapipe(face)))
         while self.frames and ts - self.frames[0][0] > WINDOW_MS:
             self.frames.popleft()
 
         if len(self.frames) >= MIN_FRAMES and ts - self.last_predict >= PREDICT_EVERY_MS:
             self.last_predict = ts
-            ranked = model.predict(np.stack([f for _, f in self.frames]), aspect)
+            ranked = model.predict(
+                np.stack([f for _, f, _ in self.frames]), aspect, np.stack([fc for _, _, fc in self.frames])
+            )
             self.result = self._to_result(ranked)
         return {**self.result, "model": model.version}
 

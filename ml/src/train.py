@@ -1,13 +1,13 @@
 """เทรนโมเดลแปลภาษามือจาก skeleton แล้วบันทึกเป็นเวอร์ชัน draft
 
 ข้อมูลที่ใช้:
-- ml/data/processed/tsl_skeleton.npz  (นำเข้าด้วย import_tsl.py) เฉพาะคำใน ml/configs/train_words.json
-- ml/data/raw/<คำ>/*.landmarks.json   คลิปที่ล่ามอัดผ่านระบบ (คำที่มีคลิปถึงจำนวนขั้นต่ำ)
+- ml/data/processed/tsl_skeleton.npz  (นำเข้าด้วย import_tsl.py) เฉพาะคำที่ words.in_train_set ใน database
+- คลิปที่ล่ามอัดผ่านระบบ: ตาราง samples + ไฟล์ .npz ใน Supabase Storage (คำที่มีคลิปถึงจำนวนขั้นต่ำ)
+ผลลัพธ์: ไฟล์ ml/models/model_signBridge_vX.Y.Z.npz + แถวในตาราง models (status = draft) และ model_words
 
 ขั้นตอน: แปลงเป็น feature (features.py) → แบ่งชุดทดสอบตามผู้แสดง (คนที่ทดสอบไม่อยู่ในชุดเทรน)
 → เทรน CNN 1 มิติ วัดความแม่นยำ → เทรนใหม่ด้วยข้อมูลทั้งหมด → บันทึกน้ำหนักเป็น .npz (backend ใช้แค่ numpy)
 """
-import json
 import os
 import random
 import re
@@ -18,22 +18,18 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+from psycopg.types.json import Jsonb
 import torch
 from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import db  # noqa: E402
 import features as F  # noqa: E402
 
 # โฟลเดอร์ ml (อ้างจากตำแหน่งไฟล์นี้)
 ML_DIR = Path(__file__).resolve().parents[1]
-# ไฟล์ตั้งค่าเวอร์ชันโมเดล
-CONFIG_PATH = ML_DIR / "configs" / "model_config.json"
-# รายการคำที่จะเทรน
-WORDS_PATH = ML_DIR / "configs" / "train_words.json"
 # ชุดข้อมูล TSL ที่นำเข้าแล้ว
 TSL_PATH = ML_DIR / "data" / "processed" / "tsl_skeleton.npz"
-# คลิปที่ล่ามอัด
-RAW_PATH = ML_DIR / "data" / "raw"
 # โฟลเดอร์เก็บไฟล์โมเดล
 MODELS_PATH = ML_DIR / "models"
 # ชื่อไฟล์โมเดลแบบมีเลขเวอร์ชัน
@@ -42,8 +38,6 @@ MODEL_NAME = "model_signBridge_v{}.{}.{}.npz"
 VERSION_RE = re.compile(r"^model_signBridge_v(\d+)\.(\d+)\.(\d+)\.\w+$")
 # ชื่อคลาสของคลิปที่ไม่ได้ทำท่า
 NULL_LABEL = "ไม่ทำท่า"
-# สัดส่วนภาพของคลิปที่อัดไว้ก่อนระบบบันทึกขนาดภาพ
-DEFAULT_ASPECT = 1.0
 # สัดส่วนผู้แสดงที่กันไว้ทดสอบ
 VAL_SIGNER_RATIO = 0.2
 # ค่าการเทรน
@@ -53,23 +47,11 @@ LR = 2e-3
 SEED = 7
 
 
-# อ่านไฟล์ตั้งค่าเวอร์ชันโมเดล
-def load_config():
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-# เขียนไฟล์ตั้งค่าแบบปลอดภัย (เขียนไฟล์ชั่วคราวแล้วแทนที่)
-def save_config(data):
-    tmp = CONFIG_PATH.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-    os.replace(tmp, CONFIG_PATH)
-
-
 # หาเลขเวอร์ชันถัดไป: ยังไม่มี = 0.0.0, มีแล้ว = เลขท้ายของเวอร์ชันล่าสุด + 1
-def next_version() -> tuple[int, int, int]:
-    found = [tuple(int(x) for x in m.groups()) for p in MODELS_PATH.iterdir() if (m := VERSION_RE.match(p.name))]
+# (ดูทั้งในตาราง models และไฟล์ในเครื่อง กันชื่อซ้ำ)
+def next_version(conn) -> tuple[int, int, int]:
+    names = [r[0] for r in conn.execute("SELECT file FROM models")] + [p.name for p in MODELS_PATH.iterdir()]
+    found = [tuple(int(x) for x in m.groups()) for n in names if (m := VERSION_RE.match(n))]
     if not found:
         return (0, 0, 0)
     major, minor, patch = max(found)
@@ -92,27 +74,18 @@ def load_tsl(words: set[str], include_null: bool):
     for i, label in enumerate(d["label"]):
         label = str(label)
         if label in words or (include_null and label == NULL_LABEL):
-            out.append((pts[off[i] : off[i + 1]], float(d["aspect"][i]), label, str(d["signer"][i]), str(d["source"][i])))
+            # ชุดข้อมูล TSL ไม่มีจุดใบหน้า (face = None)
+            out.append((pts[off[i] : off[i + 1]], float(d["aspect"][i]), label, str(d["signer"][i]), str(d["source"][i]), None))
     return out
 
 
-# โหลดคลิปที่ล่ามอัดผ่านระบบ (เฉพาะคำที่มีคลิปพอ)
-def load_recorded(min_clips: int):
+# โหลดคลิปที่ล่ามอัดผ่านระบบจาก database + Storage (เฉพาะคำที่มีคลิปพอ)
+def load_recorded(conn, min_clips: int):
     out = []
-    if not RAW_PATH.is_dir():
-        return out
-    for folder in sorted(RAW_PATH.iterdir()):
-        files = sorted(folder.glob("*.landmarks.json")) if folder.is_dir() else []
-        if len(files) < min_clips:
-            continue
-        for f in files:
-            meta_file = f.with_name(f.name.replace(".landmarks.json", ".meta.json"))
-            meta = json.loads(meta_file.read_text(encoding="utf-8")) if meta_file.is_file() else {}
-            frames = json.loads(f.read_text(encoding="utf-8"))
-            seq = np.stack([F.from_mediapipe(x.get("pose"), x.get("leftHand"), x.get("rightHand")) for x in frames])
-            aspect = meta["width"] / meta["height"] if meta.get("width") and meta.get("height") else DEFAULT_ASPECT
-            signer = "ล่าม:" + (meta.get("signer") or "ไม่ระบุ")
-            out.append((seq, aspect, folder.name, signer, "ล่าม"))
+    for c in db.recorded_samples(conn, min_clips):
+        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"]))
+    if out:
+        log(f"คลิปที่ล่ามอัด {len(out)} คลิป")
     return out
 
 
@@ -143,6 +116,12 @@ def augment(x: torch.Tensor) -> torch.Tensor:
     n2 = F.N_POINTS * 2
     pos = x[:, :, :n2].reshape(b, t, F.N_POINTS, 2)
     present = x[:, :, n2 : n2 + 2]
+    # ส่วนสีหน้า: ค่า 8 + เห็นหน้า 1 (ความเร็วคำนวณใหม่ท้ายฟังก์ชัน)
+    f0 = 2 * n2 + 2
+    face = x[:, :, f0 : f0 + F.N_FACE_FEAT].clone()
+    face_seen = x[:, :, f0 + F.N_FACE_FEAT : f0 + F.N_FACE_FEAT + 1]
+    # สีหน้าแต่ละคนต่างกันเล็กน้อย: สุ่มยืด/หดและเพิ่ม noise เฉพาะเฟรมที่เห็นหน้า
+    face = (face * torch.empty(b, 1, F.N_FACE_FEAT).uniform_(0.9, 1.1) + torch.randn_like(face) * 0.01) * face_seen
     sx = torch.empty(b, 1, 1).uniform_(0.8, 1.25)
     ang = torch.empty(b).uniform_(-0.17, 0.17)
     scale = torch.empty(b, 1, 1, 1).uniform_(0.9, 1.1)
@@ -157,7 +136,7 @@ def augment(x: torch.Tensor) -> torch.Tensor:
     pos[:, :, F.RH] *= present[:, :, 1, None, None]
     pos = pos.reshape(b, t, n2)
     # ยืด/หดเวลา: ตัดหัวท้ายแบบสุ่มแล้วยืดกลับเป็น t เฟรม (ประมาณค่าเชิงเส้นทั้ง batch พร้อมกัน)
-    seq = torch.cat([pos, present], 2)
+    seq = torch.cat([pos, present, face, face_seen], 2)
     a = torch.randint(0, t // 8 + 1, (b, 1)).float()
     e = (t - 1) - torch.randint(0, t // 8 + 1, (b, 1)).float()
     where = a + (e - a) * torch.linspace(0, 1, t)
@@ -166,9 +145,12 @@ def augment(x: torch.Tensor) -> torch.Tensor:
     w = (where - lo.float()).unsqueeze(2)
     pick = lambda idx: torch.gather(seq, 1, idx.unsqueeze(2).expand(-1, -1, seq.shape[2]))
     seq = pick(lo) * (1 - w) + pick(hi) * w
-    pos, present = seq[:, :, :n2], (seq[:, :, n2:] > 0.5).float()
+    pos, present = seq[:, :, :n2], (seq[:, :, n2 : n2 + 2] > 0.5).float()
+    face_seen = (seq[:, :, -1:] > 0.5).float()
+    face = seq[:, :, n2 + 2 : -1] * face_seen
     vel = torch.diff(pos, dim=1, prepend=pos[:, :1])
-    return torch.cat([pos, present, vel], 2)
+    face_vel = torch.diff(face, dim=1, prepend=face[:, :1])
+    return torch.cat([pos, present, vel, face, face_seen, face_vel], 2)
 
 
 # เทรนโมเดลหนึ่งรอบ คืนโมเดลที่เทรนแล้ว
@@ -221,14 +203,17 @@ def export_weights(model, mean, std) -> dict:
 def main():
     t0 = time.time()
     torch.set_num_threads(max(1, os.cpu_count() - 1))
-    cfg = json.loads(WORDS_PATH.read_text(encoding="utf-8"))
-    words = set(cfg["words"])
+    conn = db.connect()
+    cfg = db.train_settings()
+    words = db.train_words(conn)
     log("--- เริ่มเทรนโมเดลแปลภาษามือ ---")
 
-    clips = load_tsl(words, cfg.get("include_null_class", True)) + load_recorded(cfg.get("min_recorded_clips", 5))
+    clips = load_tsl(words, cfg.get("include_null_class", True)) + load_recorded(conn, cfg.get("min_recorded_clips", 5))
     feats, labels_raw, signers, sources = [], [], [], []
-    for seq, aspect, label, signer, source in clips:
-        f = F.clip_features(seq, aspect)
+    n_face = 0
+    for seq, aspect, label, signer, source, face in clips:
+        f = F.clip_features(seq, aspect, face)
+        n_face += face is not None and not np.isnan(face).all()
         if f is not None:
             feats.append(f)
             labels_raw.append(label)
@@ -240,7 +225,7 @@ def main():
     X = np.stack(feats)
     y = np.array([labels.index(l) for l in labels_raw])
     counts = Counter(labels_raw)
-    log(f"ข้อมูล {len(X)} คลิป · {len(labels)} คลาส · แหล่ง {dict(Counter(sources))}")
+    log(f"ข้อมูล {len(X)} คลิป · {len(labels)} คลาส · แหล่ง {dict(Counter(sources))} · มีใบหน้า {n_face} คลิป")
     missing = sorted(words - set(labels))
     if missing:
         log(f"คำที่ไม่มีข้อมูล (ข้าม): {', '.join(missing)}")
@@ -286,27 +271,37 @@ def main():
         raise SystemExit("ผลจาก numpy ไม่ตรงกับ torch")
 
     MODELS_PATH.mkdir(parents=True, exist_ok=True)
-    version = next_version()
+    version = next_version(conn)
     name = MODEL_NAME.format(*version)
-    np.savez(MODELS_PATH / name, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION), **weights)
-    info = {
-        "version": "v{}.{}.{}".format(*version),
-        "file": name,
-        "trained_at": datetime.now().isoformat(timespec="seconds"),
-        "words": {l: counts[l] for l in labels},
-        "samples": int(len(X)),
-        "sources": dict(Counter(sources)),
-        "feature_version": F.FEATURE_VERSION,
-        "seconds": round(time.time() - t0, 1),
-        **metrics,
-    }
-    (MODELS_PATH / name).with_suffix(".json").write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+    path = MODELS_PATH / name
+    np.savez(path, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION), **weights)
+    seconds = round(time.time() - t0, 1)
 
-    config = load_config()
-    config["draft_version"] = name
-    config["draft_words"] = [l for l in labels if l != NULL_LABEL]
-    save_config(config)
-    log(f"--- เทรนเสร็จ: {name} ({info['seconds']} วินาที) ---")
+    # บันทึกเป็นเวอร์ชัน draft (draft เดิมกลายเป็น archived) พร้อมคำที่รู้จักและผลรายคำ
+    per_word = metrics.get("val_per_word", {})
+    with conn.transaction():
+        conn.execute("UPDATE models SET status = 'archived' WHERE status = 'draft'")
+        model_id = conn.execute(
+            """
+            INSERT INTO models (version, file, status, trained_at, samples, feature_version, val_accuracy,
+                                val_top3, val_clips, train_seconds, sources, bytes)
+            VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """,
+            (
+                "v{}.{}.{}".format(*version), name, datetime.now().astimezone(), int(len(X)), str(F.FEATURE_VERSION),
+                metrics.get("val_accuracy"), metrics.get("val_top3"), metrics.get("val_clips"), seconds,
+                Jsonb(dict(Counter(sources))), path.stat().st_size,
+            ),
+        ).fetchone()[0]
+        for label in labels:
+            if label == NULL_LABEL:
+                continue  # คลาส "ไม่ทำท่า" ไม่ใช่คำ (อยู่ในไฟล์โมเดลอย่างเดียว)
+            conn.execute(
+                "INSERT INTO model_words (model_id, word_id, train_clips, val_accuracy) VALUES (%s, %s, %s, %s)",
+                (model_id, db.word_id(conn, label), counts[label], per_word.get(label)),
+            )
+    conn.close()
+    log(f"--- เทรนเสร็จ: {name} ({seconds} วินาที) ---")
 
 
 if __name__ == "__main__":
