@@ -2,13 +2,13 @@ import time
 
 from sqlalchemy import select
 
-from app.db.models import Word
+from app.db.models import Motion, Word
 from app.db.session import SessionLocal
 from app.services.motion_library import get_motion
 
 # จำคลังคำของอวตารไว้ช่วงสั้น ๆ (ตัดคำเรียกทุกครั้งที่แปล)
 CACHE_SECONDS = 30
-_cache: dict = {"at": 0.0, "vocab": {}}
+_cache: dict = {"at": 0.0, "vocab": {}, "words_at": 0.0, "words": []}
 
 
 # คลังคำที่อวตารทำท่าได้ (คำที่มี gloss) จากตาราง words: {คำ: {gloss, word, clip}}
@@ -38,3 +38,19 @@ def find_clips(tokens: list[str]) -> list[dict]:
                 }
             )
     return clips
+
+
+# รายการคำที่อวตารทำท่าได้จริง (มีท่าในตาราง motions) เรียงท่าจากข้อมูลจริงก่อน แล้วตามตัวอักษร
+#   ใช้แสดงให้ผู้ใช้หน้า ข้อความ → ภาษามือ เลือกคำ แทนรายการคำตายตัวในหน้าเว็บ
+def list_sign_words() -> list[dict]:
+    now = time.monotonic()
+    if now - _cache["words_at"] > CACHE_SECONDS:
+        with SessionLocal() as db:
+            rows = db.execute(
+                select(Word.word, Motion.source).join(Motion, Motion.word_id == Word.id).where(Word.gloss.isnot(None))
+            ).all()
+        _cache["words"] = [
+            {"word": w, "source": src} for w, src in sorted(rows, key=lambda r: (r[1] != "extracted", r[0]))
+        ]
+        _cache["words_at"] = now
+    return _cache["words"]

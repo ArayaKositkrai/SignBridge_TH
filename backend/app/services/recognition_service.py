@@ -1,71 +1,8 @@
-import math
-from collections import Counter, deque
+from collections import deque
 
 import numpy as np
 
 from app.ml.classifier import features, get_model
-
-# STUB: maps the number of extended fingers to a word so the whole
-# frontend -> websocket -> backend pipeline can be exercised before a
-# trained model exists. Replace with app.ml.classifier once available.
-# จำนวนนิ้วที่ชู -> คำที่แปลได้ (ใช้ทดสอบระบบก่อนมีโมเดลจริง)
-FINGER_WORDS = {
-    5: "สวัสดี",
-    0: "ขอบคุณ",
-    1: "ช่วยด้วย",
-    2: "ขอโทษ",
-    3: "ใช่",
-    4: "ไม่ใช่",
-}
-
-# จำนวนเฟรมล่าสุดที่ใช้โหวต เพื่อให้ผลไม่กระพริบ
-WINDOW = 5
-# คู่ (ปลายนิ้ว, ข้อกลาง) ของนิ้วชี้ กลาง นาง ก้อย ใช้เช็กว่านิ้วชูอยู่หรือไม่
-FINGER_TIPS_PIPS = [(8, 6), (12, 10), (16, 14), (20, 18)]
-
-
-# ระยะห่างระหว่างสองจุดบนภาพ
-def _dist(a: list[float], b: list[float]) -> float:
-    return math.hypot(a[0] - b[0], a[1] - b[1])
-
-
-# นับจำนวนนิ้วที่ชูอยู่ (คืน None ถ้าข้อมูลมือไม่ครบ 21 จุด)
-def count_extended(hand: list[list[float]]) -> int | None:
-    if len(hand) < 21:
-        return None
-    count = sum(1 for tip, pip in FINGER_TIPS_PIPS if hand[tip][1] < hand[pip][1])
-    if _dist(hand[4], hand[17]) > _dist(hand[2], hand[17]):
-        count += 1
-    return count
-
-
-# ตัวจำแนกท่าแบบนับนิ้ว (ใช้แทนเมื่อยังไม่มีโมเดลที่เทรนจริง) โหวตผลย้อนหลังหลายเฟรมให้นิ่งขึ้น
-class FingerCountRecognizer:
-    """Per-connection recognizer that smooths predictions over a short window."""
-
-    # เริ่มต้นหน้าต่างเก็บผลย้อนหลัง
-    def __init__(self) -> None:
-        self.window: deque[int] = deque(maxlen=WINDOW)
-
-    # จำแนกท่าจากมือซ้ายขวา คืนคำ ความมั่นใจ และคำใกล้เคียง
-    def predict(self, left_hand: list, right_hand: list) -> dict:
-        counts = [c for c in (count_extended(right_hand), count_extended(left_hand)) if c is not None]
-        if not counts:
-            self.window.clear()
-            return {"text": "", "confidence": 0.0, "candidates": []}
-
-        self.window.append(counts[0])
-        votes = Counter(self.window)
-        best, hits = votes.most_common(1)[0]
-        confidence = round(0.55 + 0.4 * hits / WINDOW, 2)
-
-        candidates = [
-            {"text": FINGER_WORDS[n], "confidence": round(confidence * 0.6 / (1 + abs(n - best)), 2)}
-            for n in sorted(FINGER_WORDS, key=lambda n: abs(n - best))
-            if n != best
-        ][:2]
-        return {"text": FINGER_WORDS[best], "confidence": confidence, "candidates": candidates}
-
 
 # ช่วงเวลาย้อนหลังที่ใช้ทาย (มิลลิวินาที) — ใกล้กับความยาวคลิปในชุดข้อมูล
 WINDOW_MS = 2200
@@ -81,24 +18,30 @@ MIN_PROB = 0.45
 NULL_LABEL = "ไม่ทำท่า"
 # ผลว่างเมื่อยังไม่มีคำ
 EMPTY = {"text": "", "confidence": 0.0, "candidates": []}
+# ข้อความเมื่อยังไม่มีโมเดลที่ใช้งาน (ไม่เดาคำเอง เพราะผลปลอมอันตรายในสถานการณ์ฉุกเฉิน)
+NO_MODEL = {**EMPTY, "model": None, "notice": "ยังไม่มีโมเดลแปลภาษามือที่ใช้งาน (แอดมินต้องเทรนและเผยแพร่โมเดลก่อน)"}
+# จำนวนเฟรมสูงสุดในหน้าต่าง (กันหน่วยความจำโตไม่จำกัด แม้ส่งข้อมูลถี่ผิดปกติ)
+MAX_WINDOW_FRAMES = 240
 
 
 # ตัวแปลภาษามือด้วยโมเดลจริง: เก็บ skeleton ย้อนหลัง ~2 วินาที แล้วทายคำจากช่วงนั้นเป็นระยะ
+#   ts = เวลาของเซิร์ฟเวอร์ (มิลลิวินาที) ไม่ใช้เวลาจากหน้าเว็บ กันข้อมูลเวลาปลอมทำให้หน้าต่างไม่ถูกตัด
+#   ฟังก์ชัน push ใช้เวลาคำนวณ (numpy) จึงควรเรียกนอก event loop
 class Recognizer:
-    # เลือกเวอร์ชันโมเดล (active หรือ draft) ถ้ายังไม่มีโมเดลจริงจะใช้ตัวนับนิ้วแทน
+    # เลือกเวอร์ชันโมเดล (active หรือ draft) ยังไม่มีโมเดลจะตอบว่า "ยังไม่มีโมเดล" ไม่เดาคำ
     def __init__(self, version: str = "active") -> None:
         self.version = version
-        self.frames: deque[tuple[float, np.ndarray, np.ndarray]] = deque()
+        self.frames: deque[tuple[float, np.ndarray, np.ndarray]] = deque(maxlen=MAX_WINDOW_FRAMES)
         self.last_predict = 0.0
         self.last_hands = 0.0
         self.result: dict = EMPTY
-        self.fallback = FingerCountRecognizer()
 
     # รับ landmarks หนึ่งเฟรม คืนผลล่าสุด (คำ ความมั่นใจ คำใกล้เคียง และเวอร์ชันโมเดล)
     def push(self, ts: float, pose: list, left_hand: list, right_hand: list, aspect: float, face: list | None = None) -> dict:
         model = get_model(self.version)
         if model is None:
-            return {**self.fallback.predict(left_hand, right_hand), "model": "นับนิ้ว (ยังไม่มีโมเดล)"}
+            self.frames.clear()
+            return NO_MODEL
 
         hands = len(left_hand) == 21 or len(right_hand) == 21
         if hands:

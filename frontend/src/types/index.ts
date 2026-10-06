@@ -5,6 +5,8 @@ export interface Point {
   x: number;
   y: number;
   z?: number;
+  // ความมั่นใจว่าจุดนี้มองเห็นจริง 0-1 (มีเฉพาะจุดของ pose)
+  visibility?: number;
 }
 
 // จุด landmark ของหนึ่งเฟรม: ลำตัว มือซ้าย มือขวา ใบหน้า
@@ -28,7 +30,10 @@ export interface SignResult {
   text: string;
   confidence: number;
   candidates: SignCandidate[];
-  model?: string;
+  // เวอร์ชันโมเดลที่ใช้ (null = ยังไม่มีโมเดล)
+  model?: string | null;
+  // ข้อความแจ้งจากระบบ เช่น ยังไม่มีโมเดลที่ใช้งาน
+  notice?: string;
 }
 
 // สถานะการเชื่อมต่อ WebSocket
@@ -46,6 +51,10 @@ export interface MotionHand {
   // ทิศฝ่ามือจากข้อมูลจริง: w = [แนวกว้างฝ่ามือบนจอ x, y, สัดส่วนที่เห็นเต็มฝ่า 0-1], p = +1 ฝ่ามือหันเข้ากล้อง / -1 หลังมือ
   w?: [number, number, number];
   p?: number;
+  // มุมงอรายข้อ (เรเดียน) ของนิ้วชี้ กลาง นาง ก้อย (4 นิ้ว x 3 ข้อ โคน-กลาง-ปลาย) มีเฉพาะท่าจากคลิป 3 มิติ ถ้าไม่มีใช้ c แทน
+  j?: number[][];
+  // มุมกางนิ้ว (เรเดียน) ของนิ้วชี้ นาง ก้อย: บวก = กางออกจากนิ้วกลาง
+  s?: number[];
 }
 
 // keyframe ของมือทั้งสองข้าง ณ เวลา t (0-1)

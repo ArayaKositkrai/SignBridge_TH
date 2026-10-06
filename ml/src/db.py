@@ -77,7 +77,9 @@ def download(path: str) -> bytes:
 # คลิปที่ล่ามอัด (ไม่นับคลิปที่ถูกปฏิเสธ) พร้อม skeleton จาก Storage
 #   คืน dict: word, signer, id, points (T,48,2), t_ms (T,), aspect, fps
 #             face (T,47,2) และ face_idx (47,) ถ้าไฟล์เป็นรูปแบบเวอร์ชัน 2 ขึ้นไป (ไม่มี = None)
-def recorded_samples(conn, min_clips: int = 1) -> list[dict]:
+#             z (T,48) ความลึกของแต่ละจุด ถ้าคลิปบันทึกไว้ (ไม่มี = None)
+#   คลิปที่ดาวน์โหลด/อ่านไม่ได้ (ไฟล์หาย/เสีย) ข้ามไป แล้วแจ้งผ่าน on_skip(รหัสคลิป, เหตุผล) แทนการล้มทั้งรอบ
+def recorded_samples(conn, min_clips: int = 1, on_skip=None) -> list[dict]:
     rows = conn.execute(
         """
         SELECT w.word, c.name, s.id, s.file_path, s.fps
@@ -88,6 +90,11 @@ def recorded_samples(conn, min_clips: int = 1) -> list[dict]:
         ORDER BY w.word, s.created_at
         """
     ).fetchall()
+    # ยังไม่ได้ตั้งค่า Storage: ดาวน์โหลดคลิปไม่ได้เลย ข้ามทั้งหมด (เทรนต่อด้วยชุด TSL ได้)
+    if not (SUPABASE_URL and SERVICE_KEY):
+        if on_skip and rows:
+            on_skip(f"ทั้งหมด {len(rows)} คลิป", "ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY ใน .env")
+        return []
     per_word: dict[str, int] = {}
     for word, *_ in rows:
         per_word[word] = per_word.get(word, 0) + 1
@@ -95,12 +102,31 @@ def recorded_samples(conn, min_clips: int = 1) -> list[dict]:
     for word, signer, sid, path, fps in rows:
         if per_word[word] < min_clips:
             continue
-        with np.load(io.BytesIO(download(path)), allow_pickle=False) as d:
-            out.append({"word": word, "signer": signer, "id": sid, "points": d["points"],
-                        "t_ms": d["t_ms"], "aspect": float(d["aspect"]), "fps": fps,
-                        "face": d["face"] if "face" in d.files else None,
-                        "face_idx": d["face_idx"] if "face_idx" in d.files else None})
+        try:
+            with np.load(io.BytesIO(download(path)), allow_pickle=False) as d:
+                out.append({"word": word, "signer": signer, "id": sid, "points": d["points"],
+                            "t_ms": d["t_ms"], "aspect": float(d["aspect"]), "fps": fps,
+                            "z": d["z"] if "z" in d.files else None,
+                            "face": d["face"] if "face" in d.files else None,
+                            "face_idx": d["face_idx"] if "face_idx" in d.files else None})
+        except (httpx.HTTPError, OSError, ValueError, KeyError) as e:
+            if on_skip:
+                on_skip(sid, str(e) or type(e).__name__)
     return out
+
+
+# คอลัมน์ความคืบหน้าการเทรนในตาราง training_runs (เหมือน backend/sql/002_training_runs_progress.sql)
+def ensure_training_columns(conn) -> None:
+    conn.execute(
+        """
+        ALTER TABLE training_runs
+            ADD COLUMN IF NOT EXISTS log text,
+            ADD COLUMN IF NOT EXISTS progress jsonb,
+            ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz,
+            ADD COLUMN IF NOT EXISTS host text,
+            ADD COLUMN IF NOT EXISTS error text
+        """
+    )
 
 
 # หา id ของคำ (สร้างใหม่ถ้ายังไม่มี)

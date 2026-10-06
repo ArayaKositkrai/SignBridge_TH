@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.nlp.tokenizer import tokenize
-from app.services.retrieval_service import find_clips
+from app.services.retrieval_service import find_clips, list_sign_words
 
 # กลุ่ม route ของฟีเจอร์ข้อความ -> ภาษามือ
 router = APIRouter(prefix="/api", tags=["text-to-sign"])
@@ -18,3 +18,9 @@ class TextToSignRequest(BaseModel):
 def text_to_sign(req: TextToSignRequest):
     tokens = tokenize(req.text)
     return {"tokens": tokens, "clips": find_clips(tokens)}
+
+
+# รายการคำที่อวตารทำท่าได้ (จากฐานข้อมูล) ไว้ให้ผู้ใช้กดเลือก
+@router.get("/text-to-sign/words")
+def sign_words():
+    return {"words": list_sign_words()}

@@ -37,6 +37,8 @@ export interface Dashboard {
 
 // คำหนึ่งคำในคลังรวม: ข้อมูลที่อัด อยู่ในโมเดลไหน และมีท่าอวตารหรือไม่
 export interface VocabItem extends VocabEntry {
+  // เลือกไว้เทรนโมเดลหรือไม่ (ติ๊กในคอลัมน์ "เทรน")
+  in_train_set: boolean;
   in_active_model: boolean;
   in_draft_model: boolean;
   avatar: { has_motion: boolean; has_clip: boolean } | null;
@@ -57,11 +59,34 @@ export interface ModelFile {
 }
 
 // สถานะการเทรนโมเดลและเวอร์ชันปัจจุบัน
-export interface TrainStatus {
-  status: "idle" | "running" | "succeeded" | "failed";
-  return_code: number | null;
+// ความคืบหน้าที่ train.py รายงาน: ขั้น (load/validate/final/save/done/failed) รอบที่ ค่า loss และความแม่นยำ
+export interface TrainProgress {
+  stage?: "load" | "validate" | "final" | "save" | "done" | "failed";
+  epoch?: number;
+  epochs?: number;
+  loss?: number;
+  val_accuracy?: number;
+  val_top3?: number;
+}
+
+// การเทรนล่าสุด (รันจากเครื่องด้วย python train.py): เครื่องที่เทรน เวลา ความคืบหน้า ข้อผิดพลาด โมเดลที่ได้ และ log ท้าย ๆ
+export interface TrainRun {
+  id: number;
+  host: string | null;
   started_at: string | null;
+  finished_at: string | null;
+  heartbeat_at: string | null;
+  progress: TrainProgress;
+  error: string | null;
+  model: string | null;
   log: string[];
+}
+
+// สถานะการเทรน (stalled = เงียบไปนานเกินไป เช่นเครื่องที่เทรนปิดไป) และคำสั่งที่ใช้เทรน
+export interface TrainStatus {
+  status: "idle" | "running" | "stalled" | "succeeded" | "failed";
+  command: string;
+  run: TrainRun | null;
   active_version: string | null;
   draft_version: string | null;
 }
@@ -89,14 +114,19 @@ export const deleteUser = (id: string) => send<void>(`${BASE}/users/${encodeURIC
 // ดึงคลังคำศัพท์และท่ารวม
 export const getVocabulary = () => send<{ items: VocabItem[]; models: ModelsBrief }>(`${BASE}/vocabulary`);
 
+// เลือก/ไม่เลือกคำไว้เทรนโมเดล (มีผลในการเทรนครั้งถัดไป)
+export const setTrainWord = (word: string, inTrainSet: boolean) =>
+  send<{ word: string; in_train_set: boolean }>(
+    `${BASE}/vocabulary/${encodeURIComponent(word)}`,
+    json("PATCH", { in_train_set: inTrainSet }),
+  );
+
 // ดึงรายการไฟล์โมเดล
 export const listModels = () => send<{ models: ModelFile[] }>(`${BASE}/models`).then((r) => r.models);
 // เลือกเวอร์ชันโมเดลที่ระบบใช้
 export const setActiveModel = (version: string) =>
   send<{ message: string }>(`${BASE}/models/active`, json("POST", { version }));
 
-// สั่งเทรนโมเดลในพื้นหลัง
-export const startTraining = () => send<{ message: string }>(`${BASE}/train`, { method: "POST" });
 // ดูสถานะการเทรน
 export const getTrainStatus = () => send<TrainStatus>(`${BASE}/train/status`);
 // เผยแพร่โมเดล draft ให้ผู้ใช้ทั่วไปใช้

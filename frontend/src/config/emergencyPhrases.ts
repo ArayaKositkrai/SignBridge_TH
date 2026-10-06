@@ -12,6 +12,3 @@ export const EMERGENCY_PHRASES: EmergencyPhrase[] = [
   { id: "confused", label: "ไม่เข้าใจ", speak: "ฉันไม่เข้าใจ ช่วยพูดช้า ๆ อีกครั้งได้ไหม", icon: "confused" },
   { id: "more", label: "เพิ่มเติม", speak: "", icon: "more" },
 ];
-
-// คำที่ใช้บ่อย กดเพื่อเติมลงช่องข้อความ
-export const QUICK_WORDS = ["สวัสดี", "ขอบคุณ", "ขอโทษ", "ช่วยด้วย"];

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.api.deps import SESSION_COOKIE, current_user
 from app.core.config import COOKIE_SECURE, SESSION_DAYS
 from app.core.cors import is_allowed_origin
+from app.core.rate_limit import limit_auth, login_fail_limiter
 from app.services import auth_service
 from app.services.auth_service import AuthError
 
@@ -86,7 +87,7 @@ def me(user: dict | None = Depends(current_user)):
 
 
 # สมัครสมาชิกด้วยอีเมล/รหัสผ่าน แล้วล็อกอินให้ทันที
-@router.post("/register", status_code=201)
+@router.post("/register", status_code=201, dependencies=[Depends(limit_auth)])
 def register(body: RegisterIn, response: Response):
     try:
         user_id = auth_service.register(body.first_name, body.last_name, body.email, body.password)
@@ -96,12 +97,17 @@ def register(body: RegisterIn, response: Response):
     return {"user": auth_service.get_active_user(user_id)}
 
 
-# ล็อกอินด้วยอีเมล/รหัสผ่าน
-@router.post("/login")
+# ล็อกอินด้วยอีเมล/รหัสผ่าน (จำกัดจำนวนครั้งต่อ IP และจำนวนครั้งที่ใส่รหัสผิดต่ออีเมล)
+@router.post("/login", dependencies=[Depends(limit_auth)])
 def login(body: LoginIn, response: Response):
+    email_key = body.email.strip().lower()
+    if login_fail_limiter.retry_after(email_key):
+        raise HTTPException(status_code=429, detail="ใส่รหัสผ่านผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่")
     try:
         user_id = auth_service.login(body.email, body.password)
     except AuthError as e:
+        if e.status == 401:
+            login_fail_limiter.record(email_key)
         raise _http(e)
     _set_session(response, user_id)
     return {"user": auth_service.get_active_user(user_id)}

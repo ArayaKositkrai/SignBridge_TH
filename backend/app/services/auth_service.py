@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 import httpx
 import jwt
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import (
     ADMIN_EMAILS,
@@ -37,6 +38,16 @@ class AuthError(Exception):
         super().__init__(message)
         self.message = message
         self.status = status
+
+
+# บันทึกลง database แปลงกรณีข้อมูลซ้ำ (เช่นสมัครอีเมลเดียวกันพร้อมกันสองหน้าต่าง) เป็นข้อความที่อ่านรู้เรื่อง
+#   คนที่บันทึกก่อนได้บัญชี อีกคนได้ข้อความ message แทน error 500
+def _commit_unique(db, message: str) -> None:
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise AuthError(message, 409)
 
 
 # ---------- รหัสผ่าน ----------
@@ -132,13 +143,13 @@ def register(first_name: str, last_name: str | None, email: str, password: str) 
         user = User(
             first_name=first_name,
             last_name=last_name or None,
-            email=email,
+            email=email.strip().lower(),
             password_hash=hash_password(password),
             role="user",
             last_login_at=func.now(),
         )
         db.add(user)
-        db.commit()
+        _commit_unique(db, "อีเมลนี้ถูกใช้สมัครแล้ว")
         return user.id
 
 
@@ -310,7 +321,11 @@ def oauth_login(provider: str, code: str) -> str:
                 role="user",
             )
             db.add(user)
-            db.flush()
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                raise AuthError("อีเมลนี้มีบัญชีอยู่แล้ว ให้ล็อกอินด้วยรหัสผ่าน แล้วกด \"ผูกบัญชี\" ที่เมนูผู้ใช้", 409)
             identity = UserIdentity(
                 user_id=user.id, provider=provider, provider_user_id=profile["sub"], provider_email=email
             )
@@ -321,7 +336,7 @@ def oauth_login(provider: str, code: str) -> str:
         _promote_if_admin_email(user, verified_email)
         identity.last_used_at = func.now()
         user.last_login_at = func.now()
-        db.commit()
+        _commit_unique(db, "มีการเข้าสู่ระบบบัญชีนี้พร้อมกันจากอีกหน้าต่าง กรุณาลองอีกครั้ง")
         return user.id
 
 
@@ -350,4 +365,4 @@ def link_identity(provider: str, code: str, user_id: str) -> None:
             )
             db.add(identity)
         identity.last_used_at = func.now()
-        db.commit()
+        _commit_unique(db, "บัญชีนี้ถูกผูกไว้แล้ว กรุณารีเฟรชหน้าเว็บ")

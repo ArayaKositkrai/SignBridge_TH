@@ -4,14 +4,22 @@ import Icon from "../../components/ui/Icon";
 import { fmtBytes, fmtDate } from "../../lib/format";
 import type { ModelsBrief } from "../contributor/services/contributorApi";
 import ModelPanel from "./components/ModelPanel";
-import { getVocabulary, listModels, setActiveModel, type ModelFile, type VocabItem } from "./services/adminApi";
+import { getVocabulary, listModels, setActiveModel, setTrainWord, type ModelFile, type VocabItem } from "./services/adminApi";
+
+// จำนวนคลิปที่ล่ามอัดขั้นต่ำต่อคำ ที่ train.py นำไปเทรน (ตรงกับ min_recorded_clips ใน ml/configs/train_words.json)
+const MIN_RECORDED_CLIPS = 5;
+
+// คำนี้มีข้อมูลพอเทรนไหม: มีคลิปในชุด TSL หรือล่ามอัดครบจำนวนขั้นต่ำ
+const trainable = (v: VocabItem) =>
+  Object.values(v.external ?? {}).some((e) => e.clips > 0) || (v.data?.samples ?? 0) >= MIN_RECORDED_CLIPS;
 
 // ตัวกรองคลังคำศัพท์
-type Filter = "all" | "to_record" | "in_model" | "weak" | "not_in_model" | "no_avatar" | "no_data";
+type Filter = "all" | "train" | "to_record" | "in_model" | "weak" | "not_in_model" | "no_avatar" | "no_data";
 
 // ตัวเลือกตัวกรอง
 const FILTERS: { value: Filter; label: string; test: (v: VocabItem) => boolean }[] = [
   { value: "all", label: "ทั้งหมด", test: () => true },
+  { value: "train", label: "เลือกไว้เทรน", test: (v) => v.in_train_set },
   { value: "to_record", label: "ต้องอัดเอง", test: (v) => v.to_record },
   { value: "in_model", label: "อยู่ในโมเดลที่ใช้", test: (v) => v.in_active_model },
   { value: "weak", label: "แม่นต่ำ (<70%)", test: (v) => (v.model?.active.accuracy ?? 1) < 0.7 },
@@ -81,6 +89,19 @@ export default function VersionsView() {
     }
   };
 
+  // ติ๊ก/เอาติ๊กออกคอลัมน์ "เทรน" (อัปเดตหน้าจอทันที ถ้าบันทึกไม่สำเร็จค่อยคืนค่าเดิม)
+  const toggleTrain = async (v: VocabItem) => {
+    const next = !v.in_train_set;
+    setVocab((list) => list.map((x) => (x.word === v.word ? { ...x, in_train_set: next } : x)));
+    try {
+      await setTrainWord(v.word, next);
+    } catch (e) {
+      setVocab((list) => list.map((x) => (x.word === v.word ? { ...x, in_train_set: !next } : x)));
+      setMessage({ ok: false, text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
+    }
+  };
+
+  const trainCount = vocab.filter((v) => v.in_train_set).length;
   const rows = useMemo(() => vocab.filter(FILTERS.find((f) => f.value === filter)!.test), [vocab, filter]);
   const totalSamples = vocab.reduce((n, v) => n + (v.data?.samples ?? 0), 0);
   const totalWords = vocab.filter((v) => v.data?.samples).length;
@@ -153,6 +174,10 @@ export default function VersionsView() {
       </div>
 
       <Card title={`คลังคำศัพท์และท่า (${vocab.length} คำ)`}>
+        <p className="mb-2 text-sm text-ink/70">
+          ติ๊กคอลัมน์ <b className="text-navy">เทรน</b> เพื่อเลือกคำที่จะให้โมเดลเรียนรู้ (เลือกไว้{" "}
+          <b className="text-navy">{trainCount}</b> คำ) มีผลเมื่อเทรนครั้งถัดไป
+        </p>
         <p className="mb-3 text-sm text-ink/70">
           ตัวเลข % คือคำนั้นทายถูกกี่ครั้ง เมื่อทดสอบกับผู้แสดงที่โมเดลไม่เคยเห็น
           {brief?.active.label && (
@@ -186,6 +211,7 @@ export default function VersionsView() {
           <table className="w-full min-w-[820px] text-sm">
             <thead className="sticky top-0 z-10 bg-sky/80 text-left text-xs text-navy backdrop-blur">
               <tr>
+                <th className="px-3 py-2 font-bold">เทรน</th>
                 <th className="px-3 py-2 font-bold">คำ</th>
                 <th className="px-3 py-2 font-bold">หมวด</th>
                 <th className="px-3 py-2 text-right font-bold">คลิปที่อัด</th>
@@ -198,6 +224,21 @@ export default function VersionsView() {
             <tbody className="divide-y divide-sky/60 bg-white/70">
               {rows.map((v) => (
                 <tr key={v.word}>
+                  <td className="px-3 py-2">
+                    <label
+                      className="flex items-center gap-1.5"
+                      title={trainable(v) ? "เลือกคำนี้ไว้เทรนโมเดล" : `ยังไม่มีข้อมูลพอเทรน (ไม่มีคลิป TSL และคลิปที่อัดยังไม่ถึง ${MIN_RECORDED_CLIPS})`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={v.in_train_set}
+                        onChange={() => void toggleTrain(v)}
+                        aria-label={`เลือก ${v.word} ไว้เทรน`}
+                        className="h-4 w-4 accent-brand"
+                      />
+                      {v.in_train_set && !trainable(v) && <Icon name="alert" size={14} className="text-amber-600" />}
+                    </label>
+                  </td>
                   <td className="px-3 py-2 font-semibold text-navy">
                     {v.word}
                     {v.to_record && (

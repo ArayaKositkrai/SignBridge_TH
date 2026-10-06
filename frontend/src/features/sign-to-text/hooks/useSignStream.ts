@@ -34,6 +34,8 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
   const [result, setResult] = useState<SignResult | null>(null);
   const [words, setWords] = useState<string[]>([]);
   const [sentences, setSentences] = useState<string[]>([]);
+  // ข้อความแจ้งจาก backend (เช่น ยังไม่มีโมเดล) null = ไม่มี
+  const [notice, setNotice] = useState<string | null>(null);
 
   const wordsRef = useRef<string[]>([]);
   const pending = useRef({ text: "", hits: 0 });
@@ -59,6 +61,7 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
   // รับผลจาก backend: นับเป็นคำเมื่อมั่นใจพอและได้ผลเดิมติดกันหลายครั้ง
   const onResult = useCallback(
     (r: SignResult) => {
+      setNotice(r.notice ?? null);
       if (!r.text) {
         pending.current = { text: "", hits: 0 };
         setResult(null);
@@ -82,6 +85,7 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
     if (!enabled) {
       setStatus("closed");
       setResult(null);
+      setNotice(null);
       return;
     }
     const socket = new SignSocket(onResult, setStatus, version);
@@ -112,5 +116,5 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
     pending.current = { text: "", hits: 0 };
   }, [setWordList]);
 
-  return { status, result, words, sentences, commit, clear };
+  return { status, result, notice, words, sentences, commit, clear };
 }

@@ -1,20 +1,16 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import Chip from "../../components/ui/Chip";
 import Icon from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
-import { QUICK_WORDS } from "../../config/emergencyPhrases";
 import type { SignClip } from "../../types";
 import SignPlayer from "./components/SignPlayer";
 import TextInput from "./components/TextInput";
 import VoiceInput from "./components/VoiceInput";
 import { useSignPlayback } from "./hooks/useSignPlayback";
-import { translateText } from "./services/textToSignApi";
+import { listSignWords, translateText, type SignWord } from "./services/textToSignApi";
 import { logEvent } from "../../lib/activityLog";
-
-// ประโยคตัวอย่างให้กดลองแปล
-const EXAMPLES = ["สวัสดี ขอบคุณ", "ช่วยด้วย ผมเจ็บ", "ขอโทษ ไม่เข้าใจ"];
 
 // หน้าข้อความ -> ภาษามือ: กรอกหรือพูด แล้วให้ตัวละครทำท่า
 export default function TextToSignPage() {
@@ -23,6 +19,22 @@ export default function TextToSignPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const player = useSignPlayback(clips);
+  // คำที่อวตารทำท่าได้ (จากฐานข้อมูล) และคำค้นหา
+  const [signWords, setSignWords] = useState<SignWord[]>([]);
+  const [query, setQuery] = useState("");
+
+  // โหลดรายการคำที่อวตารทำท่าได้ครั้งเดียวตอนเปิดหน้า
+  useEffect(() => {
+    listSignWords()
+      .then(setSignWords)
+      .catch(() => setSignWords([]));
+  }, []);
+
+  // คำที่ตรงกับคำค้นหา
+  const shownWords = useMemo(() => {
+    const q = query.trim();
+    return q ? signWords.filter((w) => w.word.includes(q)) : signWords;
+  }, [signWords, query]);
 
   // ส่งข้อความไปแปลที่ backend แล้วเริ่มเล่นท่าทาง
   const submit = async (value = text) => {
@@ -74,29 +86,34 @@ export default function TextToSignPage() {
           )}
         </Card>
 
-        <Card title="คำและประโยคที่ใช้บ่อย">
-          <div className="flex flex-wrap gap-2">
-            {QUICK_WORDS.map((w) => (
-              <Chip key={w} onClick={() => append(w)}>
-                + {w}
-              </Chip>
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 border-t border-sky/60 pt-3">
-            {EXAMPLES.map((ex) => (
-              <Chip
-                key={ex}
-                onClick={() => {
-                  setText(ex);
-                  void submit(ex);
-                }}
-                className="!bg-white ring-1 ring-sky"
-              >
-                {ex}
-              </Chip>
-            ))}
-          </div>
-        </Card>
+        {signWords.length > 0 && (
+          <Card title={`คำที่อวตารทำท่าได้ (${signWords.length})`}>
+            <div className="relative mb-2">
+              <Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="ค้นหาคำ"
+                className="h-9 w-full rounded-lg border border-sky bg-white pl-9 pr-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+              />
+            </div>
+            {/* แถวเดียวเลื่อนแนวนอน ไม่ให้คำจำนวนมากกองเต็มหน้า */}
+            <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-1.5">
+              {shownWords.map((w) => (
+                <Chip
+                  key={w.word}
+                  onClick={() => append(w.word)}
+                  className="shrink-0 whitespace-nowrap"
+                  title={w.source === "extracted" ? "ท่าจากข้อมูลจริง" : "ท่าเขียนมือ"}
+                >
+                  + {w.word}
+                </Chip>
+              ))}
+              {!shownWords.length && <span className="py-1 text-sm text-ink/45">ไม่พบคำที่ค้นหา</span>}
+            </div>
+          </Card>
+        )}
       </div>
 
       <div className="order-1 flex flex-col gap-4 lg:order-2">

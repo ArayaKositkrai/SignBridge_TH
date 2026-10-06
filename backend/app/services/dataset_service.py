@@ -27,6 +27,7 @@ UNKNOWN_SIGNER = 0
 # เวอร์ชันของรูปแบบไฟล์ skeleton ใน Storage (.npz):
 #   1 = points (T,48,2) NaN = มองไม่เห็น, t_ms (T,), aspect
 #   2 = เพิ่ม face (T,47,2) จุดสำคัญของใบหน้า และ face_idx (47,) เลขจุดใน face mesh ของ MediaPipe
+#       (ไม่บังคับ) z (T,48) ความลึก และ vis (T,6) ความชัดของแขน ไว้ขับอวตาร 3D — ไฟล์เก่าไม่มีก็อ่านได้
 FORMAT_VERSION = 2
 # จุดสำคัญของใบหน้าที่เก็บ: FACE_KEYPOINTS ใน ml/src/features.py (ใช้ตัวเดียวกับตอนเทรน)
 # ชื่อ dataset ในตาราง ↔ ชื่อที่หน้าเว็บแสดง
@@ -122,11 +123,90 @@ def _present_rate(frames: list[dict], key: str) -> float:
     return round(sum(1 for f in frames if f.get(key)) / len(frames), 4)
 
 
+# จำนวนจุดสูงสุดต่อส่วนที่รับ (pose 33, มือ 21, ใบหน้าเต็ม 478)
+MAX_POINTS = {"pose": 33, "leftHand": 21, "rightHand": 21, "face": 478}
+# ความยาวที่ใช้ได้ของแต่ละส่วน (นอกเหนือนี้ถือว่าไม่พบส่วนนั้น; pose ใช้ได้ตั้งแต่ 17 จุดเพราะต้องการแค่แขน)
+VALID_LENGTHS = {"pose": range(17, 34), "leftHand": (21,), "rightHand": (21,), "face": (47, 468, 478)}
+
+
+# แปลงค่าเป็นตัวเลขจำกัด (None/ไม่ใช่ตัวเลข/ไม่จำกัด = ไม่มีค่า)
+def _num(v) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v) if np.isfinite(v) else None
+
+
+# ตรวจจุดหนึ่งจุด: dict ที่มี x,y (z, visibility ไม่บังคับ) หรือ None = จุดนั้นไม่พบ
+def _clean_point(p) -> dict | None:
+    if p is None:
+        return None
+    if not isinstance(p, dict):
+        raise HTTPException(status_code=400, detail="จุด landmark ต้องเป็น object ที่มี x, y")
+    x, y = _num(p.get("x")), _num(p.get("y"))
+    if x is None or y is None:
+        return None
+    out = {"x": x, "y": y}
+    z = _num(p.get("z"))
+    if z is not None:
+        out["z"] = z  # ไม่มี z (เช่นไฟล์ที่ไม่มีความลึก) ปล่อยว่าง ไม่เติม 0 เพราะจะถูกเข้าใจว่าเป็นความลึกจริง
+    vis = _num(p.get("visibility"))
+    if vis is not None:
+        out["visibility"] = vis
+    return out
+
+
+# ตรวจและทำความสะอาดเฟรม landmarks ที่รับจากหน้าเว็บ (ชนิด ความยาว ค่าเป็นตัวเลข) จุดที่ไม่พบเป็น None
+def sanitize_frames(frames: list) -> list[dict]:
+    out = []
+    for n, f in enumerate(frames):
+        if not isinstance(f, dict):
+            raise HTTPException(status_code=400, detail=f"เฟรมที่ {n + 1} ไม่ถูกต้อง")
+        clean: dict = {"t": _num(f.get("t"))}
+        for key, lengths in VALID_LENGTHS.items():
+            pts = f.get(key) or []
+            if not isinstance(pts, list) or len(pts) > MAX_POINTS[key]:
+                raise HTTPException(status_code=400, detail=f"เฟรมที่ {n + 1}: ข้อมูล {key} ไม่ถูกต้อง")
+            if len(pts) not in lengths:
+                pts = []
+            clean[key] = [_clean_point(p) for p in pts]
+        out.append(clean)
+    return out
+
+
+# เติมจุดที่ไม่พบ (None) ให้เป็นพิกัด NaN ก่อนส่งให้ features (ที่อ่าน x,y จาก dict)
+def _fill_none(pts: list | None) -> list | None:
+    if pts is None:
+        return None
+    nan = {"x": float("nan"), "y": float("nan")}
+    return [p if p is not None else nan for p in pts]
+
+
+# ความลึก z ของจุดทั้ง 48 ตามลำดับเดียวกับ points (ไม่พบ = NaN) และ visibility ของ pose 6 จุด
+def _depth_and_visibility(f: dict, F) -> tuple[np.ndarray, np.ndarray]:
+    z = np.full(F.N_POINTS, np.nan, dtype=np.float32)
+    vis = np.full(len(F.MP_POSE_IDX), np.nan, dtype=np.float32)
+    pose = f.get("pose") or []
+    if len(pose) >= 17:
+        for i, mp_i in enumerate(F.MP_POSE_IDX):
+            p = pose[mp_i]
+            if isinstance(p, dict):
+                z[i] = p.get("z", np.nan) if p.get("z") is not None else np.nan
+                vis[i] = p.get("visibility", np.nan)
+    for sl, key in ((F.LH, "leftHand"), (F.RH, "rightHand")):
+        hand = f.get(key) or []
+        if len(hand) == 21 and all(isinstance(p, dict) for p in hand):
+            z[sl] = [p.get("z", np.nan) for p in hand]
+    return z, vis
+
+
 # แปลงเฟรมจาก MediaPipe เป็นไฟล์ .npz รูปแบบกลาง พร้อมสถิติของคลิป
+#   เก็บ z (T,48) และ vis (T,6) เพิ่มแบบไม่บังคับ: ใช้กับอวตาร 3D เท่านั้น ไม่กระทบ features ของโมเดลจดจำ
 def encode_frames(frames: list[dict], width: int | None, height: int | None) -> tuple[bytes, dict]:
     F = features()
+    frames = [{**f, **{k: _fill_none(f.get(k)) for k in VALID_LENGTHS if k in f}} for f in frames]
     points = np.stack([F.from_mediapipe(f.get("pose"), f.get("leftHand"), f.get("rightHand")) for f in frames])
     face = np.stack([F.face_from_mediapipe(f.get("face")) for f in frames])
+    depth, vis = (np.stack(a) for a in zip(*(_depth_and_visibility(f, F) for f in frames)))
     t_ms = np.array([f.get("t") if isinstance(f.get("t"), (int, float)) else np.nan for f in frames], dtype=np.float64)
     has_time = not np.isnan(t_ms).any()
     aspect = width / height if width and height else F.estimate_aspect(points)
@@ -137,6 +217,8 @@ def encode_frames(frames: list[dict], width: int | None, height: int | None) -> 
         buf,
         points=points.astype(np.float32),
         face=face,
+        z=depth.astype(np.float32),
+        vis=vis.astype(np.float32),
         face_idx=np.array(F.FACE_KEYPOINTS, dtype=np.int16),
         t_ms=np.round(t_ms).astype(np.int32) if has_time else np.zeros(len(frames), np.int32),
         aspect=np.float32(aspect),
@@ -160,17 +242,31 @@ def decode_frames(data: bytes) -> list[dict]:
     with np.load(io.BytesIO(data), allow_pickle=False) as d:
         points, t_ms = d["points"], d["t_ms"]
         faces = d["face"] if "face" in d.files else np.full((len(points), 1, 2), np.nan)
+        depth = d["z"] if "z" in d.files else np.full(points.shape[:2], np.nan, dtype=np.float32)
+        vis = d["vis"] if "vis" in d.files else np.full((len(points), len(F.MP_POSE_IDX)), np.nan, dtype=np.float32)
 
-    def pts(arr):
-        return [] if np.isnan(arr).all() else [{"x": float(x), "y": float(y)} for x, y in arr]
+    # จุดหนึ่งจุด: มีความลึก z / ความชัด visibility เมื่อไฟล์เก็บไว้
+    def point(x, y, z=np.nan, v=np.nan):
+        out = {"x": float(x), "y": float(y)}
+        if np.isfinite(z):
+            out["z"] = float(z)
+        if np.isfinite(v):
+            out["visibility"] = float(v)
+        return out
+
+    # รายการจุดของมือ/ใบหน้า (ไม่เห็น = ว่าง)
+    def pts(arr, zs=None):
+        if np.isnan(arr).all():
+            return []
+        return [point(x, y, np.nan if zs is None else zs[i]) for i, (x, y) in enumerate(arr)]
 
     frames = []
-    for p, t, face in zip(points, t_ms, faces):
+    for p, t, face, z, v in zip(points, t_ms, faces, depth, vis):
         pose: list = [None] * 33
         for i, mp_i in enumerate(F.MP_POSE_IDX):
             if not np.isnan(p[i]).any():
-                pose[mp_i] = {"x": float(p[i][0]), "y": float(p[i][1])}
-        frames.append({"t": int(t), "pose": pose, "leftHand": pts(p[F.LH]), "rightHand": pts(p[F.RH]),
+                pose[mp_i] = point(p[i][0], p[i][1], z[i], v[i])
+        frames.append({"t": int(t), "pose": pose, "leftHand": pts(p[F.LH], z[F.LH]), "rightHand": pts(p[F.RH], z[F.RH]),
                        "face": [] if np.isnan(face).any() else pts(face)})
     return frames
 
@@ -267,6 +363,7 @@ def load_vocab() -> list[dict]:
             "assigned": w.assigned_to,
             "note": w.note,
             "to_record": w.to_record,
+            "in_train_set": w.in_train_set,
             "external": external.get(w.id, {}),
         }
         for w in words
@@ -282,13 +379,24 @@ def vocabulary_items() -> list[dict]:
 # ---------- เขียนข้อมูล ----------
 
 
+# เลือก/ไม่เลือกคำนี้ไว้เทรนโมเดล (words.in_train_set) คืน False ถ้าไม่พบคำ
+def set_in_train_set(word: str, value: bool) -> bool:
+    with SessionLocal() as db:
+        row = db.scalar(select(Word).where(Word.word == clean_word(word)))
+        if row is None:
+            return False
+        row.in_train_set = value
+        db.commit()
+    return True
+
+
 # บันทึกคลิปใหม่: อัปโหลด skeleton (+ วิดีโอถ้ามี) ไป Storage แล้วเพิ่มแถวในตาราง samples
 def create_sample(
     *, word: str, frames: list[dict], source: str, signer: str | None, uploaded_by: str | None,
     fps: float | None, width: int | None, height: int | None,
     video: bytes | None = None, video_type: str | None = None,
 ) -> dict:
-    data, stats = encode_frames(frames, width, height)
+    data, stats = encode_frames(sanitize_frames(frames), width, height)
     with SessionLocal() as db:
         word_id = get_or_create_word(db, word)
         signer_id = get_or_create_contributor(db, signer)

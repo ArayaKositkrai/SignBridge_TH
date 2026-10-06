@@ -16,14 +16,11 @@ ROLE_ACTORS = {"admin": "แอดมิน", "contributor": "ล่าม", "us
 COLUMNS = ("ts", "actor", "kind", "action", "detail", "page", "method", "path", "status", "device", "ip")
 
 
-# หาผู้ทำ: ล็อกอินอยู่ = ตามบทบาท / ไม่ได้ล็อกอิน = ดูจากพาธของหน้าเว็บหรือ API
+# หาผู้ทำ: ล็อกอินอยู่ = ตามบทบาท / ไม่ได้ล็อกอิน = ผู้ใช้ทั่วไป (path เก็บไว้ในพารามิเตอร์เพื่อให้เรียกแบบเดิมได้)
 def actor_for(path: str, user: dict | None = None) -> str:
+    # ไม่ได้ล็อกอิน = ผู้ใช้ทั่วไปเสมอ (ไม่เดาจากหน้า/path เพราะหน้าเว็บส่งค่าอะไรมาก็ได้ ปลอมเป็นแอดมินได้)
     if user:
         return ROLE_ACTORS.get(user["role"], "ผู้ใช้")
-    if path.startswith(("/admin", "/api/admin")):
-        return "แอดมิน"
-    if path.startswith(("/contributor", "/api/contributor")):
-        return "ล่าม"
     return "ผู้ใช้"
 
 

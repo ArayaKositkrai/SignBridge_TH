@@ -129,7 +129,8 @@ interface UploadArgs {
   word: string;
   source: "record" | "upload";
   signer: string | null;
-  video: Blob;
+  // null = ไม่มีวิดีโอ (ไฟล์ .npy/.npz) เก็บเฉพาะ skeleton
+  video: Blob | null;
   fileName: string;
   frames: CapturedFrame[];
   fps: number;
@@ -153,6 +154,6 @@ export function uploadSample(a: UploadArgs) {
   }
   const json = new Blob([JSON.stringify(a.frames)], { type: "application/json" });
   form.append("landmarks", json, "landmarks.json");
-  form.append("video", a.video, a.fileName);
+  if (a.video) form.append("video", a.video, a.fileName);
   return send<SampleMeta>("/samples", { method: "POST", body: form });
 }

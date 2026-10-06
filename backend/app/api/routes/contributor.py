@@ -17,9 +17,15 @@ router = APIRouter(prefix="/api/contributor", tags=["contributor"], dependencies
 # ขนาดวิดีโอสูงสุดต่อคลิป (50 MB = ขนาดไฟล์สูงสุดของ Supabase Storage แบบฟรี)
 MAX_VIDEO_BYTES = 50 * 1024 * 1024
 # ชนิดวิดีโอที่รับ
-VIDEO_TYPES = {"video/webm", "video/mp4", "video/quicktime", "video/x-matroska"}
+VIDEO_TYPES = {
+    "video/webm", "video/mp4", "video/quicktime", "video/x-matroska", "video/x-m4v",
+    "video/x-msvideo", "video/3gpp", "video/ogg",
+}
 # เดาชนิดจากนามสกุลเมื่อเบราว์เซอร์ไม่บอกชนิดไฟล์มา (เช่นไฟล์ .mkv)
-VIDEO_EXT_TYPES = {".webm": "video/webm", ".mp4": "video/mp4", ".mov": "video/quicktime", ".mkv": "video/x-matroska"}
+VIDEO_EXT_TYPES = {
+    ".webm": "video/webm", ".mp4": "video/mp4", ".mov": "video/quicktime", ".mkv": "video/x-matroska",
+    ".m4v": "video/x-m4v", ".avi": "video/x-msvideo", ".3gp": "video/3gpp", ".ogv": "video/ogg",
+}
 # ขนาดไฟล์ landmarks สูงสุดต่อคลิป (20 MB)
 MAX_LANDMARKS_BYTES = 20 * 1024 * 1024
 # จำนวนเฟรม landmarks สูงสุดต่อคลิป (30 วินาทีที่ 50 fps ยังไม่เกิน)
@@ -60,7 +66,7 @@ async def read_video(upload: UploadFile) -> tuple[bytes, str]:
         ext = "." + (upload.filename or "").rsplit(".", 1)[-1].lower()
         content_type = VIDEO_EXT_TYPES.get(ext, content_type)
     if content_type not in VIDEO_TYPES:
-        raise HTTPException(status_code=400, detail="รองรับเฉพาะวิดีโอ webm, mp4, mov, mkv")
+        raise HTTPException(status_code=400, detail="รองรับเฉพาะวิดีโอ mp4, webm, mov, mkv, m4v, avi, 3gp, ogv")
     data = await upload.read(MAX_VIDEO_BYTES + 1)
     if len(data) > MAX_VIDEO_BYTES:
         raise HTTPException(status_code=413, detail="วิดีโอใหญ่เกิน 50 MB")

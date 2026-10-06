@@ -7,6 +7,8 @@ import type { SignResult, SocketStatus } from "../../../types";
 // ค่าที่แผงผลลัพธ์รับ
 interface Props {
   result: SignResult | null;
+  // ข้อความแจ้งจากระบบ (เช่น ยังไม่มีโมเดล)
+  notice?: string | null;
   words: string[];
   sentences: string[];
   socket: SocketStatus;
@@ -67,6 +69,12 @@ export default function ResultPanel(p: Props) {
   return (
     <div className="grid content-start gap-4 md:grid-cols-2 lg:grid-cols-1">
       <Card title="กำลังแปล">
+        {p.notice && (
+          <p role="status" className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+            <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+            {p.notice}
+          </p>
+        )}
         <div className="flex items-center gap-4">
           <div className="min-h-[4.5rem] min-w-0 flex-1">
             {p.result ? (

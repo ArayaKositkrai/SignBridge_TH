@@ -1,178 +1,214 @@
 # SignBridge TH
 
-ระบบสื่อสารสองทางระหว่างผู้ใช้ภาษามือไทยกับผู้ไม่ใช้ภาษามือ ประกอบด้วย 3 ฟีเจอร์หลัก
+ระบบช่วยสื่อสารสองทางระหว่างผู้ใช้ภาษามือไทยกับผู้ที่ไม่ใช้ภาษามือ
 
-| ฟีเจอร์ | การทำงาน |
-|---|---|
-| **Sign → Text** | เปิดกล้อง จับท่ามือด้วย MediaPipe Holistic ส่ง landmarks ผ่าน WebSocket ไปให้ backend จำแนกท่า แล้วแสดงเป็นข้อความ (และอ่านออกเสียงได้) |
-| **Text → Sign** | พิมพ์หรือพูดเป็นข้อความ → ตัดคำ → เล่นเป็นท่าภาษามือด้วยตัวละคร 3D (ตอนนี้ตัดคำแบบ greedy match ธรรมดา ยังไม่ได้ใช้ PyThaiNLP ตามที่ตั้งใจไว้แต่แรก) |
-| **Emergency AAC** | ปุ่มฉุกเฉินและวลีสำเร็จรูป กดแล้วพูดออกเสียงภาษาไทยทันที |
+| หน้า | URL | ทำอะไร |
+|---|---|---|
+| ภาษามือ → ข้อความ | `/` | เปิดกล้อง จับท่าด้วย MediaPipe ส่งจุด skeleton ไปให้ backend ทายคำ แล้วต่อเป็นประโยค (อ่านออกเสียงได้) |
+| ข้อความ → ภาษามือ | `/text-to-sign` | พิมพ์หรือพูด → ตัดคำ → ตัวละคร 3D ทำท่าทีละคำ |
+| ปุ่มฉุกเฉิน (AAC) | `/emergency` | ปุ่มวลีสำเร็จรูป กดแล้วพูดออกเสียงทันที ผู้ที่ล็อกอินเพิ่มปุ่มของตัวเองได้ |
+| พื้นที่ล่าม | `/contributor` | ล่ามอัดหรืออัปโหลดคลิป (วิดีโอ / .npy / .npz) เก็บเป็นข้อมูลเทรน |
+| แอดมิน | `/admin` | ภาพรวมข้อมูล ผู้ใช้ เลือกคำที่จะเทรน ดูผลเทรน เผยแพร่โมเดล และ log การใช้งาน |
 
-## โครงสร้างโปรเจค
+---
+
+## ข้อมูลอยู่ที่ไหน
 
 ```
-signbridge-th/
-├── frontend/            # เว็บแอป React + Vite + TypeScript
-├── backend/             # API FastAPI (Python)
-├── ml/                  # สคริปต์เตรียมข้อมูลและเทรนโมเดล
-├── docs/                # เอกสารประกอบ
-├── docker-compose.yml   # รัน frontend + backend พร้อมกัน
-└── README.md
+Supabase Postgres (database)     ตารางทั้งหมด: ผู้ใช้, คำศัพท์ (words), ข้อมูลคลิป (samples),
+                                  เวอร์ชันโมเดล (models), ท่าอวตาร (motions), log ฯลฯ
+Supabase Storage (ไฟล์)           ไฟล์ของคลิปที่ล่ามอัด: skeleton .npz + วิดีโอ  (ต้องใช้ SUPABASE_SERVICE_ROLE_KEY)
+ml/data/processed/tsl_skeleton.npz   skeleton ของชุดข้อมูล TSL ทั้งหมด (ไฟล์ในเครื่อง ~100 MB ไม่อยู่ใน git)
+ml/models/*.npz                      ไฟล์โมเดลที่เทรนแล้ว (backend อ่านจากโฟลเดอร์นี้)
 ```
 
-## frontend/
+- **ตาราง `words`** คือคลังคำทั้งหมด สร้างจาก Excel ของทีม + รายชื่อคำของ TSL ด้วย `ml/src/build_vocabulary.py`
+- **คำที่โมเดลรู้จัก** = คำที่ติ๊ก "เทรน" ในหน้าแอดมิน (`words.in_train_set`)
+- **คำที่อวตารทำท่าได้** = คำที่มีแถวในตาราง `motions` (สร้างด้วย `ml/src/build_motions.py`)
+- ตัวเลข "คลิปที่อัด" ในหน้าเว็บนับเฉพาะคลิปที่ล่ามอัดผ่านระบบ ไม่นับคลิป TSL
 
-| ไฟล์ / โฟลเดอร์ | หน้าที่ |
-|---|---|
-| `public/models/x-bot.fbx` | โมเดล 3D "X Bot" (Mixamo) ที่เป็นตัวละครทำท่าภาษามือในหน้า Text → Sign |
-| `public/sign-clips/` | คลิปวิดีโอภาษามือสำหรับฟีเจอร์ Text → Sign (ยังไม่มีคลิปจริง) |
-| `src/main.tsx` | จุดเริ่มต้นของแอป |
-| `src/app/App.tsx` | คอมโพเนนต์รากของแอป |
-| `src/app/routes.tsx` | กำหนดเส้นทางหน้าเว็บ |
-| `src/app/providers.tsx` | รวม context/provider ระดับแอป (BrowserRouter) |
-| `src/features/sign-to-text/` | ฟีเจอร์ภาษามือ → ข้อความ |
-| ↳ `SignToTextPage.tsx` | หน้าหลักของฟีเจอร์ |
-| ↳ `components/` | CameraView (กล้อง), LandmarkOverlay (วาดจุด keypoint), ResultPanel (ผลลัพธ์) |
-| ↳ `hooks/` | `useMediaPipe` (ตรวจจับท่าทางจากกล้อง), `useSignStream` (ส่ง WebSocket และต่อคำเป็นประโยค) |
-| ↳ `services/signSocket.ts` | เชื่อมต่อ WebSocket ไป backend (ต่อใหม่เองเมื่อหลุด) |
-| `src/features/text-to-sign/` | ฟีเจอร์ข้อความ/เสียง → ภาษามือ |
-| ↳ `TextToSignPage.tsx` | หน้าหลักของฟีเจอร์ |
-| ↳ `components/` | TextInput, VoiceInput, SignPlayer (ตัวเล่นคำต่อคำ), SkeletonAvatar (ตัวละคร 2D สำรอง), Avatar3D (ตัวละคร 3D หลัก) |
-| ↳ `hooks/` | `useSpeechRecognition` (พูดเป็นข้อความ), `useSignPlayback` (คิวเล่นคำทีละคำ) |
-| ↳ `services/textToSignApi.ts` | เรียก `POST /api/text-to-sign` |
-| `src/features/emergency-aac/` | ฟีเจอร์ฉุกเฉิน/สื่อสารทดแทน |
-| ↳ `EmergencyPage.tsx` | หน้าหลักของฟีเจอร์ |
-| ↳ `components/` | EmergencyButton, PhraseGrid |
-| ↳ `hooks/` | `useSpeak` (อ่านออกเสียง), `useCustomPhrases` (โหลด/เพิ่ม/ลบวลีที่ผู้ใช้เพิ่มเอง) |
-| ↳ `services/emergencyApi.ts` | เรียก API วลีฉุกเฉินที่ backend |
-| `src/components/ui/` | UI กลาง: Button, Card, Chip, Icon, Modal, PageTitle |
-| `src/components/layout/` | Header, Navbar, PageLayout |
-| `src/hooks/useCamera.ts` | เปิด/ปิด/สลับกล้อง |
-| `src/lib/mediapipe/` | โหลด MediaPipe Holistic (`holistic.ts`) และวาดเส้น keypoint ลง canvas (`draw.ts`) |
-| `src/lib/avatar/` | ตัวละคร 2D สำรอง: `skeleton.ts` (คำนวณท่ามือ/นิ้วจากข้อมูลท่าทาง), `render.ts` (วาดลง canvas) |
-| `src/lib/avatar3d/` | ตัวละคร 3D หลัก: `loadModel.ts` (โหลด x-bot.fbx), `bones.ts` (ชื่อกระดูก Mixamo), `rig.ts` (หมุนกระดูกตามท่ามือ), `face.ts` (วาดหน้าการ์ตูนแปะบนหัวโมเดล เพราะโมเดลไม่มี blendshape) |
-| `src/lib/tts.ts` | ห่อ `speechSynthesis` (th-TH) |
-| `src/lib/apiClient.ts` | client สำหรับเรียก REST API |
-| `src/config/env.ts` | URL ของ backend / MediaPipe / โมเดล 3D |
-| `src/config/emergencyPhrases.ts` | วลีฉุกเฉินสำเร็จรูป 5 อัน + คำที่ใช้บ่อย |
-| `src/types/` | TypeScript types กลาง |
-| `src/styles/` | Tailwind และสไตล์ร่วม |
-| `tsconfig.json` | ตั้งค่า TypeScript |
-| `vite.config.ts` | ตั้งค่า Vite |
-| `tailwind.config.js` | ธีมสี/ฟอนต์ |
-| `package.json` | dependencies และ scripts |
+---
 
-## backend/
+## เริ่มใช้งาน
 
-| ไฟล์ / โฟลเดอร์ | หน้าที่ |
-|---|---|
-| `app/main.py` | สร้างแอป FastAPI, ตั้งค่า CORS, ลงทะเบียน routes, มี `GET /` และ `GET /api/health` |
-| `app/api/routes/sign_to_text.py` | WebSocket `/ws/sign-to-text` รับ landmarks ส่งผลจำแนกกลับ |
-| `app/api/routes/text_to_sign.py` | `POST /api/text-to-sign` แปลงข้อความเป็นรายการคำ + ท่าทาง |
-| `app/api/routes/emergency.py` | `GET/POST /api/emergency-phrases`, `DELETE /api/emergency-phrases/{id}` — จัดการเฉพาะวลีที่ผู้ใช้เพิ่มเอง (วลีสำเร็จรูป 5 อันฝังอยู่ฝั่ง frontend) |
-| `app/services/recognition_service.py` | จำแนกท่ามือ — ตอนนี้เป็น **stub** นับจำนวนนิ้วที่ชู ยังไม่ใช่โมเดลจริง |
-| `app/services/retrieval_service.py` | ค้นคำใน `vocabulary.json` แล้วแนบท่าทางจาก `motion_library.py` ให้ |
-| `app/services/motion_library.py` | คลัง keyframe ท่ามือ/สีหน้าตัวอย่าง 12 คำ ให้ตัวละคร Text → Sign เล่น (เขียนมือเอง ไม่ใช่ท่ามาตรฐานภาษามือไทย) |
-| `app/services/emergency_service.py` | อ่าน/เขียนวลีฉุกเฉินที่ผู้ใช้เพิ่มเอง ลงไฟล์ `data/custom_phrases.json` |
-| `app/nlp/tokenizer.py` | ตัดคำแบบจับคู่ยาวสุดกับ `vocabulary.json` (**ยังไม่ได้ใช้ PyThaiNLP**) |
-| `app/data/vocabulary.json` | คลังคำศัพท์ภาษามือที่ใช้จับคู่ตอนแปล |
-| `app/data/custom_phrases.json` | วลีฉุกเฉินที่ผู้ใช้เพิ่มเอง (backend สร้างเองตอนรัน อยู่ใน `.gitignore`) |
-| `tests/` | ยังไม่มี unit test |
-| `Dockerfile` | สร้าง image ของ backend |
-| `requirements.txt` | Python dependencies (`fastapi`, `uvicorn`, `sqlalchemy`, `psycopg`, `PyJWT`, `httpx`) |
+### 1. เตรียมไฟล์ `.env`
 
-> ไฟล์เหล่านี้ยังเป็นโครงเปล่า (0 byte) รอการพัฒนาจริง ไม่ได้ผูกกับ route หรือถูกเรียกใช้ที่ไหน: `app/api/routes/vocabulary.py`, `app/api/routes/health.py` (health check จริงอยู่ใน `main.py`), `app/core/config.py`, `app/core/logging.py`, `app/schemas/`, `app/ml/preprocessing.py`, `app/ml/model_loader.py`, `app/ml/classifier.py`, `app/nlp/gloss_mapper.py`, `app/data/emergency_phrases.json`
+คัดลอก `.env.example` เป็น `.env` ที่รากโปรเจกต์ แล้วใส่ค่า (ห้าม commit `.env`)
 
-## ml/
+| ตัวแปร | จำเป็น | หาค่าจากไหน |
+|---|---|---|
+| `DATABASE_URL` | ✓ | Supabase → Project Settings → Database → Connection string |
+| `AUTH_SECRET` | ✓ | สุ่มเอง: `python -c "import secrets; print(secrets.token_urlsafe(48))"` (ไม่มี = backend ไม่ยอมเปิด) |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✓ สำหรับคลิปของล่าม | Supabase → Project Settings → API Keys → service_role (ห้ามแชร์ เข้าถึงข้อมูลได้ทั้งหมด) |
+| `ADMIN_EMAILS` | | อีเมล Google ที่ล็อกอินแล้วได้เป็นแอดมินอัตโนมัติ คั่นด้วยจุลภาค |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | | ล็อกอินด้วย Google (ดูคำอธิบายใน `.env.example`) |
+| `LINE_CHANNEL_ID` / `LINE_CHANNEL_SECRET` | | ล็อกอินด้วย LINE |
+| `PUBLIC_API_URL`, `CORS_ORIGINS`, `COOKIE_SECURE`, `TRUST_PROXY`, `SESSION_DAYS` | | ใช้ตอนขึ้นเซิร์ฟเวอร์จริง (ดู `.env.example`) |
 
-| ไฟล์ / โฟลเดอร์ | หน้าที่ |
-|---|---|
-| `data/` | ข้อมูลดิบและที่ประมวลผลแล้ว (อยู่ใน `.gitignore`) |
-| `notebooks/` | EDA และการทดลอง |
-| `src/extract_landmarks.py` | ดึง landmarks จากวิดีโอ |
-| `src/split.py` | แบ่งข้อมูลแบบ signer-independent |
-| `src/features.py` | สร้างฟีเจอร์จาก landmarks |
-| `src/train_baseline.py` | เทรนโมเดล baseline (RF/SVM) |
-| `src/train_lstm.py` | เทรนโมเดล LSTM |
-| `src/evaluate.py` | ประเมินผลโมเดล |
-| `models/` | ไฟล์โมเดลที่เทรนแล้ว (`.pkl` / `.pt`) |
-| `configs/` | ไฟล์ตั้งค่าการเทรน |
-| `requirements.txt` | Python dependencies ของงาน ML |
-
-> ทุกไฟล์ในตารางนี้ยังเป็นโครงเปล่า (0 byte) ทั้งหมด ยังไม่มีใครเขียนโค้ดจริง — ตารางนี้บอกแผนที่ตั้งใจไว้ ไม่ใช่สถานะปัจจุบัน
-
-## วิธีเปิดโปรเจค
-
-> สถานะปัจจุบัน: หน้าบ้านครบ 3 หน้า (Tailwind CSS) และ backend มี `/ws/sign-to-text` กับ `POST /api/text-to-sign` แล้ว แต่การจำแนกท่าภาษามือยังเป็น **stub** (นับจำนวนนิ้วที่ชูเพื่อจำลองผล) จนกว่าจะเทรนโมเดลจริง และยังไม่มีคลิปภาษามือใน `public/sign-clips/` ตัวเล่น Text → Sign จึงแสดงเป็นโมเดล 3D "X Bot" ของ Mixamo (`frontend/public/models/x-bot.fbx`, เรนเดอร์ด้วย three.js ใน `frontend/src/lib/avatar3d/`) ขยับแขน มือ 5 นิ้ว และเอียงหัวตาม keyframe ใน `backend/app/services/motion_library.py` ซึ่งเป็น**ท่าตัวอย่างที่เขียนมือ ไม่ใช่ท่ามาตรฐานภาษามือไทย** และเป็นการหมุนกระดูกแบบ IK/heuristic โดยประมาณ ไม่ใช่ mocap จริง (ควรแทนที่ด้วยข้อมูลที่ดึงจากวิดีโอจริงผ่าน `ml/src/extract_landmarks.py`) โมเดล X Bot ไม่มี blendshape ใบหน้า จึงวาดหน้าการ์ตูน (แบบเดียวกับตัวโครงกระดูก 2D) ลงบน canvas แล้วแปะเป็น texture ไว้หน้ากระดูกหัวแทน (`frontend/src/lib/avatar3d/face.ts`) ถ้าโหลดโมเดล 3D ไม่สำเร็จ (เช่นไม่มีเน็ตตอนโหลดไฟล์ `.fbx` ครั้งแรก) จะตกไปใช้ตัวโครงกระดูก 2D (canvas) แทนโดยอัตโนมัติ
->
-> วลีฉุกเฉินที่ผู้ใช้เพิ่มเองเก็บที่ `backend/app/data/custom_phrases.json` (อยู่ใน `.gitignore`, ตั้งโฟลเดอร์เก็บผ่าน env `DATA_DIR` ได้) ผ่าน `GET/POST /api/emergency-phrases` และ `DELETE /api/emergency-phrases/{id}`
->
-> ครั้งแรกที่เปิดกล้อง เบราว์เซอร์ต้องมีอินเทอร์เน็ตเพื่อโหลด MediaPipe wasm (jsdelivr) และโมเดล Holistic (storage.googleapis.com)
->
-> ถ้าแก้ `frontend/package.json` หรือ `backend/requirements.txt` ต้องรัน `docker compose up --build` ใหม่
-
-### สิ่งที่ต้องมี
-- Node.js 18+
-- Python 3.10+
-- Docker Desktop
-
-### ตั้งค่า .env (ต้องทำก่อนรัน)
-
-คัดลอก `.env.example` เป็น `.env` ที่รากโปรเจค แล้วใส่ `DATABASE_URL` (Supabase) และ `AUTH_SECRET` (สุ่มด้วยคำสั่งที่เขียนไว้ในไฟล์) ทั้ง Docker และการรันแยกอ่านไฟล์นี้
-
-**ระบบล็อกอิน**: หน้า "อัดคลิปล่าม" ต้องเป็นล่ามหรือแอดมิน ส่วนหน้า "แอดมิน" ต้องเป็นแอดมิน หน้าแปลภาษามือและฉุกเฉินใช้ได้โดยไม่ต้องล็อกอิน
-- สมัครด้วยอีเมล/รหัสผ่านที่ `/login` บัญชีใหม่เป็นผู้ใช้ทั่วไป
-- ตั้งแอดมินคนแรก: `cd backend && python -m app.scripts.set_role you@example.com admin` (หรือใส่อีเมล Google ใน `ADMIN_EMAILS` แล้วล็อกอินด้วย Google)
-- ปุ่ม Google / LINE จะขึ้นเมื่อใส่ client id/secret ใน `.env` และลงทะเบียน callback URL ตามที่เขียนไว้ใน `.env.example`
-
-### วิธีที่ 1: Docker
+### 2. รันด้วย Docker (แนะนำ)
 
 ```bash
 docker compose up --build
 ```
 
-### วิธีที่ 2: รันแยกทีละส่วน
+- หน้าเว็บ: http://localhost:5173
+- API: http://localhost:8000 (ตรวจสถานะ: http://localhost:8000/api/health)
+- แก้โค้ดแล้วรีโหลดเองทั้งสองฝั่ง (โฟลเดอร์ `backend/app`, `frontend/`, `ml/` ถูก mount เข้า container)
 
-**Backend**
+### 3. รันแบบไม่ใช้ Docker
 
-Windows (PowerShell / cmd):
+Backend (Python 3.11 ขึ้นไป):
+
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-macOS / Linux (bash / zsh):
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
+Frontend (Node 20):
 
-เปิดเอกสาร API ที่ http://localhost:8000/docs
-
-> ความต่างหลักระหว่าง Windows กับ Mac/Linux คือคำสั่งสร้าง/เปิดใช้งาน virtual environment (`python` vs `python3`, `.venv\Scripts\activate` vs `source .venv/bin/activate`) ส่วนคำสั่งอื่น ๆ ในเอกสารนี้ (`docker compose`, `npm install`, `npm run dev`, `pip install`) ใช้เหมือนกันทุกระบบปฏิบัติการ
-
-**Frontend**
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev                       # http://localhost:5173
+npm run build                     # ตรวจ type + build สำหรับขึ้นเซิร์ฟเวอร์
 ```
-เปิดที่ http://localhost:5173
 
-**ML (เทรนโมเดล)**
+### 4. ตั้งแอดมินคนแรก
+
+สมัครที่หน้าเว็บก่อน แล้วสั่ง (ในโฟลเดอร์ `backend`):
+
 ```bash
-cd ml
-pip install -r requirements.txt
-python src/extract_landmarks.py
-python src/train_baseline.py
-python src/evaluate.py
+python -m app.scripts.set_role you@example.com admin      # หรือ contributor = ล่าม
 ```
-นำไฟล์โมเดลใน `ml/models/` ไปวางให้ backend โหลดผ่าน `app/ml/model_loader.py`
 
-> กล้องและไมโครโฟนบนเบราว์เซอร์ต้องใช้ `localhost` หรือ HTTPS เท่านั้น
+---
+
+## งานข้อมูลและโมเดล (โฟลเดอร์ `ml/`)
+
+ติดตั้งครั้งแรก (ใช้ venv เดียวกับ backend ได้): `pip install -r ml/requirements.txt` (มี torch ขนาดหลายร้อย MB)
+
+| ขั้น | ทำอย่างไร |
+|---|---|
+| 1. เตรียมชุด TSL | `python ml/src/import_tsl_storage.py` (ดึงจาก Storage) หรือ `python ml/src/import_tsl.py --frames ... --meta ...` (จากไฟล์ในเครื่อง) → ได้ `ml/data/processed/tsl_skeleton.npz` |
+| 2. คลังคำ | `python ml/src/build_vocabulary.py --tracker <Excel ของทีม> --merged <tsl_merged_dataset.zip>` (ทำครั้งเดียว/เมื่อ Excel เปลี่ยน) |
+| 3. เลือกคำที่จะเทรน | หน้าเว็บ **แอดมิน → คลังคำ & เวอร์ชัน** → ติ๊กคอลัมน์ "เทรน" |
+| 4. เทรน | `cd ml/src && python train.py` (~1 นาที) — ระหว่างเทรนดูความคืบหน้าได้ที่หน้าแอดมิน ผลที่ได้เป็นเวอร์ชัน **Draft** |
+| 5. ทดสอบและเผยแพร่ | หน้าแอดมิน → "ทดสอบ Draft" → ถ้าพอใจกด "เผยแพร่" ผู้ใช้ทั่วไปถึงจะได้ใช้ |
+| 6. ท่าอวตาร | `python ml/src/build_motions.py` สร้างท่าของตัวละครจากคลิปจริง (ทำใหม่เมื่อมีคลิปเพิ่ม) |
+
+ข้อควรรู้
+- เทรนบนเครื่องเดียวกับที่รัน backend (ไฟล์โมเดลถูกเขียนลง `ml/models/` ซึ่ง backend อ่าน) ถ้าเทรนเครื่องอื่นต้องคัดลอกไฟล์ `.npz` ไปไว้ที่ `ml/models/` ก่อนเผยแพร่
+- คลิปที่ล่ามอัดถูกใช้เทรนเมื่อคำนั้นมีอย่างน้อย 5 คลิป (`ml/configs/train_words.json`)
+- เปลี่ยนวิธีคำนวณ feature (`FEATURE_VERSION` ใน `ml/src/features.py`) แล้วต้องเทรนใหม่ โมเดลเก่าจะถูก backend ปฏิเสธ
+
+---
+
+## ไฟล์ไหนทำอะไร
+
+### backend/ (FastAPI)
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `app/main.py` | สร้างแอป ตั้ง CORS ลงทะเบียน route บันทึก log ทุกการเรียก API ที่แก้ข้อมูล |
+| `app/api/deps.py` | อ่าน cookie session → ผู้ใช้ปัจจุบัน และตัวตรวจสิทธิ์ (`require_admin`, `require_staff`, `require_login`) |
+| `app/api/routes/auth.py` | สมัคร/ล็อกอินด้วยอีเมล, Google, LINE และผูกบัญชี |
+| `app/api/routes/sign_to_text.py` | WebSocket `/ws/sign-to-text` รับ skeleton ทีละเฟรม ตอบคำที่แปลได้ (ตรวจรูปแบบข้อมูลและจำกัดความถี่) |
+| `app/api/routes/text_to_sign.py` | แปลข้อความเป็นรายการท่า และรายการคำที่อวตารทำได้ |
+| `app/api/routes/emergency.py` | ปุ่ม AAC ของแต่ละผู้ใช้ |
+| `app/api/routes/contributor.py` | งานของล่าม: บันทึก/ดู/ลบคลิป คลังคำศัพท์ |
+| `app/api/routes/admin.py` | แดชบอร์ด ผู้ใช้ คลังคำ (ติ๊กคำเทรน) เวอร์ชันโมเดล สถานะการเทรน เผยแพร่ |
+| `app/api/routes/logs.py` | รับ log การกดปุ่มจากหน้าเว็บ และให้แอดมินดู/ดาวน์โหลด CSV |
+| `app/core/config.py` | อ่านค่าจาก `.env` และพาธต่าง ๆ |
+| `app/core/cors.py` | โดเมนที่อนุญาตให้เรียก API |
+| `app/core/rate_limit.py` | จำกัดจำนวนครั้ง (ล็อกอิน/สมัคร/ส่ง log) ต่อ IP |
+| `app/db/models.py` | โครงตารางทั้งหมด (SQLAlchemy) |
+| `app/db/session.py` | การเชื่อมต่อ database |
+| `app/db/schema.py` | เพิ่มคอลัมน์ที่โค้ดใหม่ต้องใช้ตอนเปิดเซิร์ฟเวอร์ (คู่กับ `backend/sql/`) |
+| `app/services/auth_service.py` | รหัสผ่าน (scrypt) session (JWT) OAuth |
+| `app/services/user_service.py` | จัดการผู้ใช้ |
+| `app/services/recognition_service.py` | ตัวแปลภาษามือ: เก็บ skeleton ย้อนหลัง ~2 วินาที แล้วให้โมเดลทาย |
+| `app/services/retrieval_service.py` | หาท่าของแต่ละคำ (ข้อความ → ภาษามือ) |
+| `app/services/motion_library.py` | อ่านท่าอวตารจากตาราง `motions` |
+| `app/services/dataset_service.py` | คลิปของล่าม: แปลง skeleton ↔ ไฟล์ .npz, สถิติ, คลังคำ |
+| `app/services/storage.py` | อัปโหลด/ดาวน์โหลดไฟล์ใน Supabase Storage |
+| `app/services/model_registry.py` | เวอร์ชันโมเดล (active / draft / archived) |
+| `app/services/emergency_service.py` | ปุ่ม AAC ในฐานข้อมูล |
+| `app/services/activity_log.py` | บันทึก/ค้น log การใช้งาน |
+| `app/ml/classifier.py`, `model_loader.py` | โหลดไฟล์โมเดล `.npz` และทายคำด้วย numpy (backend ไม่ต้องมี torch) |
+| `app/nlp/tokenizer.py` | ตัดคำภาษาไทยแบบหาคำที่ยาวที่สุดจากคลังคำ |
+| `app/scripts/set_role.py` | ตั้งบทบาทผู้ใช้จากอีเมล |
+| `app/scripts/export_registry.py` | ส่งออกรหัสคำ/ผู้แสดงเป็น CSV ให้โน้ตบุ๊ก |
+| `app/scripts/rename_samples.py` | ย้ายชื่อคลิปรูปแบบเก่าเป็น `W####_S###_C###` |
+| `sql/` | คำสั่ง SQL ที่เพิ่มคอลัมน์ (รันซ้ำได้) |
+
+### frontend/ (React + Vite + TypeScript + Tailwind)
+
+| ไฟล์ / โฟลเดอร์ | หน้าที่ |
+|---|---|
+| `public/models/x-bot.fbx` | ตัวละคร 3D (Mixamo X Bot) |
+| `src/app/` | จุดเริ่มแอป เส้นทางของแต่ละหน้า |
+| `src/features/sign-to-text/` | หน้าภาษามือ → ข้อความ: กล้อง, วาด skeleton ทับภาพ, ส่ง WebSocket, แสดงผล |
+| `src/features/text-to-sign/` | หน้าข้อความ → ภาษามือ: ช่องพิมพ์/พูด, ตัวละคร 3D (`Avatar3D.tsx`) และแบบ 2D สำรอง |
+| `src/features/emergency-aac/` | หน้าปุ่มฉุกเฉิน |
+| `src/features/contributor/` | พื้นที่ล่าม: อัดคลิป (`RecorderPanel`), ช่องเลือกคำ (`WordCombobox`), อ่านไฟล์ .npy/.npz (`parseLandmarkFile`), คลังคำ |
+| `src/features/admin/` | หน้าแอดมิน: แดชบอร์ด ผู้ใช้ คลังคำ & เวอร์ชัน (`VersionsView`, `ModelPanel`) log |
+| `src/features/auth/` | หน้าล็อกอิน และสถานะผู้ใช้ |
+| `src/lib/mediapipe/` | โหลด MediaPipe, ตรวจจับท่า (`holistic.ts`), วาด skeleton (`draw.ts`), ลดการสั่น (`smoothing.ts`) |
+| `src/lib/avatar3d/` | ขยับตัวละคร 3D: โหลดโมเดล (`loadModel.ts`), IK แขน/ข้อมือ/นิ้ว และกันแขนทะลุตัว (`rig.ts`) |
+| `src/lib/avatar/skeleton.ts` | ผสมท่าระหว่าง keyframe และตัวละคร 2D |
+| `src/lib/apiClient.ts`, `activityLog.ts`, `tts.ts`, `format.ts` | เรียก API, ส่ง log, อ่านออกเสียง, จัดรูปแบบตัวเลข/วันที่ |
+| `src/components/` | ส่วนประกอบหน้าจอที่ใช้ร่วมกัน (ปุ่ม การ์ด ไอคอน เมนู) |
+| `src/config/` | ค่าตั้ง: ที่อยู่ API (`VITE_API_URL`, `VITE_WS_URL`), วลี/ไอคอน AAC |
+
+### ml/
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `src/features.py` | แปลง skeleton เป็น feature ให้โมเดล — **ใช้ร่วมกันทั้งตอนเทรนและ backend** |
+| `src/train.py` | เทรนโมเดล บันทึก `ml/models/model_signBridge_vX.Y.Z.npz` และรายงานความคืบหน้าลงฐานข้อมูล |
+| `src/run_tracker.py` | บันทึก log/ความคืบหน้าการเทรนลงตาราง `training_runs` (หน้าแอดมินอ่าน) |
+| `src/db.py` | เชื่อมฐานข้อมูลและ Storage สำหรับสคริปต์ใน `ml/` |
+| `src/import_tsl.py`, `import_tsl_storage.py` | สร้าง `tsl_skeleton.npz` จากชุดข้อมูล TSL |
+| `src/build_vocabulary.py` | นำ Excel + รายชื่อคำ TSL เข้าตาราง `words` |
+| `src/build_motions.py` | สร้างท่าอวตารจากคลิปจริง ลงตาราง `motions` |
+| `configs/train_words.json` | ตั้งค่าการเทรน (`include_null_class`, `min_recorded_clips`) |
+| `data/processed/` | `tsl_skeleton.npz` |
+| `models/` | ไฟล์โมเดลที่เทรนแล้ว |
+
+ไฟล์ว่างที่ยังไม่ได้ใช้: `ml/src/evaluate.py`, `extract_landmarks.py`, `split.py`, `train_baseline.py`, `backend/app/core/logging.py`, `backend/app/ml/preprocessing.py`
+
+---
+
+## API
+
+| Method | Path | สิทธิ์ |
+|---|---|---|
+| GET | `/api/health` | ทุกคน |
+| GET | `/api/auth/me` · POST `/api/auth/register` · `/login` · `/logout` | ทุกคน |
+| GET | `/api/auth/{google\|line}/start` · `/callback` | ทุกคน |
+| WS | `/ws/sign-to-text` (`?version=draft` เฉพาะแอดมิน/ล่าม) | ทุกคน |
+| POST | `/api/text-to-sign` · GET `/api/text-to-sign/words` | ทุกคน |
+| GET/POST/PATCH/DELETE | `/api/emergency-phrases` | ดู: ทุกคน · แก้: ผู้ที่ล็อกอิน |
+| GET/POST/DELETE | `/api/contributor/...` (words, vocabulary, samples, landmarks) | ล่าม/แอดมิน |
+| GET | `/api/admin/users` | ล่าม (เห็นแค่ชื่อ) / แอดมิน (เต็ม) |
+| POST/PATCH/DELETE | `/api/admin/users` | แอดมิน |
+| GET | `/api/admin/dashboard` · `/vocabulary` · `/models` · `/train/status` | แอดมิน |
+| PATCH | `/api/admin/vocabulary/{word}` (ติ๊กคำเทรน) | แอดมิน |
+| POST | `/api/admin/models/active` · `/api/admin/publish` | แอดมิน |
+| POST | `/api/logs/events` · GET `/api/admin/logs` · `/api/admin/logs/export.csv` | ทุกคน / แอดมิน |
+
+---
+
+## ปัญหาที่พบบ่อย
+
+| อาการ | สาเหตุ / วิธีแก้ |
+|---|---|
+| หน้าแปลขึ้น "ยังไม่มีโมเดลแปลภาษามือที่ใช้งาน" | ยังไม่ได้เผยแพร่โมเดล หรือโมเดลที่ใช้อยู่เก่ากว่า `FEATURE_VERSION` → เทรนใหม่แล้วกดเผยแพร่ |
+| "ยังไม่ได้ตั้งค่า Supabase Storage (SUPABASE_SERVICE_ROLE_KEY ใน .env)" | ใส่ key ใน `.env` แล้ว restart backend (`docker compose restart backend`) |
+| `ModuleNotFoundError: No module named 'numpy'` ตอนรัน `train.py` | ยังไม่ได้ลง package ใน venv ที่ใช้: `pip install -r ml/requirements.txt` |
+| เผยแพร่แล้วขึ้น "ไม่พบไฟล์โมเดล" | ไฟล์ `.npz` ไม่อยู่ใน `ml/models/` ของเครื่องที่รัน backend |
+| backend ไม่ยอมเปิด แจ้งเรื่อง `AUTH_SECRET` | ยังไม่ได้ใส่ `AUTH_SECRET` ใน `.env` |
+| ล็อกอินไม่ได้ ขึ้น "บ่อยเกินไป" | ใส่รหัสผิด 5 ครั้งใน 15 นาที หรือเรียกเกิน 10 ครั้ง/นาที — รอแล้วลองใหม่ |

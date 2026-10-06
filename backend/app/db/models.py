@@ -183,6 +183,13 @@ class TrainingRun(Base):
     return_code: Mapped[int | None] = mapped_column(Integer)
     log_path: Mapped[str | None] = mapped_column(Text)
     model_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("models.id", ondelete="SET NULL"))
+    # เขียนโดย ml/src/train.py ระหว่างเทรน: log ท้าย ๆ, ความคืบหน้า (ขั้น/รอบ/loss/ความแม่นยำ),
+    # เวลาที่รายงานล่าสุด (ไว้ดูว่ายังรันอยู่ไหม), ชื่อเครื่องที่เทรน และข้อผิดพลาด
+    log: Mapped[str | None] = mapped_column(Text)
+    progress: Mapped[dict | None] = mapped_column(JSONB)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    host: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
 
 
 # ท่าอวตาร Text->Sign (คำละ 1 ท่า)

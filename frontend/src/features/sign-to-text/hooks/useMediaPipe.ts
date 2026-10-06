@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { detect, loadHolistic } from "../../../lib/mediapipe/holistic";
+import { FrameSmoother } from "../../../lib/mediapipe/smoothing";
 import type { LandmarkFrame } from "../../../types";
 
 // สถานะการโหลดโมเดล
@@ -12,8 +13,11 @@ interface Options {
 }
 
 // hook ตรวจจับท่าทางจากวิดีโอทุกเฟรม เก็บผลล่าสุดไว้ใน ref (ไม่ทำให้หน้ารีเรนเดอร์ถี่)
+//   frameRef = ผลดิบ (ส่งให้โมเดลจดจำ เหมือนข้อมูลตอนเทรน) / displayRef = ผลที่กรองให้นิ่งแล้ว (ไว้วาดทับภาพ)
 export function useMediaPipe({ videoRef, active }: Options) {
   const frameRef = useRef<LandmarkFrame | null>(null);
+  const displayRef = useRef<LandmarkFrame | null>(null);
+  const smootherRef = useRef(new FrameSmoother());
   const frameIdRef = useRef(0);
   const [status, setStatus] = useState<ModelStatus>("idle");
   const [handsVisible, setHandsVisible] = useState(false);
@@ -23,6 +27,8 @@ export function useMediaPipe({ videoRef, active }: Options) {
   useEffect(() => {
     if (!active) {
       frameRef.current = null;
+      displayRef.current = null;
+      smootherRef.current.reset();
       setHandsVisible(false);
       setBodyVisible(false);
       return;
@@ -48,6 +54,7 @@ export function useMediaPipe({ videoRef, active }: Options) {
             try {
               const frame = detect(landmarker, video, performance.now());
               frameRef.current = frame;
+              displayRef.current = smootherRef.current.apply(frame, performance.now());
               frameIdRef.current += 1;
               const hands = frame.leftHand.length > 0 || frame.rightHand.length > 0;
               const body = frame.pose.length > 0;
@@ -67,8 +74,9 @@ export function useMediaPipe({ videoRef, active }: Options) {
       cancelled = true;
       cancelAnimationFrame(raf);
       frameRef.current = null;
+      displayRef.current = null;
     };
   }, [active, videoRef]);
 
-  return { frameRef, frameIdRef, status, handsVisible, bodyVisible };
+  return { frameRef, displayRef, frameIdRef, status, handsVisible, bodyVisible };
 }

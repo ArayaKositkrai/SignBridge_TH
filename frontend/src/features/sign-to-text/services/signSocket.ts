@@ -38,6 +38,10 @@ export class SignSocket {
       try {
         const msg = JSON.parse(ev.data);
         if (msg.type === "result") this.onResult(msg as SignResult);
+        // ข้อผิดพลาด/คำเตือนจาก backend แสดงเป็นข้อความแจ้ง
+        else if (msg.type === "error" && typeof msg.detail === "string") {
+          this.onResult({ text: "", confidence: 0, candidates: [], notice: msg.detail });
+        }
       } catch {
         // ignore malformed message
       }

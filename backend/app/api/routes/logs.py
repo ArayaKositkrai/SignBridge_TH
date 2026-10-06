@@ -1,12 +1,14 @@
 import csv
 import io
 import re
+from datetime import datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from app.api.deps import current_user, require_admin
+from app.core.rate_limit import client_ip, limit_logs
 from app.services import activity_log
 
 # กลุ่ม route ของ log การใช้งาน: รับ event จากหน้าเว็บ และให้แอดมินดู/ดาวน์โหลด
@@ -14,6 +16,8 @@ router = APIRouter(tags=["logs"])
 
 # รูปแบบเวลาที่รับจากหน้าเว็บ (เวลาท้องถิ่นของเครื่องผู้ใช้ ตอนกดปุ่มจริง)
 TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
+# เวลาจากหน้าเว็บที่ห่างจากเวลาเซิร์ฟเวอร์เกินนี้ไม่เชื่อ (กันการย้อนเวลา/ตั้งเวลาล่วงหน้า) ใช้เวลาเซิร์ฟเวอร์แทน
+MAX_CLOCK_SKEW = timedelta(minutes=10)
 # จำนวนแถวสูงสุดต่อหน้า และสูงสุดตอนดาวน์โหลด CSV
 MAX_PAGE = 200
 MAX_EXPORT = 50_000
@@ -30,7 +34,6 @@ ACTION_NAMES = {
     "POST /api/admin/users": "เพิ่มผู้ใช้",
     "PATCH /api/admin/users/{user_id}": "แก้ไขผู้ใช้",
     "DELETE /api/admin/users/{user_id}": "ลบผู้ใช้",
-    "POST /api/admin/train": "สั่งเทรนโมเดล",
     "POST /api/admin/publish": "เผยแพร่โมเดล",
     "POST /api/admin/models/active": "เปลี่ยนเวอร์ชันโมเดลที่ใช้",
 }
@@ -53,18 +56,30 @@ class EventsIn(BaseModel):
 
 # หารหัสเครื่องและ IP ของผู้เรียก
 def client_info(request: Request) -> tuple[str | None, str | None]:
-    return request.headers.get("x-device-id"), request.client.host if request.client else None
+    return request.headers.get("x-device-id"), client_ip(request)
 
 
-# รับ event การกดปุ่ม/เปิดหน้าจากหน้าเว็บ (ผู้ทำดูจากหน้าที่ใช้งาน)
-@router.post("/api/logs/events", status_code=204)
+# เวลาที่หน้าเว็บส่งมา ใช้ได้เมื่อรูปแบบถูกและใกล้เวลาเซิร์ฟเวอร์ (คืน None = ใช้เวลาเซิร์ฟเวอร์)
+def trusted_ts(ts: str | None) -> str | None:
+    if not ts or not TS_RE.match(ts):
+        return None
+    try:
+        sent = datetime.fromisoformat(ts)
+    except ValueError:
+        return None
+    return ts if abs(datetime.now() - sent) <= MAX_CLOCK_SKEW else None
+
+
+# รับ event การกดปุ่ม/เปิดหน้าจากหน้าเว็บ (จำกัดจำนวนครั้งต่อ IP)
+#   ผู้ทำ (แอดมิน/ล่าม/ผู้ใช้) ดูจากผู้ใช้ที่ล็อกอินจริงเท่านั้น ไม่ดูจากหน้าที่หน้าเว็บบอกมา (ปลอมได้)
+@router.post("/api/logs/events", status_code=204, dependencies=[Depends(limit_logs)])
 def add_events(body: EventsIn, request: Request, user: dict | None = Depends(current_user)):
     device, ip = client_info(request)
     device = device or body.device  # sendBeacon ตอนปิดหน้าแนบ header ไม่ได้ จึงส่งมาใน body
     for e in body.events:
         activity_log.add(
             actor=activity_log.actor_for(e.page, user), user_id=user["id"] if user else None, kind=e.kind, action=e.action, detail=e.detail,
-            page=e.page, device=device, ip=ip, ts=e.ts if e.ts and TS_RE.match(e.ts) else None,
+            page=e.page, device=device, ip=ip, ts=trusted_ts(e.ts),
         )
     return Response(status_code=204)
 

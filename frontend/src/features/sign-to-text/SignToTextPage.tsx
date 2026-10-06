@@ -42,7 +42,7 @@ export default function SignToTextPage() {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
       <CameraView
         videoRef={cam.videoRef}
-        frameRef={mp.frameRef}
+        frameRef={mp.displayRef}
         camera={cam.status}
         cameraError={cam.error}
         facing={cam.facing}
@@ -65,6 +65,7 @@ export default function SignToTextPage() {
       />
       <ResultPanel
         result={stream.result}
+        notice={stream.notice}
         words={stream.words}
         sentences={stream.sentences}
         socket={stream.status}

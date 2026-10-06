@@ -26,6 +26,9 @@ const GOOD_HAND_RATIO = 0.6;
 const HAND_USED_RATIO = 0.2;
 // เวลาแสดงข้อความ "เก็บแล้ว" (มิลลิวินาที)
 const TOAST_MS = 2500;
+// ความสูงของส่วนอื่นในหน้าที่ต้องเห็นพร้อมภาพอัด (ใช้คำนวณขนาดภาพให้พอดีจอ ไม่ต้องเลื่อน)
+const STAGE_CHROME = "20.5rem";
+const STAGE_CHROME_REVIEW = "25rem";
 
 // สรุปคุณภาพคลิปจาก skeleton: สัดส่วนเฟรมที่เห็นมือ และมือที่ใช้ (ตรวจอัตโนมัติ)
 function summarize(take: Take) {
@@ -138,6 +141,8 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
   const rec = useClipRecorder({ videoRef: cam.videoRef });
   const [mirror, setMirror] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
+  // ไฟล์ที่อัปโหลดเป็นภาพกระจก (กล้องหน้า) ให้กลับซ้าย-ขวาก่อนเก็บ
+  const [flipUpload, setFlipUpload] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -182,7 +187,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
         video: take.blob,
         fileName: take.fileName,
         frames: take.frames,
-        fps: SKELETON_FPS,
+        fps: take.fps,
         cameraFps: take.source === "record" ? cam.settings.fps : null,
         durationMs: take.durationMs,
         width: take.width,
@@ -240,7 +245,10 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
   return (
     <div className="flex flex-col gap-3">
       <div
-        className={`stage relative mx-auto aspect-video w-full overflow-hidden rounded-3xl shadow-card ring-2 transition-all duration-300 xl:max-w-[calc((100dvh_-_25rem)*16/9)] ${
+        // ความสูงของจอที่เหลือหลังหักส่วนอื่นของหน้า (หัวเว็บ ชื่อหน้า ช่องคำ แถบด้านล่าง) กว้างตามสัดส่วน 16:9
+        //   ตอนตรวจคลิปมีแถบ "ใช้คลิปนี้ไหม?" เพิ่ม จึงย่อภาพลงอีกเล็กน้อยให้ปุ่มเก็บยังอยู่ในจอ
+        style={{ maxWidth: `calc((100dvh - ${take ? STAGE_CHROME_REVIEW : STAGE_CHROME}) * 16 / 9)` }}
+        className={`stage relative mx-auto aspect-video w-full overflow-hidden rounded-3xl shadow-card ring-2 transition-all duration-300 ${
           rec.state === "recording"
             ? "ring-danger shadow-[0_0_40px_-8px_rgba(214,40,57,.7)]"
             : mp.handsVisible && !take
@@ -259,7 +267,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
             className={`absolute inset-0 h-full w-full object-cover ${on ? "opacity-100" : "opacity-0"}`}
           />
           {showSkeleton && !take && (
-            <LandmarkOverlay videoRef={cam.videoRef} frameRef={mp.frameRef} showHands mirror={mirror} />
+            <LandmarkOverlay videoRef={cam.videoRef} frameRef={mp.displayRef} showHands mirror={mirror} />
           )}
         </div>
 
@@ -441,7 +449,24 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
         )}
       </div>
 
-      {/* ช่องเลือกไฟล์วิดีโอ (ซ่อนไว้ เปิดผ่านปุ่มอัปโหลด) */}
+      {/* ตัวเลือกก่อนอัปโหลด: วิดีโอจากกล้องหน้ามักเป็นภาพกระจก ซ้าย-ขวาจะสลับ */}
+      {/* แถบใต้ภาพ: ตัวเลือกไฟล์กล้องหน้า (ก่อนอัปโหลด) และคีย์ลัด อยู่บรรทัดเดียวกันให้ภาพอัดใหญ่ที่สุด */}
+      <div className="flex min-h-5 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-ink/60">
+        {!take && rec.state === "idle" ? (
+          <label className="flex cursor-pointer items-center gap-2" title="วิดีโอจากกล้องหน้ามักเป็นภาพกระจก ซ้าย-ขวาจะสลับกัน">
+            <input type="checkbox" checked={flipUpload} onChange={(e) => setFlipUpload(e.target.checked)} />
+            ไฟล์ที่อัปโหลดเป็นภาพกระจก (กล้องหน้า)
+          </label>
+        ) : (
+          <span />
+        )}
+        <span className="hidden md:inline">
+          <kbd className="font-semibold">Space</kbd> อัด/หยุด · <kbd className="font-semibold">Enter</kbd> เก็บ ·{" "}
+          <kbd className="font-semibold">R</kbd> อัดใหม่ · <kbd className="font-semibold">Esc</kbd> ยกเลิก
+        </span>
+      </div>
+
+      {/* ช่องเลือกไฟล์วิดีโอ/skeleton (ซ่อนไว้ เปิดผ่านปุ่มอัปโหลด) */}
       <input
         ref={fileRef}
         type="file"
@@ -449,7 +474,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) rec.loadFile(file);
+          if (file) rec.loadFile(file, { flip: flipUpload });
           e.target.value = "";
         }}
       />
@@ -462,7 +487,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
             <div className="flex flex-wrap gap-1.5">
               <Stat tone="info">{(take.durationMs / 1000).toFixed(1)} วิ</Stat>
               <Stat tone="info">
-                {take.frames.length} เฟรม @ {SKELETON_FPS} fps
+                {take.frames.length} เฟรม @ {Math.round(take.fps)} fps
               </Stat>
               <Stat tone={quality.hands === "ไม่พบมือ" || quality.hands === "ไม่พบ skeleton" ? "bad" : "info"}>
                 {quality.hands}
@@ -500,10 +525,6 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
         <div className="rounded-xl bg-danger/10 px-4 py-2 text-sm text-danger">{rec.error ?? saveError}</div>
       )}
 
-      <p className="hidden text-xs text-ink/50 md:block">
-        คีย์ลัด: <kbd className="font-semibold">Space</kbd> อัด/หยุด · <kbd className="font-semibold">Enter</kbd>{" "}
-        เก็บคลิป · <kbd className="font-semibold">R</kbd> อัดใหม่ · <kbd className="font-semibold">Esc</kbd> ยกเลิก
-      </p>
     </div>
   );
 }

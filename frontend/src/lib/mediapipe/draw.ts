@@ -35,8 +35,13 @@ export interface DrawOptions {
 // Pose landmarks 0-24 are head/torso/arms; skip legs so the frame stays clean.
 // วาดเฉพาะครึ่งบน (จุดที่ 0-24) ไม่วาดขา
 const UPPER_BODY_MAX = 24;
+// จุดของ pose ที่ MediaPipe มั่นใจว่าเห็นต่ำกว่านี้ ไม่วาด (กันเส้นแขนพุ่งไปจุดที่เดา) จุดที่ไม่มีค่า visibility วาดตามปกติ
+const MIN_VISIBILITY = 0.3;
 // จำนวนจุดขั้นต่ำที่ถือว่าเห็นมือ
 const MIN_VISIBLE_HANDS = 1;
+
+// จุดนี้ควรวาดไหม (มีค่าและไม่ใช่จุดที่มองไม่เห็น)
+const seen = (p: Point | null | undefined): p is Point => !!p && (p.visibility ?? 1) >= MIN_VISIBILITY;
 
 // ลากเส้นระหว่างสองจุด
 function line(ctx: CanvasRenderingContext2D, a: Point, b: Point, w: number, h: number) {
@@ -63,7 +68,7 @@ function drawConnections(
     if (start > maxIndex || end > maxIndex) continue;
     const a = pts[start];
     const b = pts[end];
-    if (a && b) line(ctx, a, b, w, h);
+    if (seen(a) && seen(b)) line(ctx, a, b, w, h);
   }
   ctx.stroke();
 }
@@ -96,7 +101,7 @@ function drawDots(
   ctx.fillStyle = color;
   pts.forEach((p, i) => {
     // ข้ามจุดที่ไม่มีข้อมูล (skeleton จากไฟล์รูปแบบกลางมีเฉพาะจุดแขน)
-    if (!p || i > maxIndex) return;
+    if (!seen(p) || i > maxIndex) return;
     ctx.beginPath();
     ctx.arc(p.x * w, p.y * h, radius, 0, Math.PI * 2);
     ctx.fill();

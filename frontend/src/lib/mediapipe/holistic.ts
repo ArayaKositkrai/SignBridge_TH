@@ -32,6 +32,8 @@ export function loadHolistic(): Promise<Landmarkers> {
             runningMode: "VIDEO",
             minPoseDetectionConfidence: 0.5,
             minFacePresenceConfidence: 0.5,
+            // มือที่ความมั่นใจต่ำ (มักเป็นมือที่ห้อยอยู่ขอบภาพ) ไม่นับ
+            minHandLandmarksConfidence: 0.6,
           }),
         ),
         withDelegate((delegate) =>
@@ -55,8 +57,13 @@ export function loadHolistic(): Promise<Landmarkers> {
 }
 
 // แปลงผลของ MediaPipe เป็นรายการจุด x,y,z (คนแรกที่ตรวจเจอ)
-const toPoints = (list?: Point[][]): Point[] =>
-  list?.[0]?.map((p) => ({ x: p.x, y: p.y, z: p.z })) ?? [];
+//   withVisibility = เก็บ visibility ด้วย (ใช้กับ pose เท่านั้น เพราะมือ/ใบหน้าของ MediaPipe ให้ visibility เป็น 0 เสมอ)
+const toPoints = (list?: Point[][], withVisibility = false): Point[] =>
+  list?.[0]?.map((p) =>
+    withVisibility && p.visibility !== undefined
+      ? { x: p.x, y: p.y, z: p.z, visibility: p.visibility }
+      : { x: p.x, y: p.y, z: p.z },
+  ) ?? [];
 
 // เวลาล่าสุดที่ส่งให้แต่ละโมเดล (MediaPipe ต้องการเวลาที่เพิ่มขึ้นเรื่อย ๆ ห้ามซ้ำ)
 let lastTimestamp = 0;
@@ -69,35 +76,86 @@ const POSE_L_SHOULDER = 11;
 const POSE_R_SHOULDER = 12;
 // มือที่หาเจอต้องอยู่ใกล้ข้อมือของ pose ไม่เกินกี่เท่าของความกว้างไหล่ จึงนับเป็นมือข้างนั้น
 const WRIST_MATCH = 0.6;
+// ข้อมือใน pose ที่ความชัดต่ำกว่านี้ ถือว่ามือข้างนั้นไม่อยู่ในภาพ (ตัดมือของข้างนั้นทิ้ง กันมือผี)
+const WRIST_MIN_VISIBILITY = 0.3;
+// ข้อมือที่ความชัดต่ำกว่านี้ จะไม่ถูกใช้เติมมือจาก HandLandmarker
+const FILL_MIN_VISIBILITY = 0.5;
+// กรอบมือสองกรอบที่ซ้อนกันเกินสัดส่วนนี้ ถือว่าเป็นมือเดียวกัน
+const SAME_HAND_IOU = 0.3;
+// มือที่ HandLandmarker บอกข้างสวนกับข้างที่จับคู่ (ความมั่นใจสูง) ถูกนับว่าไกลขึ้นเท่านี้
+const HANDEDNESS_PENALTY = 1.6;
 
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
+// ความชัดของจุดใน pose (ไม่มีค่า = ถือว่าเห็น)
+const visibilityOf = (p: Point | undefined) => p?.visibility ?? 1;
+
+// กรอบล้อมรอบจุดของมือ
+function box(hand: Point[]) {
+  const xs = hand.map((p) => p.x);
+  const ys = hand.map((p) => p.y);
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+}
+
+// สัดส่วนการซ้อนทับของกรอบมือสองมือ (0 = ไม่ซ้อน, 1 = ตรงกันพอดี)
+function iou(a: Point[], b: Point[]): number {
+  const p = box(a);
+  const q = box(b);
+  const w = Math.max(0, Math.min(p.x1, q.x1) - Math.max(p.x0, q.x0));
+  const h = Math.max(0, Math.min(p.y1, q.y1) - Math.max(p.y0, q.y0));
+  const inter = w * h;
+  const area = (r: typeof p) => (r.x1 - r.x0) * (r.y1 - r.y0);
+  return inter / (area(p) + area(q) - inter || 1);
+}
+
+// มือหนึ่งมือจาก HandLandmarker พร้อมข้างที่โมเดลเดา (ข้างของคนทำท่า) และความมั่นใจ
+interface FoundHand {
+  points: Point[];
+  side: "leftHand" | "rightHand" | null;
+  score: number;
+}
+
 // เติมมือที่ Holistic หาไม่เจอ ด้วยมือจาก HandLandmarker (หาทั้งภาพ ไม่ต้องพึ่งตำแหน่งแขน)
-//   จับคู่มือกับข้อมือของ pose ที่ใกล้ที่สุด (ซ้าย/ขวาตรงกับที่ Holistic ใช้) และไม่ซ้ำกับมือที่ Holistic เจอแล้ว
+//   จับคู่มือกับข้อมือของ pose แบบทั้งสองข้างพร้อมกัน (เลือกคู่ที่ใกล้สุดก่อน มือหนึ่งไม่ถูกใช้ซ้ำสองข้าง)
+//   ไม่เติมข้างที่ข้อมือใน pose มองไม่ชัด, ไม่ใช้มือที่ซ้อนกับมือที่ Holistic เจอแล้ว, ข้างที่โมเดลมือเดาสวนทางถูกลดลำดับ
 //   ไม่เห็นตัวคน (ไม่มี pose) ไม่เติม เพราะบอกไม่ได้ว่าเป็นมือข้างไหน
-function fillMissingHands(frame: LandmarkFrame, found: Point[][]): void {
+function fillMissingHands(frame: LandmarkFrame, found: FoundHand[]): void {
   const { pose } = frame;
   if (pose.length <= POSE_R_WRIST || !found.length) return;
   const limit = Math.max(dist(pose[POSE_L_SHOULDER], pose[POSE_R_SHOULDER]) * WRIST_MATCH, 0.05);
-  const taken = [frame.leftHand[0], frame.rightHand[0]].filter(Boolean);
+  const taken = [frame.leftHand, frame.rightHand].filter((h) => h.length === 21);
   const sides = [
     { key: "leftHand" as const, wrist: pose[POSE_L_WRIST] },
     { key: "rightHand" as const, wrist: pose[POSE_R_WRIST] },
-  ];
-  for (const side of sides) {
-    if (frame[side.key].length) continue;
-    let best: Point[] | null = null;
-    let bestDist = limit;
-    for (const hand of found) {
-      if (hand.length !== 21 || taken.some((w) => dist(w, hand[0]) < limit / 2)) continue;
-      const d = dist(hand[0], side.wrist);
-      if (d < bestDist) [best, bestDist] = [hand, d];
-    }
-    if (best) {
-      frame[side.key] = best;
-      taken.push(best[0]);
-    }
+  ].filter((side) => !frame[side.key].length && visibilityOf(side.wrist) >= FILL_MIN_VISIBILITY);
+  const hands = found.filter((h) => h.points.length === 21 && !taken.some((t) => iou(t, h.points) > SAME_HAND_IOU));
+
+  // ทุกคู่ (มือ, ข้าง) ที่อยู่ในระยะ เรียงจากใกล้ไปไกล แล้วเลือกทีละคู่โดยไม่ซ้ำมือและไม่ซ้ำข้าง
+  const pairs = sides
+    .flatMap((side) =>
+      hands.map((hand) => {
+        const d = dist(hand.points[0], side.wrist);
+        const against = hand.side !== null && hand.side !== side.key && hand.score > 0.8;
+        return { side, hand, d, rank: against ? d * HANDEDNESS_PENALTY : d };
+      }),
+    )
+    .filter((p) => p.d < limit)
+    .sort((a, b) => a.rank - b.rank);
+  const usedHands = new Set<FoundHand>();
+  const usedSides = new Set<string>();
+  for (const { side, hand } of pairs) {
+    if (usedHands.has(hand) || usedSides.has(side.key)) continue;
+    frame[side.key] = hand.points;
+    usedHands.add(hand);
+    usedSides.add(side.key);
   }
+}
+
+// ตัดมือของข้างที่ข้อมือใน pose มองไม่เห็น (มือที่ห้อยนอกภาพ/ถูกบัง แต่โมเดลยังเดาตำแหน่งมาให้)
+function dropHiddenHands(frame: LandmarkFrame): void {
+  if (frame.pose.length <= POSE_R_WRIST) return;
+  if (visibilityOf(frame.pose[POSE_L_WRIST]) < WRIST_MIN_VISIBILITY) frame.leftHand = [];
+  if (visibilityOf(frame.pose[POSE_R_WRIST]) < WRIST_MIN_VISIBILITY) frame.rightHand = [];
 }
 
 // ตรวจจับท่าทางจากเฟรมวิดีโอหนึ่งเฟรม (เรียก HandLandmarker เฉพาะตอนมือหายไปข้างใดข้างหนึ่ง)
@@ -105,15 +163,22 @@ export function detect(models: Landmarkers, video: HTMLVideoElement, timestampMs
   lastTimestamp = Math.max(timestampMs, lastTimestamp + 1);
   const r = models.holistic.detectForVideo(video, lastTimestamp);
   const frame: LandmarkFrame = {
-    pose: toPoints(r.poseLandmarks),
+    pose: toPoints(r.poseLandmarks, true),
     leftHand: toPoints(r.leftHandLandmarks),
     rightHand: toPoints(r.rightHandLandmarks),
     face: toPoints(r.faceLandmarks),
   };
+  dropHiddenHands(frame);
   if (models.hands && frame.pose.length && (!frame.leftHand.length || !frame.rightHand.length)) {
     lastHandTimestamp = Math.max(timestampMs, lastHandTimestamp + 1);
     const h = models.hands.detectForVideo(video, lastHandTimestamp);
-    fillMissingHands(frame, h.landmarks.map((hand) => hand.map((p) => ({ x: p.x, y: p.y, z: p.z }))));
+    // ข้างที่โมเดลมือบอกคิดจากภาพแบบกระจก: วิดีโอที่ไม่กลับภาพ "Left" จึงเป็นมือขวาของคนทำท่า
+    const found = h.landmarks.map((hand, i): FoundHand => {
+      const cat = h.handedness[i]?.[0];
+      const side = cat ? (cat.categoryName === "Left" ? "rightHand" : "leftHand") : null;
+      return { points: hand.map((p) => ({ x: p.x, y: p.y, z: p.z })), side, score: cat?.score ?? 0 };
+    });
+    fillMissingHands(frame, found);
   }
   return frame;
 }

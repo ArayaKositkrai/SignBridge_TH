@@ -1,21 +1,32 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { logEvent } from "../../../lib/activityLog";
 import type { CapturedFrame } from "../services/contributorApi";
-import { extractFromVideo } from "../services/extractLandmarks";
+import { extractFromVideo, flipFrames, SKELETON_FPS } from "../services/extractLandmarks";
+import { LANDMARK_EXTS, parseLandmarkFile } from "../services/parseLandmarkFile";
 
 // สถานะ: ว่าง นับถอยหลัง กำลังอัด กำลังสร้าง skeleton ตรวจดูคลิป
 export type RecorderState = "idle" | "countdown" | "recording" | "processing" | "review";
 
-// คลิปที่อัด/เลือกไว้ รอตรวจก่อนกดเก็บ
+// คลิปที่อัด/เลือกไว้ รอตรวจก่อนกดเก็บ (ไฟล์ .npy/.npz ไม่มีวิดีโอ: blob และ url เป็น null)
 export interface Take {
-  blob: Blob;
-  url: string;
+  blob: Blob | null;
+  url: string | null;
   fileName: string;
   source: "record" | "upload";
   frames: CapturedFrame[];
   durationMs: number;
+  // ขนาดภาพ (0 = ไม่ทราบ ให้ backend ประมาณสัดส่วนเอง)
   width: number;
   height: number;
+  // อัตราเฟรมของ skeleton
+  fps: number;
+  // frames ถูกกลับซ้าย-ขวาแล้ว (คลิปกล้องหน้า) จึงต้องกลับ x คืนตอนวาดทับวิดีโอ
+  flipped: boolean;
+}
+
+// ตัวเลือกตอนเลือกไฟล์: flip = ไฟล์เป็นภาพกระจก (กล้องหน้า) ให้กลับซ้าย-ขวาก่อนเก็บ
+export interface LoadOptions {
+  flip?: boolean;
 }
 
 // ค่าที่ hook รับ: วิดีโอกล้อง เวลานับถอยหลัง และความยาวสูงสุด (วินาที)
@@ -37,7 +48,9 @@ const MIME_CANDIDATES: [string, string][] = [
 const VIDEO_BITRATE = 6_000_000;
 
 // นามสกุลไฟล์ที่อัปโหลดได้ (ต้องตรงกับ backend)
-export const UPLOAD_EXTS = [".mp4", ".webm", ".mov", ".mkv"];
+export const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi", ".3gp", ".ogv"];
+// ไฟล์ที่เลือกได้ทั้งหมด: วิดีโอ และ skeleton (.npy/.npz)
+export const UPLOAD_EXTS = [...VIDEO_EXTS, ...LANDMARK_EXTS];
 // ขนาดวิดีโอสูงสุด (MB) ต้องตรงกับ backend (ขนาดไฟล์สูงสุดของ Supabase Storage)
 export const MAX_VIDEO_MB = 50;
 
@@ -63,12 +76,13 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
 
   // คืนหน่วยความจำของวิดีโอเก่าเมื่อเปลี่ยนคลิปหรือออกจากหน้า
   useEffect(() => {
-    if (!take) return;
-    return () => URL.revokeObjectURL(take.url);
+    if (!take?.url) return;
+    const url = take.url;
+    return () => URL.revokeObjectURL(url);
   }, [take]);
 
   // สร้าง skeleton จากวิดีโอ (ทั้งคลิปที่อัดและไฟล์ที่อัปโหลด) แล้วเข้าสู่ขั้นตรวจดู
-  const process = useCallback((blob: Blob, fileName: string, source: Take["source"]) => {
+  const process = useCallback((blob: Blob, fileName: string, source: Take["source"], flip = false) => {
     extractRef.current?.abort();
     const ctrl = new AbortController();
     extractRef.current = ctrl;
@@ -80,7 +94,16 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
     extractFromVideo(url, setProgress, ctrl.signal)
       .then((r) => {
         if (ctrl.signal.aborted) throw new DOMException("aborted", "AbortError");
-        setTake({ blob, url, fileName, source, ...r });
+        setTake({
+          blob,
+          url,
+          fileName,
+          source,
+          ...r,
+          frames: flip ? flipFrames(r.frames) : r.frames,
+          fps: SKELETON_FPS,
+          flipped: flip,
+        });
         setState("review");
       })
       .catch((e) => {
@@ -211,21 +234,57 @@ export function useClipRecorder({ videoRef, countdownSec = 3, maxSec = 5 }: Opti
     setState("idle");
   }, []);
 
-  // เลือกไฟล์วิดีโอจากเครื่อง แล้วสร้าง skeleton เหมือนคลิปที่อัด
+  // เลือกไฟล์จากเครื่อง: วิดีโอสร้าง skeleton เหมือนคลิปที่อัด ส่วน .npy/.npz อ่าน skeleton ตรง ๆ
   const loadFile = useCallback(
-    (file: File) => {
-      const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-      if (!UPLOAD_EXTS.includes(ext)) {
+    (file: File, { flip = false }: LoadOptions = {}) => {
+      const dot = file.name.lastIndexOf(".");
+      const ext = dot < 0 ? "" : file.name.slice(dot).toLowerCase();
+      const isLandmarks = LANDMARK_EXTS.includes(ext);
+      // นามสกุลไม่รู้จักแต่เบราว์เซอร์บอกว่าเป็นวิดีโอ ก็ยอมรับ
+      const isVideo = VIDEO_EXTS.includes(ext) || file.type.startsWith("video/");
+      if (!isLandmarks && !isVideo) {
         setError(`รองรับเฉพาะไฟล์ ${UPLOAD_EXTS.join(", ")}`);
         return;
       }
-      if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+      if (!isLandmarks && file.size > MAX_VIDEO_MB * 1024 * 1024) {
         setError(`ไฟล์ใหญ่เกิน ${MAX_VIDEO_MB} MB กรุณาตัดคลิปให้สั้นลงหรือลดความละเอียด`);
         return;
       }
       setError(null);
-      logEvent("อัปโหลดไฟล์วิดีโอ");
-      process(file, file.name, "upload");
+      if (!isLandmarks) {
+        logEvent("อัปโหลดไฟล์วิดีโอ");
+        process(file, file.name, "upload", flip);
+        return;
+      }
+      logEvent("อัปโหลดไฟล์ skeleton");
+      extractRef.current?.abort();
+      const ctrl = new AbortController();
+      extractRef.current = ctrl;
+      setTake(null);
+      setProgress(0);
+      setState("processing");
+      parseLandmarkFile(file)
+        .then((r) => {
+          if (ctrl.signal.aborted) return;
+          setTake({
+            blob: null,
+            url: null,
+            fileName: file.name,
+            source: "upload",
+            frames: flip ? flipFrames(r.frames) : r.frames,
+            durationMs: r.durationMs,
+            width: r.width,
+            height: r.height,
+            fps: r.fps,
+            flipped: false,
+          });
+          setState("review");
+        })
+        .catch((e) => {
+          if (ctrl.signal.aborted) return;
+          setError(e instanceof Error ? e.message : "อ่านไฟล์ skeleton ไม่สำเร็จ");
+          setState("idle");
+        });
     },
     [process],
   );

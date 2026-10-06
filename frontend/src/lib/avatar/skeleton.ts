@@ -34,21 +34,54 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 // ค่า z ของท่าพักเมื่อผสมกับท่าที่มี z (ท่าพักไม่มี z ของตัวเอง)
 const REST_Z = 0.12;
+// มุมงอ (เรเดียน) ของข้อโคน กลาง ปลาย เมื่อ curl = 1 (ใช้แปลง curl รวมเป็นมุมรายข้อ ทั้งอวตาร 3D และการผสมท่า)
+export const CURL_TO_RAD = [0.9, 1.1, 0.8];
+
+// ผสมมุมแบบวงกลม (ไปทางที่สั้นกว่า ไม่หมุนอ้อมเกือบรอบเมื่อข้ามมุม ±π)
+function lerpAngle(a: number, b: number, t: number): number {
+  const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+  return a + d * t;
+}
+
+// มุมงอ (เรเดียน) ของนิ้วที่ f (0-3 = ชี้ กลาง นาง ก้อย) ข้อ k: ใช้ค่ารายข้อถ้ามี ไม่งั้นแปลงจาก curl รวมของนิ้วนั้น
+function jointOf(h: MotionHand, f: number, k: number): number {
+  return h.j?.[f]?.[k] ?? CURL_TO_RAD[k] * (h.c[f + 1] ?? 0);
+}
+
+// มุมพลิกฝ่ามือรอบแกนนิ้ว (เรเดียน) จากข้อมูลทิศฝ่ามือ: 0 = เห็นเต็มฝ่า, ±π/2 = เห็นสันมือ, เครื่องหมายตามด้านที่หันเข้ากล้อง
+function palmRoll(h: MotionHand): number {
+  const [wx, wy, seen] = h.w!;
+  const vis = Math.min(Math.max(seen, 0), 1);
+  const across = (wx * Math.cos(h.a) + wy * Math.sin(h.a)) >= 0 ? vis : -vis;
+  return Math.atan2((h.p ?? 1) * Math.sqrt(1 - vis * vis), across);
+}
+
+// ผสมทิศฝ่ามือสองท่าโดยหมุนรอบแกนนิ้ว (ผ่านท่าเห็นสันมือ) แทนการผสมเวกเตอร์ตรง ๆ ที่ทำให้มือหมุนวูบ
+function mixPalm(a: MotionHand, b: MotionHand, t: number, angle: number): Pick<MotionHand, "w" | "p"> {
+  const roll = lerpAngle(palmRoll(a), palmRoll(b), t);
+  const across = Math.cos(roll);
+  const sign = across >= 0 ? 1 : -1;
+  return {
+    w: [sign * Math.cos(angle), sign * Math.sin(angle), Math.abs(across)],
+    p: Math.sin(roll) >= 0 ? 1 : -1,
+  };
+}
 
 // ผสมท่ามือสองท่าตามสัดส่วน t (z มีเมื่อท่าใดท่าหนึ่งมี z)
 function mix(a: MotionHand, b: MotionHand, t: number): MotionHand {
   const out: MotionHand = {
     x: lerp(a.x, b.x, t),
     y: lerp(a.y, b.y, t),
-    a: lerp(a.a, b.a, t),
+    a: lerpAngle(a.a, b.a, t),
     c: a.c.map((v, i) => lerp(v, b.c[i] ?? v, t)),
   };
   if (a.z !== undefined || b.z !== undefined) out.z = lerp(a.z ?? REST_Z, b.z ?? REST_Z, t);
-  // ทิศฝ่ามือ: ใช้ของท่าที่มีข้อมูล (ท่าพักไม่มี) ถ้ามีทั้งคู่ผสมกัน และสลับด้านฝ่ามือที่ครึ่งทาง
-  if (a.w && b.w) {
-    out.w = [lerp(a.w[0], b.w[0], t), lerp(a.w[1], b.w[1], t), lerp(a.w[2], b.w[2], t)];
-    out.p = t < 0.5 ? a.p : b.p;
-  } else if (a.w || b.w) {
+  // งอรายข้อ/กางนิ้ว: ท่าที่ไม่มีข้อมูลนี้ใช้ค่าจาก curl รวม (เช่นท่าพัก) แทน แล้วค่อยผสมกัน
+  if (a.j || b.j) out.j = [0, 1, 2, 3].map((f) => [0, 1, 2].map((k) => lerp(jointOf(a, f, k), jointOf(b, f, k), t)));
+  if (a.s || b.s) out.s = [0, 1, 2].map((i) => lerp(a.s?.[i] ?? 0, b.s?.[i] ?? 0, t));
+  // ทิศฝ่ามือ: ใช้ของท่าที่มีข้อมูล (ท่าพักไม่มี) ถ้ามีทั้งคู่หมุนผสมรอบแกนนิ้ว
+  if (a.w && b.w) Object.assign(out, mixPalm(a, b, t, out.a));
+  else if (a.w || b.w) {
     out.w = a.w ?? b.w;
     out.p = a.w ? a.p : b.p;
   }

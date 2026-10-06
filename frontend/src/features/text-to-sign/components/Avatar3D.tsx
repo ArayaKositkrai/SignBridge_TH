@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
-import { applyPose } from "../../../lib/avatar3d/rig";
+import { applyPose, posedBones } from "../../../lib/avatar3d/rig";
 import { loadRig, type Rig } from "../../../lib/avatar3d/loadModel";
 import { HEAD_BONE } from "../../../lib/avatar3d/bones";
 import { createFaceMesh, createFaceTexture, drawFace } from "../../../lib/avatar3d/face";
@@ -20,6 +20,8 @@ type Status = "loading" | "ready" | "error";
 // ล่างสุดคลุมถึงท่าระดับเอว (เช่นท่า "หิว" มืออยู่ที่ y~0.66)
 const FRAME_TOP_UNIT = 0.02;
 const FRAME_BOTTOM_UNIT = 0.68;
+// เวลาที่ใช้ไล่ท่าให้ทันท่าใหม่ (วินาที) ยิ่งน้อยยิ่งตามไว ช่วยกันมือ/นิ้วกระตุกหรือหมุนวูบเมื่อท่าเปลี่ยนเร็ว
+const POSE_SMOOTH_SEC = 0.06;
 
 // ตัวละครโมเดล 3D (X Bot จาก Mixamo) ขยับแขน มือ นิ้ว และเอียงหัวตามท่าทางปัจจุบัน
 // ถ้าโหลดโมเดลไม่สำเร็จ จะตกไปใช้ตัวโครงกระดูก 2D แทนโดยอัตโนมัติ
@@ -98,18 +100,9 @@ function startScene(
   camera.lookAt(lookAt);
 
   // แปะหน้าการ์ตูน (วาดสีหน้าไม่ได้ผ่านกระดูกเพราะโมเดลนี้ไม่มี blendshape) ไว้เป็นลูกของ
-  // กระดูกหัว หันไปทางกล้องเสมอ headTiltAxis คือทิศ "หน้าหัน" ของหัวในพิกัดท้องถิ่นของมันเอง
-  // จุดกำเนิดของกระดูกหัวอยู่แถวคาง/โคนคอ (ไม่ใช่กลางหน้า) จึงต้องขยับแผ่นหน้าขึ้นไปทางกระหม่อม
-  // ด้วย ไม่ใช่แค่ดันออกมาข้างหน้าอย่างเดียว ไม่งั้นตา/ปากจะไปโผล่แถวคอ
-  const headBind = rig.bind.get(HEAD_BONE)!;
-  const headRadius = headBind.pos.distanceTo(rig.frame.headTop);
-  const headUp = new THREE.Vector3(0, 1, 0).applyQuaternion(headBind.worldQuat.clone().invert()).normalize();
-  const faceOffset = rig.headTiltAxis
-    .clone()
-    .multiplyScalar(headRadius * 0.82)
-    .addScaledVector(headUp, headRadius * 0.28);
+  // กระดูกหัว หันไปทางกล้องเสมอ ตำแหน่ง/ขนาดคำนวณไว้ใน rig.faceCard (rig ใช้ค่าเดียวกันให้มือแตะหน้าได้พอดี)
   const faceTex = createFaceTexture();
-  const faceMesh = createFaceMesh(faceTex.texture, headRadius * 1.15, faceOffset, rig.headTiltAxis);
+  const faceMesh = createFaceMesh(faceTex.texture, rig.faceCard.size, rig.faceCard.offset, rig.headTiltAxis);
   rig.bones.get(HEAD_BONE)!.add(faceMesh);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -125,6 +118,10 @@ function startScene(
   container.appendChild(renderer.domElement);
 
   let raf = 0;
+  // การหมุนของกระดูกที่แสดงในเฟรมก่อน (ไว้ไล่ไปหาท่าใหม่แบบนุ่มนวล)
+  const bones = posedBones(rig);
+  let prevQuats: THREE.Quaternion[] | null = null;
+  let lastNow = 0;
   // จำขนาดกล่องล่าสุดไว้เทียบเอง แทนที่จะอ่านจาก canvas.width/height ซึ่งเป็นพิกเซลอุปกรณ์
   // (คูณด้วย devicePixelRatio แล้ว) เทียบตรง ๆ กับ CSS px ไม่ได้ จะสั่ง setSize ทุกเฟรมโดยไม่จำเป็น
   let lastW = 0;
@@ -151,6 +148,14 @@ function startScene(
       };
       const face = sampleFace(motionRef.current, progressRef.current);
       applyPose(rig, hands, face);
+      // ไล่ท่าจากเฟรมก่อนไปหาท่าใหม่ (slerp) ตามเวลาที่ผ่านไป
+      const dt = lastNow ? Math.min((now - lastNow) / 1000, 0.1) : 0;
+      lastNow = now;
+      if (prevQuats && dt > 0) {
+        const k = 1 - Math.exp(-dt / POSE_SMOOTH_SEC);
+        bones.forEach((b, i) => b.quaternion.copy(prevQuats![i].slerp(b.quaternion, k)));
+      }
+      prevQuats = bones.map((b) => b.quaternion.clone());
       drawFace(faceTex, face, now);
       renderer.render(scene, camera);
     }

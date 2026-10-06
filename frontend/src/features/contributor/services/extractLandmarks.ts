@@ -15,8 +15,13 @@ const MAX_GAP_MS = 150;
 // ปัดทศนิยม 4 ตำแหน่ง ลดขนาดไฟล์ landmarks
 const round = (v: number) => Math.round(v * 1e4) / 1e4;
 // ปัดค่าของทุกจุด
+//   จุดที่มี visibility (pose) เก็บไว้ด้วย ใช้กรองจุดที่มองไม่เห็นตอนสร้างท่าอวตาร
 const roundPts = (pts: Point[]): Point[] =>
-  pts.map((p) => ({ x: round(p.x), y: round(p.y), z: round(p.z ?? 0) }));
+  pts.map((p) => {
+    const q: Point = { x: round(p.x), y: round(p.y), z: round(p.z ?? 0) };
+    if (p.visibility !== undefined) q.visibility = Math.round(p.visibility * 100) / 100;
+    return q;
+  });
 
 // แปลงผล MediaPipe หนึ่งเฟรมเป็นเฟรมที่เก็บไปเทรน (ใบหน้าเก็บเฉพาะจุดสำคัญ ไม่เห็นหน้า = รายการว่าง)
 export function toCaptured(f: LandmarkFrame, t: number): CapturedFrame {
@@ -27,6 +32,53 @@ export function toCaptured(f: LandmarkFrame, t: number): CapturedFrame {
     rightHand: roundPts(f.rightHand),
     face: roundPts(pickFaceKeypoints(f.face)),
   };
+}
+
+// คู่จุดซ้าย-ขวาของ pose MediaPipe (ดัชนีคี่ = ซ้าย, คู่ = ขวา ยกเว้นจมูก)
+const POSE_SWAP = Array.from({ length: 33 }, (_, i) => (i === 0 ? 0 : i % 2 ? i + 1 : i - 1));
+
+// ตารางสลับคู่ซ้าย-ขวาของจุดสำคัญใบหน้า 47 จุด (ลำดับตาม FACE_KEYPOINTS: คิ้ว ตา ปาก จมูก แก้ม)
+const FACE_SWAP = (() => {
+  const m = Array.from({ length: 47 }, (_, i) => i);
+  const pair = (a: number, b: number) => {
+    m[a] = b;
+    m[b] = a;
+  };
+  for (let i = 0; i < 5; i++) pair(i, i + 5); // คิ้ว
+  [[10, 19], [11, 18], [12, 17], [13, 16], [14, 21], [15, 20]].forEach(([a, b]) => pair(a, b)); // ตา
+  [[22, 28], [23, 27], [24, 26], [29, 33], [30, 32]].forEach(([a, b]) => pair(a, b)); // ปากนอก
+  [[34, 38], [35, 37], [39, 41]].forEach(([a, b]) => pair(a, b)); // ปากใน
+  pair(45, 46); // แก้ม
+  return m;
+})();
+
+// สลับตำแหน่งตามตาราง (ใช้ได้ทั้ง pose และใบหน้า); รายการที่ความยาวไม่ตรงตารางคืนตามเดิม
+const permute = <T,>(list: T[], map: number[]): T[] => (list.length === map.length ? map.map((i) => list[i]) : list);
+
+// กลับ x ของทุกจุด (รักษา null ของจุดที่ไม่พบ)
+const mirrorX = (pts: (Point | null)[]): Point[] =>
+  pts.map((p) => (p ? { ...p, x: Math.round((1 - p.x) * 1e4) / 1e4 } : p)) as Point[];
+
+// กลับภาพ skeleton ซ้าย-ขวา: กลับ x และสลับชื่อมือ/แขน/จุดใบหน้าซ้าย-ขวา (ใช้กับคลิปกล้องหน้าที่เป็นภาพกระจก)
+export function flipFrames(frames: CapturedFrame[]): CapturedFrame[] {
+  return frames.map((f) => ({
+    ...f,
+    pose: permute(mirrorX(f.pose), POSE_SWAP),
+    leftHand: mirrorX(f.rightHand),
+    rightHand: mirrorX(f.leftHand),
+    face: f.face ? permute(mirrorX(f.face), FACE_SWAP) : f.face,
+  }));
+}
+
+// กลับเฉพาะตำแหน่ง x กลับคืน (ไว้วาดทับวิดีโอต้นฉบับของคลิปที่ผ่าน flipFrames มาแล้ว โดยชื่อซ้าย-ขวายังเป็นของที่แก้แล้ว)
+export function unmirrorFrames(frames: CapturedFrame[]): CapturedFrame[] {
+  return frames.map((f) => ({
+    ...f,
+    pose: mirrorX(f.pose),
+    leftHand: mirrorX(f.leftHand),
+    rightHand: mirrorX(f.rightHand),
+    face: f.face ? mirrorX(f.face) : f.face,
+  }));
 }
 
 // หาเฟรมที่ใกล้เวลาที่ขอที่สุด (ค้นหาแบบแบ่งครึ่ง) แล้วแปลงเป็นรูปแบบสำหรับวาด
