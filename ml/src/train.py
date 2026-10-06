@@ -63,11 +63,40 @@ def log(msg: str):
     print(msg, flush=True)
 
 
+# ดึงชุด TSL ที่แบ่งเป็นไฟล์ย่อยใน Storage (datasets/tsl_skeleton/) มารวมเป็น tsl_skeleton.npz (สร้างด้วย import_tsl_storage.py --upload)
+def _fetch_tsl_from_storage():
+    import hashlib
+    import io
+    import json
+
+    base = "datasets/tsl_skeleton"
+    index = json.loads(db.download(f"{base}/index.json"))
+    parts = []
+    for name, sha in zip(index["parts"], index["sha256"]):
+        raw = db.download(f"{base}/{name}")
+        if hashlib.sha256(raw).hexdigest() != sha:
+            raise RuntimeError(f"{name} ไม่ตรงกับ SHA-256 (ไฟล์เสีย)")
+        parts.append(dict(np.load(io.BytesIO(raw), allow_pickle=False)))
+    offs, shift = [np.zeros(1, dtype=np.int64)], 0
+    for p in parts:
+        offs.append(p["offsets"][1:] + shift)
+        shift += int(p["offsets"][-1])
+    merged = {k: np.concatenate([p[k] for p in parts]) for k in ("points", "label", "signer", "source", "sample_id", "aspect")}
+    merged["offsets"] = np.concatenate(offs)
+    TSL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(TSL_PATH, **merged)
+    log(f"ดาวน์โหลดชุด TSL จาก Storage แล้ว ({len(merged['label'])} คลิป จาก {len(parts)} ไฟล์ย่อย)")
+
+
 # โหลดคลิปจากชุดข้อมูล TSL เฉพาะคำที่เลือก
 def load_tsl(words: set[str], include_null: bool):
     if not TSL_PATH.is_file():
-        log("ไม่พบ tsl_skeleton.npz (รัน import_tsl.py ก่อน) — ใช้เฉพาะคลิปที่ล่ามอัด")
-        return []
+        # ไม่มีในเครื่อง: ลองดึงสำเนาที่เพื่อน/โน้ตบุ๊กอัปไว้ใน Storage (สร้างด้วย import_tsl_storage.py --upload)
+        try:
+            _fetch_tsl_from_storage()
+        except Exception as e:
+            log(f"ไม่พบ tsl_skeleton.npz ทั้งในเครื่องและใน Storage ({e}) (รัน import_tsl_storage.py หรือ import_tsl.py ก่อน) — ใช้เฉพาะคลิปที่ล่ามอัด")
+            return []
     d = np.load(TSL_PATH, allow_pickle=False)
     pts, off = d["points"], d["offsets"]
     out = []

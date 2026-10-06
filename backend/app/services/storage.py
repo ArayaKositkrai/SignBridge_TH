@@ -102,3 +102,19 @@ def signed_url(path: str, expires_in: int = 3600) -> str | None:
     if res.status_code != 200:
         raise HTTPException(status_code=502, detail=f"สร้างลิงก์ไฟล์ไม่สำเร็จ ({res.status_code})")
     return f"{SUPABASE_URL}/storage/v1{res.json()['signedURL']}"
+
+
+# ย้าย/เปลี่ยนชื่อไฟล์ใน bucket เดียวกัน (ไม่ต้องดาวน์โหลดแล้วอัปใหม่) คืน False ถ้าไม่พบไฟล์ต้นทาง
+def move(src: str, dst: str) -> bool:
+    _check()
+    res = httpx.post(
+        f"{SUPABASE_URL}/storage/v1/object/move",
+        headers=_headers(),
+        json={"bucketId": STORAGE_BUCKET, "sourceKey": src, "destinationKey": dst},
+        timeout=TIMEOUT,
+    )
+    if res.status_code in (400, 404):
+        return False
+    if res.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"ย้ายไฟล์ใน Storage ไม่สำเร็จ ({res.status_code})")
+    return True

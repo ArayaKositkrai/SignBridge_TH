@@ -19,6 +19,7 @@ from app.db.session import SessionLocal
 from app.ml.model_loader import clear_cache
 from app.services import dataset_service as ds
 from app.services import model_registry as mr
+from app.services import storage
 from app.services import user_service
 
 # กลุ่ม route ของแอดมิน: แดชบอร์ด ผู้ใช้ คลังคำศัพท์ และเวอร์ชันโมเดล
@@ -276,7 +277,14 @@ def train_model(user: dict = Depends(require_admin)):
         if _train_state()[0] == "running":
             raise HTTPException(status_code=409, detail="กำลังเทรนโมเดลอยู่แล้ว")
         min_clips = _train_settings().get("min_recorded_clips", 5)
-        if not TSL_DATA_PATH.is_file() and ds.max_clips_per_word() < min_clips:
+        # ชุด TSL มีได้ 2 ที่: ไฟล์ในเครื่อง หรือสำเนาใน Storage (datasets/tsl_skeleton/ สร้างด้วย ml/src/import_tsl_storage.py --upload)
+        has_tsl = TSL_DATA_PATH.is_file()
+        if not has_tsl:
+            try:
+                has_tsl = storage.download("datasets/tsl_skeleton/index.json") is not None
+            except Exception:
+                has_tsl = False
+        if not has_tsl and ds.max_clips_per_word() < min_clips:
             raise HTTPException(
                 status_code=400,
                 detail=f"ยังไม่มีข้อมูลสำหรับเทรน: ไม่มีชุดข้อมูล TSL ในเครื่องนี้ และยังไม่มีคำไหนที่ล่ามอัดครบ {min_clips} คลิป",

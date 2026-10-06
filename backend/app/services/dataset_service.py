@@ -6,6 +6,7 @@ from datetime import datetime
 import numpy as np
 from fastapi import HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Contributor, Sample, Word, WordExternalSource
 from app.db.session import SessionLocal
@@ -14,8 +15,15 @@ from app.services import storage
 
 # อักขระที่ห้ามใช้ในคำศัพท์ (ตรงกับ CHECK ของตาราง words)
 FORBIDDEN_WORD_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-# รูปแบบรหัสคลิป เช่น 20261001-143000-a1b2c3
-SAMPLE_ID_RE = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{6}$")
+# รูปแบบรหัสคลิป (ชื่อไฟล์) แบบใหม่: W{รหัสคำ}_S{รหัสผู้แสดง}_C{ลำดับคลิป} เช่น W0017_S011_C003
+#   W = id ของคำในตาราง words, S = id ของผู้แสดงในตาราง contributors (S000 = ไม่ระบุผู้แสดง),
+#   C = ลำดับคลิปของ (คำ, ผู้แสดง) คู่นั้น เริ่มที่ 001
+SAMPLE_ID_NEW = r"W\d{4,}_S\d{3,}_C\d{3,}"
+# รูปแบบเก่า เช่น 20261001-143000-a1b2c3 (ยังรับไว้จนกว่าจะรันสคริปต์ย้ายชื่อครบ)
+SAMPLE_ID_LEGACY = r"\d{8}-\d{6}-[0-9a-f]{6}"
+SAMPLE_ID_RE = re.compile(rf"^(?:{SAMPLE_ID_NEW}|{SAMPLE_ID_LEGACY})$")
+SAMPLE_ID_NEW_RE = re.compile(r"^W(\d+)_S(\d+)_C(\d+)$")
+UNKNOWN_SIGNER = 0
 # เวอร์ชันของรูปแบบไฟล์ skeleton ใน Storage (.npz):
 #   1 = points (T,48,2) NaN = มองไม่เห็น, t_ms (T,), aspect
 #   2 = เพิ่ม face (T,47,2) จุดสำคัญของใบหน้า และ face_idx (47,) เลขจุดใน face mesh ของ MediaPipe
@@ -37,8 +45,22 @@ def clean_word(word: str) -> str:
     return word
 
 
-# สร้างรหัสคลิปใหม่จากเวลา + สุ่ม
-def new_sample_id() -> str:
+# ประกอบรหัสคลิปจากเลข 3 ตัว เช่น (17, 11, 3) -> W0017_S011_C003
+def make_sample_id(word_id: int, signer_id: int | None, clip_no: int) -> str:
+    return f"W{word_id:04d}_S{signer_id or UNKNOWN_SIGNER:03d}_C{clip_no:03d}"
+
+
+# ลำดับคลิปถัดไปของ (คำ, ผู้แสดง): เลขมากสุดที่มีอยู่ + 1 (ลบคลิปท้ายสุดไปแล้วเลขนั้นอาจถูกใช้ใหม่ได้)
+def next_clip_no(db, word_id: int, signer_id: int | None) -> int:
+    prefix = make_sample_id(word_id, signer_id, 0)[:-3]  # "W0017_S011_C"
+    like = prefix.replace("_", "\\_") + "%"
+    ids = db.scalars(select(Sample.id).where(Sample.id.like(like, escape="\\"))).all()
+    nums = [int(i[len(prefix):]) for i in ids if i[len(prefix):].isdigit()]
+    return max(nums, default=0) + 1
+
+
+# รหัสแบบเก่า (ใช้เฉพาะสคริปต์ทดสอบ/ย้อนกลับ) สร้างจากเวลา + สุ่ม
+def legacy_sample_id() -> str:
     return f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
 
 
@@ -267,44 +289,56 @@ def create_sample(
     video: bytes | None = None, video_type: str | None = None,
 ) -> dict:
     data, stats = encode_frames(frames, width, height)
-    sid = new_sample_id()
     with SessionLocal() as db:
         word_id = get_or_create_word(db, word)
-        path = storage_path(word_id, sid)
-        uploaded = []
-        try:
-            storage.upload(path, data)
-            uploaded.append(path)
-            if video:
-                storage.upload(video_path(word_id, sid), video, video_type or "video/webm")
-                uploaded.append(video_path(word_id, sid))
-            sample = Sample(
-                id=sid,
-                word_id=word_id,
-                contributor_id=get_or_create_contributor(db, signer),
-                uploaded_by=uploaded_by,
-                source=source,
-                file_path=path,
-                format_version=FORMAT_VERSION,
-                frame_count=stats["frame_count"],
-                fps=fps,
-                fps_estimated=not stats["has_time"],
-                duration_ms=stats["duration_ms"],
-                pose_present_rate=stats["pose_present_rate"],
-                lh_present_rate=stats["lh_present_rate"],
-                rh_present_rate=stats["rh_present_rate"],
+        signer_id = get_or_create_contributor(db, signer)
+        db.commit()  # เก็บคำ/ผู้แสดงใหม่ไว้ก่อน เพราะถ้าชนรหัสแล้ว rollback ต้องไม่ทำให้ id หาย
+        last_error: Exception | None = None
+        # คนสองคนอัดคำเดียวกันพร้อมกันอาจได้ลำดับเดียวกัน: Sample.id เป็น primary key จึงชน -> ลองใหม่ด้วยเลขถัดไป
+        for _ in range(5):
+            sid = make_sample_id(word_id, signer_id, next_clip_no(db, word_id, signer_id))
+            path = storage_path(word_id, sid)
+            uploaded = []
+            try:
+                sample = Sample(
+                    id=sid,
+                    word_id=word_id,
+                    contributor_id=signer_id,
+                    uploaded_by=uploaded_by,
+                    source=source,
+                    file_path=path,
+                    format_version=FORMAT_VERSION,
+                    frame_count=stats["frame_count"],
+                    fps=fps,
+                    fps_estimated=not stats["has_time"],
+                    duration_ms=stats["duration_ms"],
+                    pose_present_rate=stats["pose_present_rate"],
+                    lh_present_rate=stats["lh_present_rate"],
+                    rh_present_rate=stats["rh_present_rate"],
+                )
+                db.add(sample)
+                db.flush()  # จองรหัสในตารางก่อนอัปไฟล์ ถ้ารหัสชนจะ error ตรงนี้ ก่อนที่ไฟล์ของคนอื่นจะถูกทับ
+                storage.upload(path, data)
+                uploaded.append(path)
+                if video:
+                    storage.upload(video_path(word_id, sid), video, video_type or "video/webm")
+                    uploaded.append(video_path(word_id, sid))
+                db.commit()
+            except IntegrityError as e:
+                # รหัสชน (ยังไม่ได้อัปไฟล์อะไร) -> ลองเลขถัดไป
+                db.rollback()
+                last_error = e
+                continue
+            except Exception:
+                # บันทึกไม่สำเร็จ = ลบไฟล์ที่อัปโหลดไปแล้วทิ้ง ไม่ให้มีไฟล์ค้างใน Storage
+                db.rollback()
+                storage.remove(uploaded)
+                raise
+            return _sample_dict(
+                sample, clean_word(word), (signer or "").strip()[:40] or None,
+                has_video=bool(video), video_bytes=len(video or b""),
             )
-            db.add(sample)
-            db.commit()
-        except Exception:
-            # บันทึกไม่สำเร็จ = ลบไฟล์ที่อัปโหลดไปแล้วทิ้ง ไม่ให้มีไฟล์ค้างใน Storage
-            db.rollback()
-            storage.remove(uploaded)
-            raise
-        return _sample_dict(
-            sample, clean_word(word), (signer or "").strip()[:40] or None,
-            has_video=bool(video), video_bytes=len(video or b""),
-        )
+        raise HTTPException(status_code=409, detail="บันทึกคลิปไม่สำเร็จ มีคนอัดคำเดียวกันพร้อมกัน ลองใหม่อีกครั้ง") from last_error
 
 
 # หาคลิปของคำ คืน (sample, file_path) หรือ None
