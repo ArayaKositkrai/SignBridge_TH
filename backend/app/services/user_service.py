@@ -24,6 +24,10 @@ class InvalidField(ValueError):
     pass
 
 
+# บทบาทที่เก็บข้อมูลบัตรคนพิการ (เลขบัตร + รูปบัตร): ผู้ใช้ทั่วไปเท่านั้น ล่าม/แอดมินไม่ต้องใช้
+CARD_ROLES = {"user"}
+
+
 # จัดรูปเบอร์โทร: ตัดขีด/ช่องว่าง ว่าง = ไม่ระบุ รูปแบบผิด = InvalidField
 def clean_phone(value: str | None) -> str | None:
     digits = re.sub(r"[\s\-()]", "", value or "")
@@ -121,10 +125,13 @@ def apply_changes(user: User, changes: dict) -> None:
         user.last_name = clean_name(changes["last_name"], required=False)
     if "phone" in changes:
         user.phone = clean_phone(changes["phone"])
-    if "disability_card_number" in changes:
-        user.disability_card_number = clean_card_number(changes["disability_card_number"])
     if changes.get("role") is not None:
         user.role = changes["role"]
+    if "disability_card_number" in changes:
+        number = clean_card_number(changes["disability_card_number"])
+        if number and user.role not in CARD_ROLES:
+            raise InvalidField("บทบาทนี้ไม่เก็บข้อมูลบัตรคนพิการ (เฉพาะผู้ใช้ทั่วไป)")
+        user.disability_card_number = number
     if changes.get("active") is not None:
         user.active = changes["active"]
 

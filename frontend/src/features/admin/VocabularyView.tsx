@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Badge from "../../components/ui/Badge";
-import Card from "../../components/ui/Card";
-import Drawer from "../../components/ui/Drawer";
+import Button from "../../components/ui/Button";
+import Dialog from "../../components/ui/Dialog";
+import Field from "../../components/ui/Field";
 import Icon from "../../components/ui/Icon";
+import Modal from "../../components/ui/Modal";
 import SearchInput from "../../components/ui/SearchInput";
 import Switch from "../../components/ui/Switch";
+import { HintIcon } from "../../components/ui/Tooltip";
 import { fmtDate } from "../../lib/format";
 import { listSamples, type ModelsBrief, type SampleMeta } from "../contributor/services/contributorApi";
-import { getVocabulary, setSampleSplit, setTrainWord, type VocabItem } from "./services/adminApi";
+import DataTable, { type Column } from "./components/DataTable";
+import PageHeader from "./components/PageHeader";
+import StatCards, { type Stat } from "./components/StatCards";
+import Toolbar, { FilterSelect } from "./components/Toolbar";
+import { addWord, getVocabulary, setSampleSplit, setTrainWord, type VocabItem } from "./services/adminApi";
 
 // จำนวนคลิปที่ล่ามอัดขั้นต่ำต่อคำ ที่ train.py นำไปเทรน (ตรงกับ min_recorded_clips ใน ml/configs/train_words.json)
 const MIN_RECORDED_CLIPS = 5;
@@ -17,12 +24,12 @@ const tslClips = (v: VocabItem) => Object.values(v.external ?? {}).reduce((n, e)
 // คำนี้มีข้อมูลพอเทรนไหม: มีคลิปในชุด TSL หรือล่ามอัดครบจำนวนขั้นต่ำ
 const trainable = (v: VocabItem) => tslClips(v) > 0 || (v.data?.samples ?? 0) >= MIN_RECORDED_CLIPS;
 
-// ตัวกรองคลังคำศัพท์
+// ตัวกรองคลังคำศัพท์ (การ์ดตัวเลขและ dropdown ใช้ชุดเดียวกัน)
 const FILTERS: { value: string; label: string; test: (v: VocabItem) => boolean }[] = [
   { value: "all", label: "ทุกคำ", test: () => true },
   { value: "train", label: "เลือกไว้เทรน", test: (v) => v.in_train_set },
   { value: "in_model", label: "โมเดลรู้จักแล้ว", test: (v) => v.in_active_model },
-  { value: "weak", label: "โมเดลทายพลาดบ่อย (<70%)", test: (v) => v.in_active_model && (v.model?.active.accuracy ?? 1) < 0.7 },
+  { value: "weak", label: "ทายพลาดบ่อย (<70%)", test: (v) => v.in_active_model && (v.model?.active.accuracy ?? 1) < 0.7 },
   { value: "to_record", label: "ต้องอัดเพิ่ม", test: (v) => v.to_record },
   { value: "no_data", label: "ยังไม่มีคลิปเลย", test: (v) => !v.data?.samples && tslClips(v) === 0 },
   { value: "no_avatar", label: "อวตารยังทำท่าไม่ได้", test: (v) => !v.avatar?.has_motion },
@@ -36,14 +43,21 @@ function Accuracy({ included, accuracy }: { included: boolean; accuracy: number 
   return <Badge tone={tone}>{Math.round(accuracy * 100)}%</Badge>;
 }
 
-// หน้าคลังคำศัพท์: ค้นหา กรอง เลือกคำไว้เทรน ดูความแม่นยำ และท่าอวตาร (คลิกคำเพื่อดูคลิปและสลับเทรน/ทดสอบ)
+// ตัวเลขจำนวนคลิป (ศูนย์ = สีจาง)
+function Num({ n }: { n: number }) {
+  return <span className={`tabular-nums ${n ? "text-ink" : "text-ink/30"}`}>{n.toLocaleString("th-TH")}</span>;
+}
+
+// หน้าคลังคำศัพท์: ตัวเลขสรุป (กดกรองได้) ค้นหา/หมวด ตารางเรียงได้ เลือกคำไว้เทรน และเพิ่มคำใหม่ (คลิกคำเพื่อดูคลิป)
 export default function VocabularyView() {
   const [vocab, setVocab] = useState<VocabItem[]>([]);
   const [brief, setBrief] = useState<ModelsBrief | null>(null);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [category, setCategory] = useState("");
   const [open, setOpen] = useState<VocabItem | null>(null);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // โหลดคลังคำ
@@ -54,6 +68,8 @@ export default function VocabularyView() {
       setBrief(v.models);
     } catch (e) {
       setError(e instanceof Error ? e.message : "โหลดคลังคำไม่สำเร็จ");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -79,99 +95,189 @@ export default function VocabularyView() {
     const needle = q.trim();
     return vocab.filter((v) => test(v) && (!category || v.category === category) && (!needle || v.word.includes(needle)));
   }, [vocab, filter, category, q]);
-  const trainCount = vocab.filter((v) => v.in_train_set).length;
+  // จำนวนคำของตัวกรอง
+  const count = (f: string) => vocab.filter(FILTERS.find((x) => x.value === f)!.test).length;
   const hasDraft = !!brief?.draft.label;
-  const select = "h-10 rounded-xl border border-sky bg-white px-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
+
+  const stats: Stat[] = [
+    { label: "คำทั้งหมด", value: vocab.length, filter: "all" },
+    { label: "เลือกไว้เทรน", value: count("train"), filter: "train", hint: "มีผลเมื่อเทรนครั้งถัดไป" },
+    { label: "โมเดลรู้จักแล้ว", value: count("in_model"), filter: "in_model", hint: brief?.active.label ? `โมเดล ${brief.active.label}` : undefined },
+    { label: "ทายพลาดบ่อย (<70%)", value: count("weak"), filter: "weak", tone: count("weak") ? "warning" : "default" },
+    { label: "ต้องอัดเพิ่ม", value: count("to_record"), filter: "to_record" },
+  ];
+
+  const columns: Column<VocabItem>[] = [
+    {
+      key: "word",
+      header: "คำ",
+      sort: (v) => v.word,
+      cell: (v) => (
+        <span className="font-semibold text-navy">
+          {v.word}
+          {v.to_record && (
+            <Badge tone="warning" className="ml-2">
+              ต้องอัด
+            </Badge>
+          )}
+        </span>
+      ),
+    },
+    { key: "category", header: "หมวด", hideBelow: "md", sort: (v) => v.category, cell: (v) => <span className="text-ink/65">{v.category ?? "–"}</span> },
+    { key: "rec", header: "คลิปล่าม", align: "right", sort: (v) => v.data?.samples ?? 0, cell: (v) => <Num n={v.data?.samples ?? 0} /> },
+    { key: "tsl", header: "คลิป TSL", align: "right", hideBelow: "sm", sort: (v) => tslClips(v), cell: (v) => <Num n={tslClips(v)} /> },
+    {
+      key: "train",
+      header: "เทรน",
+      align: "center",
+      sort: (v) => (v.in_train_set ? 1 : 0),
+      cell: (v) => (
+        <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Switch checked={v.in_train_set} onChange={(next) => void toggleTrain(v, next)} label={`เลือก ${v.word} ไว้เทรน`} size="sm" />
+          {v.in_train_set && !trainable(v) && (
+            <HintIcon text={`ยังเทรนคำนี้ไม่ได้: ไม่มีคลิป TSL และคลิปล่ามยังไม่ถึง ${MIN_RECORDED_CLIPS} คลิป (ตอนเทรนจะข้ามคำนี้)`} />
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "acc",
+      header: `แม่นยำ${brief?.active.label ? ` (${brief.active.label})` : ""}`,
+      align: "center",
+      sort: (v) => (v.in_active_model ? v.model?.active.accuracy ?? -1 : null),
+      cell: (v) => <Accuracy included={v.in_active_model} accuracy={v.model?.active.accuracy} />,
+    },
+    ...(hasDraft
+      ? [
+          {
+            key: "draft",
+            header: `Draft (${brief?.draft.label})`,
+            align: "center" as const,
+            hideBelow: "lg" as const,
+            sort: (v: VocabItem) => (v.in_draft_model ? v.model?.draft.accuracy ?? -1 : null),
+            cell: (v: VocabItem) => <Accuracy included={v.in_draft_model} accuracy={v.model?.draft.accuracy} />,
+          },
+        ]
+      : []),
+    {
+      key: "avatar",
+      header: "ท่าอวตาร",
+      align: "center",
+      hideBelow: "sm",
+      sort: (v) => (v.avatar?.has_motion ? 1 : 0),
+      cell: (v) => (v.avatar?.has_motion ? <Badge tone="success">มีท่า</Badge> : <span className="text-xs text-ink/40">ยังไม่มี</span>),
+    },
+  ];
 
   return (
-    <Card title={`คลังคำศัพท์ (${vocab.length} คำ)`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={q} onChange={setQ} placeholder="ค้นหาคำ" className="min-w-[200px] flex-1" />
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="ตัวกรอง" className={select}>
-          {FILTERS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label} ({vocab.filter(f.test).length})
-            </option>
-          ))}
-        </select>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="หมวด" className={select}>
-          <option value="">ทุกหมวด</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="mt-2 text-xs text-ink/55">
-        เลือกไว้เทรน <b className="text-navy">{trainCount}</b> คำ (มีผลเมื่อเทรนครั้งถัดไป) · % = ทายถูกเมื่อทดสอบกับผู้แสดงที่โมเดลไม่เคยเห็น
-        {brief?.active.label && <> · โมเดลที่ใช้ {brief.active.label}</>}
-      </p>
-      {error && <p className="mt-2 rounded-xl bg-danger/10 px-4 py-2 text-sm text-danger">{error}</p>}
+    <>
+      <PageHeader
+        title="คลังคำศัพท์"
+        description="คำทั้งหมดในระบบ จำนวนคลิป คำที่จะใช้เทรน และความแม่นยำของโมเดล — คลิกคำเพื่อดูคลิปและเลือกคลิปทดสอบ"
+        actions={
+          <Button icon="plus" onClick={() => setAdding(true)}>
+            เพิ่มคำ
+          </Button>
+        }
+      />
+      <StatCards stats={stats} active={filter} onSelect={(f) => setFilter(f || "all")} />
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="ค้นหาคำ" className="min-w-[220px] flex-1" />
+        <FilterSelect
+          label="หมวด"
+          value={category}
+          onChange={setCategory}
+          options={[{ value: "", label: "ทุกหมวด" }, ...categories.map((c) => ({ value: c, label: c }))]}
+        />
+        <FilterSelect
+          label="ตัวกรอง"
+          value={filter}
+          onChange={setFilter}
+          options={FILTERS.map((f) => ({ value: f.value, label: `${f.label} (${count(f.value)})` }))}
+        />
+      </Toolbar>
+      {error && <p className="mb-3 rounded-xl bg-danger/10 px-4 py-2 text-sm text-danger">{error}</p>}
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(v) => v.word}
+        onRowClick={setOpen}
+        loading={loading}
+        initialSort={{ key: "rec", dir: "desc" }}
+        empty="ไม่พบคำตามที่ค้นหา"
+      />
 
-      <div className="scrollbar-thin mt-3 max-h-[calc(100dvh-20rem)] min-h-[16rem] overflow-auto rounded-xl bg-white/70 ring-1 ring-sky">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="sticky top-0 z-10 bg-cream/95 text-left text-xs text-ink/55 backdrop-blur">
-            <tr>
-              <th className="px-3 py-2 font-semibold">คำ</th>
-              <th className="px-3 py-2 font-semibold">หมวด</th>
-              <th className="px-3 py-2 text-right font-semibold">คลิปล่าม</th>
-              <th className="px-3 py-2 text-right font-semibold">คลิป TSL</th>
-              <th className="px-3 py-2 font-semibold">เทรน</th>
-              <th className="px-3 py-2 font-semibold">แม่นยำ{brief?.active.label ? ` (${brief.active.label})` : ""}</th>
-              {hasDraft && <th className="px-3 py-2 font-semibold">Draft {brief?.draft.label}</th>}
-              <th className="px-3 py-2 font-semibold">อวตาร</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-sky/50">
-            {rows.map((v) => (
-              <tr key={v.word} onClick={() => setOpen(v)} className="cursor-pointer transition hover:bg-sky/20">
-                <td className="px-3 py-2 font-semibold text-navy">
-                  {v.word}
-                  {v.to_record && (
-                    <Badge tone="warning" className="ml-1.5">
-                      ต้องอัด
-                    </Badge>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-xs text-ink/60">{v.category ?? "-"}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{v.data?.samples || <span className="text-ink/30">0</span>}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{tslClips(v) || <span className="text-ink/30">0</span>}</td>
-                <td className="px-3 py-2">
-                  <span className="flex items-center gap-1.5">
-                    <Switch checked={v.in_train_set} onChange={(next) => void toggleTrain(v, next)} label={`เลือก ${v.word} ไว้เทรน`} size="sm" />
-                    {v.in_train_set && !trainable(v) && (
-                      <span title={`ยังไม่มีข้อมูลพอเทรน (ไม่มีคลิป TSL และคลิปล่ามยังไม่ถึง ${MIN_RECORDED_CLIPS})`}>
-                        <Icon name="alert" size={14} className="text-amber-600" />
-                      </span>
-                    )}
-                  </span>
-                </td>
-                <td className="px-3 py-2">
-                  <Accuracy included={v.in_active_model} accuracy={v.model?.active.accuracy} />
-                </td>
-                {hasDraft && (
-                  <td className="px-3 py-2">
-                    <Accuracy included={v.in_draft_model} accuracy={v.model?.draft.accuracy} />
-                  </td>
-                )}
-                <td className="px-3 py-2">
-                  {v.avatar?.has_motion ? <Badge tone="success">มีท่า</Badge> : <span className="text-xs text-ink/40">ยังไม่มี</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && <p className="px-4 py-10 text-center text-sm text-ink/55">ไม่พบคำตามที่ค้นหา</p>}
-      </div>
-
-      <WordDrawer item={open} brief={brief} onClose={() => setOpen(null)} onChanged={() => void refresh()} />
-    </Card>
+      <WordDialog item={open} brief={brief} onClose={() => setOpen(null)} onChanged={() => void refresh()} />
+      <AddWordDialog
+        open={adding}
+        categories={categories}
+        onClose={() => setAdding(false)}
+        onAdded={() => {
+          setAdding(false);
+          void refresh();
+        }}
+      />
+    </>
   );
 }
 
-// แผงรายละเอียดคำ: สถานะในโมเดล ท่าอวตาร และคลิปที่ล่ามอัด (สลับเทรน/ทดสอบรายคลิป)
-function WordDrawer({ item, brief, onClose, onChanged }: { item: VocabItem | null; brief: ModelsBrief | null; onClose: () => void; onChanged: () => void }) {
+// หน้าต่างเพิ่มคำใหม่: คำ หมวด และให้ล่ามอัดไหม
+function AddWordDialog({ open, categories, onClose, onAdded }: { open: boolean; categories: string[]; onClose: () => void; onAdded: () => void }) {
+  const [word, setWord] = useState("");
+  const [category, setCategory] = useState("");
+  const [toRecord, setToRecord] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // บันทึกคำใหม่
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!word.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await addWord(word.trim(), category.trim(), toRecord);
+      setWord("");
+      onAdded();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "เพิ่มคำไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={open} title="เพิ่มคำในคลัง" onClose={onClose}>
+      <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-3">
+        <Field label="คำ" value={word} onChange={(e) => setWord(e.target.value)} maxLength={50} autoFocus error={error} />
+        <Field label="หมวด (ไม่ใส่ก็ได้)" value={category} onChange={(e) => setCategory(e.target.value)} list="vocab-categories" maxLength={60} />
+        <datalist id="vocab-categories">
+          {categories.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 ring-1 ring-sky">
+          <span>
+            <span className="block text-sm font-semibold text-navy">ให้ล่ามอัดคำนี้</span>
+            <span className="block text-xs text-ink/55">คำจะขึ้นในรายการ "ต้องอัด" ของพื้นที่ล่าม</span>
+          </span>
+          <Switch checked={toRecord} onChange={setToRecord} label="ให้ล่ามอัดคำนี้" />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" type="button" onClick={onClose}>
+            ยกเลิก
+          </Button>
+          <Button type="submit" icon="plus" disabled={busy || !word.trim()}>
+            เพิ่มคำ
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// หน้าต่างรายละเอียดคำ (กลางจอ): สถานะในโมเดล ท่าอวตาร และคลิปที่ล่ามอัด (สลับเทรน/ทดสอบรายคลิป)
+function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | null; brief: ModelsBrief | null; onClose: () => void; onChanged: () => void }) {
   const [samples, setSamples] = useState<SampleMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -210,30 +316,30 @@ function WordDrawer({ item, brief, onClose, onChanged }: { item: VocabItem | nul
 
   const ext = Object.entries(item?.external ?? {});
   return (
-    <Drawer open={!!item} title={item?.word ?? ""} subtitle={item?.category ?? undefined} onClose={onClose}>
+    <Dialog open={!!item} title={item?.word ?? ""} subtitle={item?.category ?? undefined} onClose={onClose}>
       {item && (
         <div className="flex flex-col gap-5 text-sm">
-          <section className="grid grid-cols-2 gap-2">
-            <Stat label={`โมเดลที่ใช้ ${brief?.active.label ?? ""}`}>
+          <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <InfoBox label={`โมเดลที่ใช้ ${brief?.active.label ?? ""}`}>
               <Accuracy included={item.in_active_model} accuracy={item.model?.active.accuracy} />
-            </Stat>
-            <Stat label={`Draft ${brief?.draft.label ?? ""}`}>
+            </InfoBox>
+            <InfoBox label={`Draft ${brief?.draft.label ?? ""}`}>
               {brief?.draft.label ? <Accuracy included={item.in_draft_model} accuracy={item.model?.draft.accuracy} /> : <span className="text-ink/40">ไม่มี</span>}
-            </Stat>
-            <Stat label="ชุดข้อมูล TSL">{ext.length ? ext.map(([src, e]) => `${src} ${e.clips} คลิป`).join(" · ") : <span className="text-ink/40">ไม่มี</span>}</Stat>
-            <Stat label="ท่าอวตาร">{item.avatar?.has_motion ? <Badge tone="success">มีท่าแล้ว</Badge> : <span className="text-ink/40">ยังไม่มี</span>}</Stat>
+            </InfoBox>
+            <InfoBox label="ชุดข้อมูล TSL">{ext.length ? ext.map(([src, e]) => `${src} ${e.clips} คลิป`).join(" · ") : <span className="text-ink/40">ไม่มี</span>}</InfoBox>
+            <InfoBox label="ท่าอวตาร">{item.avatar?.has_motion ? <Badge tone="success">มีท่าแล้ว</Badge> : <span className="text-ink/40">ยังไม่มี</span>}</InfoBox>
           </section>
 
           <section>
             <h3 className="mb-1 font-bold text-navy">คลิปที่ล่ามอัด ({samples?.length ?? "…"})</h3>
             <p className="mb-2 text-xs text-ink/55">
-              สลับเป็น <b>ทดสอบ</b> เพื่อกันคลิปไว้วัดความแม่นยำ (ไม่ใช้ตอนวัดผล) · เลือกทั้งคนได้ที่แท็บ "โมเดล → ชุดทดสอบ"
+              สลับเป็น <b>ทดสอบ</b> เพื่อกันคลิปไว้วัดความแม่นยำ · เลือกทั้งคนได้ที่ "โมเดล → ชุดทดสอบ"
             </p>
             {error && <p className="mb-2 text-xs text-danger">{error}</p>}
             {samples && samples.length === 0 && <p className="rounded-xl border border-dashed border-sky px-3 py-6 text-center text-ink/50">ยังไม่มีคลิป</p>}
             <div className="flex flex-col gap-3">
               {bySigner.map(([signer, list]) => (
-                <div key={signer} className="rounded-xl bg-white/70 ring-1 ring-sky">
+                <div key={signer} className="rounded-xl bg-panel ring-1 ring-sky">
                   <p className="border-b border-sky/60 px-3 py-1.5 text-xs font-semibold text-navy">
                     {signer} · {list.length} คลิป
                   </p>
@@ -250,7 +356,9 @@ function WordDrawer({ item, brief, onClose, onChanged }: { item: VocabItem | nul
                           type="button"
                           onClick={() => void toggleSplit(s)}
                           className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 transition ${
-                            s.split === "test" ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-white text-navy ring-sky hover:bg-sky/40"
+                            s.split === "test"
+                              ? "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30"
+                              : "bg-surface text-navy ring-sky hover:bg-sky/40"
                           }`}
                           title="คลิกเพื่อสลับ เทรน/ทดสอบ"
                         >
@@ -265,14 +373,14 @@ function WordDrawer({ item, brief, onClose, onChanged }: { item: VocabItem | nul
           </section>
         </div>
       )}
-    </Drawer>
+    </Dialog>
   );
 }
 
-// ช่องสรุปเล็ก ๆ: หัวข้อ + ค่า
-function Stat({ label, children }: { label: string; children: ReactNode }) {
+// ช่องสรุปเล็ก ๆ ในแผงคำ: หัวข้อ + ค่า
+function InfoBox({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-sky">
+    <div className="rounded-xl bg-panel px-3 py-2 ring-1 ring-sky">
       <div className="text-[11px] text-ink/55">{label}</div>
       <div className="mt-0.5 font-semibold text-navy">{children}</div>
     </div>

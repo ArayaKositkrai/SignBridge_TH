@@ -118,6 +118,15 @@ def today_counts() -> dict[str, int]:
     return {a: n for a, n in rows}
 
 
+# สรุปของวันนี้สำหรับหน้า Log: จำนวนที่ไม่สำเร็จ และจำนวนผู้ใช้ (ที่ล็อกอิน) ที่ใช้งาน
+def today_summary() -> dict[str, int]:
+    start = _local(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
+    with SessionLocal() as db:
+        failed = db.scalar(select(func.count()).where(ActivityLog.ts >= start, ActivityLog.status >= 400)) or 0
+        users = db.scalar(select(func.count(func.distinct(ActivityLog.user_id))).where(ActivityLog.ts >= start)) or 0
+    return {"failed": failed, "users": users}
+
+
 # ลบ log ที่เก่ากว่า KEEP_DAYS วัน
 def prune(days: int = KEEP_DAYS) -> None:
     cutoff = _local(datetime.now()) - timedelta(days=days)

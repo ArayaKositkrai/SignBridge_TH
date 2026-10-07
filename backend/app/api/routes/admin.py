@@ -81,6 +81,13 @@ class TrainWordIn(BaseModel):
     in_train_set: bool
 
 
+# คำใหม่ที่แอดมินเพิ่มเข้าคลัง (หมวด, ต้องให้ล่ามอัดไหม)
+class WordIn(BaseModel):
+    word: str = Field(min_length=1, max_length=50)
+    category: str | None = Field(default=None, max_length=60)
+    to_record: bool = True
+
+
 # ช่องข้อมูลผู้ใช้ที่ล่ามเห็นได้ (ใช้เลือกผู้แสดง) — ไม่รวมอีเมลและวันที่สมัคร
 STAFF_USER_FIELDS = ("id", "name", "role", "active")
 
@@ -250,6 +257,18 @@ def vocabulary():
         k: {kk: vv for kk, vv in v.items() if kk not in ("words", "per_word")} | {"word_count": len(v["words"])}
         for k, v in summary.items()
     }}
+
+
+# เพิ่มคำใหม่เข้าคลัง (เช่นคำที่ไม่มีในชุด TSL ให้ล่ามอัด) คำซ้ำ = 409
+@router.post("/vocabulary", status_code=201, dependencies=ADMIN)
+def add_word(body: WordIn):
+    word = ds.clean_word(body.word)
+    with SessionLocal() as db:
+        if db.scalar(select(Word.id).where(Word.word == word)):
+            raise HTTPException(status_code=409, detail=f'มีคำว่า "{word}" ในคลังแล้ว')
+        db.add(Word(word=word, category=(body.category or "").strip() or None, to_record=body.to_record))
+        db.commit()
+    return {"word": word}
 
 
 # เลือก/ไม่เลือกคำไว้เทรนโมเดล (คอลัมน์ "เทรน" ในหน้าคลังคำศัพท์) มีผลในการเทรนครั้งถัดไป

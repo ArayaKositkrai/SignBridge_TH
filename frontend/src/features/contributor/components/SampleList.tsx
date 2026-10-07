@@ -20,7 +20,7 @@ export default function SampleList({ word, samples, loading, onOpen, onDelete }:
   return (
     <ul className="scrollbar-thin grid h-full min-h-0 grid-cols-2 content-start gap-2 overflow-y-auto pr-1.5">
       {samples.map((s, i) => (
-        <li key={s.id} className="group relative aspect-video overflow-hidden rounded-xl bg-navy ring-1 ring-sky">
+        <li key={s.id} className="group relative aspect-video overflow-hidden rounded-xl bg-deep ring-1 ring-sky">
           <button
             type="button"
             onClick={() => onOpen(i)}
@@ -45,7 +45,7 @@ export default function SampleList({ word, samples, loading, onOpen, onDelete }:
               {!s.frame_count && <span className="text-amber-300"> · ไม่มี skeleton</span>}
             </span>
           </button>
-          <span className="pointer-events-none absolute left-1.5 top-1.5 grid h-6 min-w-6 place-items-center rounded-md bg-white/90 px-1 text-[11px] font-bold text-navy">
+          <span className="pointer-events-none absolute left-1.5 top-1.5 grid h-6 min-w-6 place-items-center rounded-md bg-white/90 px-1 text-[11px] font-bold text-deep">
             {i + 1}
           </span>
           <button

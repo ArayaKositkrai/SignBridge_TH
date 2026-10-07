@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom";
 import Icon from "../ui/Icon";
 import { StaffNav, TopNav } from "./Navbar";
+import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 
 // แถบด้านบน: โลโก้ เมนู ปุ่มฉุกเฉิน และผู้ใช้
 export default function Header() {
   return (
-    <header className="sticky top-0 z-30 border-b border-sky/60 bg-cream/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-sky/60 bg-cream/70 backdrop-blur-xl dark:bg-surface/80">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
         <Link to="/" className="flex items-center gap-2 font-bold text-navy">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand to-royal text-white shadow-md shadow-navy/30">
@@ -28,6 +29,7 @@ export default function Header() {
             <Icon name="alert" size={16} />
             ฉุกเฉิน
           </Link>
+          <ThemeToggle />
           <UserMenu />
         </div>
       </div>

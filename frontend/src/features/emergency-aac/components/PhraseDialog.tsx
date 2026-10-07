@@ -54,7 +54,7 @@ export default function PhraseDialog({ open, editing, error, onClose, onSay, onS
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         maxLength={LABEL_MAX}
-        className="h-11 w-full rounded-xl border-0 bg-white px-3 ring-1 ring-sky focus:ring-2 focus:ring-brand"
+        className="h-11 w-full rounded-xl border-0 bg-surface px-3 ring-1 ring-sky focus:ring-2 focus:ring-brand"
         placeholder="เช่น แพ้ยา"
       />
 
@@ -66,7 +66,7 @@ export default function PhraseDialog({ open, editing, error, onClose, onSay, onS
         onChange={(e) => setSpeak(e.target.value)}
         rows={2}
         maxLength={SPEAK_MAX}
-        className="w-full resize-none rounded-xl border-0 bg-white p-3 ring-1 ring-sky focus:ring-2 focus:ring-brand"
+        className="w-full resize-none rounded-xl border-0 bg-surface p-3 ring-1 ring-sky focus:ring-2 focus:ring-brand"
         placeholder={name ? `ไม่ใส่ = พูดว่า "${name}"` : "เช่น ฉันแพ้ยาเพนนิซิลลิน"}
       />
 
@@ -85,7 +85,7 @@ export default function PhraseDialog({ open, editing, error, onClose, onSay, onS
             title={i.label}
             onClick={() => setIcon(i.name)}
             className={`flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px] font-medium transition ${
-              icon === i.name ? "bg-navy text-white shadow" : "bg-white text-navy ring-1 ring-sky hover:bg-sky/40"
+              icon === i.name ? "bg-deep text-white shadow" : "bg-surface text-navy ring-1 ring-sky hover:bg-sky/40"
             }`}
           >
             <Icon name={i.name} size={20} />

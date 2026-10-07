@@ -16,7 +16,7 @@ export default function Field({ label, hint, error, className = "", id, ...rest 
       <input
         id={inputId}
         aria-invalid={!!error}
-        className={`h-11 rounded-xl border bg-white px-3 text-sm outline-none transition placeholder:text-ink/35 focus:ring-2 disabled:bg-ink/5 disabled:text-ink/50 ${
+        className={`h-11 rounded-xl border bg-surface px-3 text-sm outline-none transition placeholder:text-ink/35 focus:ring-2 disabled:bg-ink/5 disabled:text-ink/50 ${
           error ? "border-danger focus:ring-danger/20" : "border-sky focus:border-brand focus:ring-brand/20"
         }`}
         {...rest}

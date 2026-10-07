@@ -129,7 +129,7 @@ function ContributorLayout() {
             <select
               value={signer ?? ""}
               onChange={(e) => chooseSigner(e.target.value)}
-              className="h-10 w-full rounded-xl border border-sky bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
+              className="h-10 w-full rounded-xl border border-sky bg-surface px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
             >
               <option value="">ไม่ระบุ</option>
               {signers.map((u) => (
@@ -158,7 +158,7 @@ function ContributorLayout() {
                 end={m.end}
                 className={({ isActive }) =>
                   `flex flex-1 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                    isActive ? "bg-navy text-white shadow" : "text-navy hover:bg-sky/50"
+                    isActive ? "bg-deep text-white shadow" : "text-navy hover:bg-sky/50"
                   }`
                 }
               >
@@ -179,7 +179,7 @@ function ContributorLayout() {
                 ["คำ", fmtNumber(total.words)],
                 ["คลิป", fmtNumber(total.samples)],
               ].map(([k, v]) => (
-                <div key={k} className="rounded-xl bg-white/70 px-2 py-2 ring-1 ring-sky">
+                <div key={k} className="rounded-xl bg-surface/70 px-2 py-2 ring-1 ring-sky">
                   <dd className="text-base font-bold text-navy">{v}</dd>
                   <dt className="text-[11px] text-ink/60">{k}</dt>
                 </div>

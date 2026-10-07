@@ -17,9 +17,9 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 // สไตล์ของแต่ละแบบ
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-gradient-to-br from-brand to-navy text-white shadow-[0_8px_18px_-8px_rgba(24,80,121,.7)] hover:brightness-110 hover:-translate-y-px",
+    "bg-gradient-to-br from-brand to-deep text-white shadow-[0_8px_18px_-8px_rgba(24,80,121,.7)] hover:brightness-110 hover:-translate-y-px",
   soft: "bg-sky/60 text-navy hover:bg-sky",
-  ghost: "bg-white text-ink ring-1 ring-sky hover:bg-sky/40 hover:-translate-y-px",
+  ghost: "bg-surface text-ink ring-1 ring-sky hover:bg-sky/40 hover:-translate-y-px",
   danger:
     "bg-gradient-to-br from-danger to-danger-dark text-white shadow-[0_8px_18px_-8px_rgba(214,40,57,.7)] hover:brightness-110",
 };

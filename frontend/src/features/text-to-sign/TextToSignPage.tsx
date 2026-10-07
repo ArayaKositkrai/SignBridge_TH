@@ -95,7 +95,7 @@ export default function TextToSignPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="ค้นหาคำ"
-                className="h-9 w-full rounded-lg border border-sky bg-white pl-9 pr-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+                className="h-9 w-full rounded-lg border border-sky bg-surface pl-9 pr-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
               />
             </div>
             {/* แถวเดียวเลื่อนแนวนอน ไม่ให้คำจำนวนมากกองเต็มหน้า */}

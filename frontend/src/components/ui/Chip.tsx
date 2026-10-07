@@ -12,7 +12,7 @@ export default function Chip({ active, className = "", children, ...rest }: Prop
       type="button"
       className={`rounded-full px-3 py-1 text-sm font-medium transition ${
         active
-          ? "bg-navy text-white"
+          ? "bg-deep text-white"
           : "bg-sky/50 text-navy hover:bg-sky"
       } ${className}`}
       {...rest}

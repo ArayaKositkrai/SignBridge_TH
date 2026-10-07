@@ -1,15 +1,27 @@
 /** @type {import('tailwindcss').Config} */
+// สีของธีมอ่านจาก CSS variable (src/styles/index.css) จึงสลับโหมดสว่าง/มืดได้ทั้งเว็บด้วย class "dark" ที่ <html>
+const themed = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        cream: "#fbf6f1",
-        sky: "#bbd6e1",
-        brand: "#3885ab",
-        navy: "#185079",
-        royal: "#11329a",
-        ink: "#3c3333",
+        cream: themed("cream"),
+        sky: themed("sky"),
+        brand: themed("brand"),
+        navy: themed("navy"),
+        royal: themed("royal"),
+        ink: themed("ink"),
+        // พื้นการ์ด/ช่องกรอก (สว่าง = ขาว)
+        surface: themed("surface"),
+        // พื้นหน้าต่างป๊อปอัปและหัวตาราง (สว่าง = ครีม, มืด = ยกขึ้นจากการ์ดหนึ่งระดับ)
+        panel: themed("panel"),
+        // น้ำเงินเข้มคงที่ทั้งสองโหมด ใช้เป็นพื้นของตัวอักษรสีขาว
+        deep: "#185079",
+        // ฟ้าอ่อนคงที่ทั้งสองโหมด ใช้กับตัวอักษร/เส้นบนฉากกล้องและวิดีโอที่มืดอยู่แล้ว
+        mist: "#bbd6e1",
         danger: { DEFAULT: "#d62839", dark: "#b01e2d" },
       },
       fontFamily: {

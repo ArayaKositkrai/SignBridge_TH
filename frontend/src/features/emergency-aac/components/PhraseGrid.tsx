@@ -25,9 +25,9 @@ export default function PhraseGrid({ phrases, activeId, editing, onPick, onDelet
               disabled={editing && !p.custom}
               className={`group flex min-h-[6.5rem] w-full animate-fadeUp flex-col items-center justify-center gap-2.5 rounded-2xl p-3 text-base font-semibold transition duration-200 active:scale-[.97] disabled:opacity-50 ${
                 ghost
-                  ? "border-2 border-dashed border-sky bg-white/40 text-navy/70 hover:bg-white"
+                  ? "border-2 border-dashed border-sky bg-surface/40 text-navy/70 hover:bg-surface"
                   : active
-                    ? "bg-gradient-to-br from-brand to-navy text-white shadow-[0_14px_28px_-12px_rgba(24,80,121,.8)]"
+                    ? "bg-gradient-to-br from-brand to-deep text-white shadow-[0_14px_28px_-12px_rgba(24,80,121,.8)]"
                     : "glass-card !p-3 text-navy hover:-translate-y-1 hover:shadow-[0_18px_30px_-14px_rgba(24,80,121,.55)]"
               } ${deletable ? "ring-2 ring-brand/60" : ""}`}
             >

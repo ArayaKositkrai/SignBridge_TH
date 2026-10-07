@@ -50,6 +50,7 @@ export default function SignToTextPage() {
         model={mp.status}
         handsVisible={mp.handsVisible}
         bodyVisible={mp.bodyVisible}
+        fps={mp.fps}
         onStart={() => {
           logEvent("เปิดกล้องแปลภาษามือ", version === "draft" ? "ทดสอบ Draft" : undefined);
           void cam.start();

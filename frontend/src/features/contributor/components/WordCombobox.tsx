@@ -124,7 +124,7 @@ export default function WordCombobox({ value, onChange, vocab, words, target }: 
         maxLength={50}
         autoComplete="off"
         placeholder="พิมพ์คำศัพท์ที่จะอัด เช่น โรงพยาบาล"
-        className="h-11 w-full rounded-xl border border-sky bg-white pl-10 pr-24 text-base outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
+        className="h-11 w-full rounded-xl border border-sky bg-surface pl-10 pr-24 text-base outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
       />
       {isNewWord && (
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
@@ -136,7 +136,7 @@ export default function WordCombobox({ value, onChange, vocab, words, target }: 
         <ul
           id={listId}
           role="listbox"
-          className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-sky"
+          className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl bg-surface py-1 shadow-lg ring-1 ring-sky"
         >
           {!value.trim() && <li className="px-3 pb-1 pt-0.5 text-xs text-ink/50">คำที่ต้องอัดและยังไม่ครบ</li>}
           {options.map((o, i) => {

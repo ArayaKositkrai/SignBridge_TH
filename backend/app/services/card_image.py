@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.db.models import User
 from app.db.session import SessionLocal
 from app.services import storage
-from app.services.user_service import CARD_IMAGE_PATH
+from app.services.user_service import CARD_IMAGE_PATH, CARD_ROLES
 
 # รูปบัตรคนพิการ: เก็บใน Storage แบบ private ส่งให้ดูผ่าน backend เท่านั้น (เจ้าของ + แอดมิน) ไม่ใช้ลิงก์สาธารณะ
 # ขนาดรูปสูงสุด
@@ -42,6 +42,8 @@ def save(user_id: str, data: bytes) -> None:
         user = db.get(User, user_id)
         if user is None:
             raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+        if user.role not in CARD_ROLES:
+            raise HTTPException(status_code=400, detail="บทบาทนี้ไม่เก็บรูปบัตรคนพิการ (เฉพาะผู้ใช้ทั่วไป)")
         old = user.disability_card_image
         storage.upload(path, data, content_type)
         user.disability_card_image = path

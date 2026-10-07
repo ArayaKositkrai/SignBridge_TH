@@ -1,25 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Icon from "../../components/ui/Icon";
+import { HintIcon } from "../../components/ui/Tooltip";
 import SearchInput from "../../components/ui/SearchInput";
 import Switch from "../../components/ui/Switch";
 import { logEvent } from "../../lib/activityLog";
 import { fmtBytes, fmtDate } from "../../lib/format";
+import DataTable, { type Column } from "./components/DataTable";
+import PageHeader from "./components/PageHeader";
+import SubTabs from "./components/SubTabs";
+import Toolbar, { FilterSelect } from "./components/Toolbar";
 import {
   getTestSplit,
   getTrainStatus,
+  getVocabulary,
   listModels,
   publishModel,
   setActiveModel,
   setTestSplit,
   type ModelFile,
+  type SplitSigner,
   type TestSplit,
   type TrainProgress,
   type TrainStatus,
+  type VocabItem,
 } from "./services/adminApi";
+
+// แท็บย่อยของหน้าโมเดล
+type Tab = "overview" | "train" | "split" | "history";
 
 // ชื่อขั้นการเทรน และช่วงของแถบความคืบหน้า (0-1) ที่แต่ละขั้นใช้
 const STAGES: Record<NonNullable<TrainProgress["stage"]>, { label: string; from: number; to: number }> = {
@@ -50,8 +60,9 @@ function overall(p: TrainProgress): number {
 // แสดงเปอร์เซ็นต์ (ไม่มีค่า = ขีด)
 const pct = (v: number | null | undefined) => (v == null ? "–" : `${Math.round(v * 100)}%`);
 
-// หน้าโมเดล: เทียบโมเดลที่ใช้กับ Draft → ทดสอบ/เผยแพร่, สถานะการเทรน, เลือกชุดทดสอบ, ประวัติเวอร์ชัน
+// หน้าโมเดล: ปุ่มลองใช้/เผยแพร่ Draft ด้านบน แล้วแบ่งแท็บ ภาพรวม · การเทรน · ชุดทดสอบ · ประวัติเวอร์ชัน
 export default function ModelsView() {
+  const [tab, setTab] = useState<Tab>("overview");
   const [models, setModels] = useState<ModelFile[]>([]);
   const [status, setStatus] = useState<TrainStatus | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -118,48 +129,53 @@ export default function ModelsView() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
+      <PageHeader
+        title="โมเดล"
+        description="เทียบโมเดลที่ใช้อยู่กับ Draft ตัวใหม่ เทรน เลือกชุดทดสอบ และย้อนเวอร์ชัน"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              icon="play"
+              disabled={!draft}
+              onClick={() => {
+                logEvent("ทดสอบโมเดล Draft", draft?.label);
+                window.open("/?version=draft", "_blank");
+              }}
+            >
+              ลองใช้ Draft
+            </Button>
+            <Button icon="check" disabled={!draft || busy || running} onClick={() => setConfirm({ kind: "publish" })}>
+              เผยแพร่ Draft
+            </Button>
+          </>
+        }
+      />
       {message && (
-        <p className={`rounded-xl px-4 py-2 text-sm ${message.ok ? "bg-emerald-50 text-emerald-800" : "bg-danger/10 text-danger"}`}>{message.text}</p>
+        <p
+          className={`mb-4 rounded-xl px-4 py-2 text-sm ${
+            message.ok ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300" : "bg-danger/10 text-danger"
+          }`}
+        >
+          {message.text}
+        </p>
       )}
+      <SubTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: "overview", label: "ภาพรวม" },
+          { value: "train", label: "การเทรน", badge: running ? "กำลังเทรน" : undefined },
+          { value: "split", label: "ชุดทดสอบ" },
+          { value: "history", label: "ประวัติเวอร์ชัน", badge: models.length },
+        ]}
+      />
 
-      {/* โมเดลที่ใช้ vs Draft */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <ModelCard title="ใช้งานอยู่" model={active} highlight />
-        <ModelCard
-          title="Draft (รอทดสอบ)"
-          model={draft}
-          compare={active}
-          empty="ยังไม่มี Draft — เทรนโมเดลใหม่ด้วยคำสั่งด้านล่าง"
-          actions={
-            draft && (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon="play"
-                  onClick={() => {
-                    logEvent("ทดสอบโมเดล Draft", draft.label);
-                    window.open("/?version=draft", "_blank");
-                  }}
-                >
-                  ลองใช้ Draft
-                </Button>
-                <Button size="sm" icon="check" disabled={busy || running} onClick={() => setConfirm({ kind: "publish" })}>
-                  เผยแพร่
-                </Button>
-              </>
-            )
-          }
-        />
-      </div>
-
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <TrainingCard status={status} />
-        <TestSplitCard />
-      </div>
-
-      <HistoryCard models={models} onActivate={(m) => setConfirm({ kind: "activate", model: m })} />
+      {tab === "overview" && <Overview active={active} draft={draft} />}
+      {tab === "train" && <Training status={status} />}
+      {tab === "split" && <SplitTab />}
+      {tab === "history" && <History models={models} onActivate={(m) => setConfirm({ kind: "activate", model: m })} />}
 
       <ConfirmDialog
         open={!!confirm}
@@ -172,7 +188,7 @@ export default function ModelsView() {
         {confirm?.kind === "publish" ? (
           <>
             ผู้ใช้ทุกคนจะใช้ <b>{draft?.label}</b> แปลภาษามือทันที (ทายถูก {pct(draft?.val_accuracy)} เทียบกับตัวเดิม {pct(active?.val_accuracy)})
-            · ย้อนกลับไปเวอร์ชันเดิมได้จากประวัติเวอร์ชัน
+            · ย้อนกลับได้ที่แท็บประวัติเวอร์ชัน
           </>
         ) : (
           confirm?.kind === "activate" && (
@@ -182,48 +198,31 @@ export default function ModelsView() {
           )
         )}
       </ConfirmDialog>
-    </div>
+    </>
   );
 }
 
-// การ์ดโมเดลหนึ่งตัว: ความแม่นยำใหญ่ ๆ จำนวนคำ/คลิป วันที่เทรน (Draft แสดงผลต่างเทียบตัวที่ใช้)
-function ModelCard({
-  title,
-  model,
-  compare,
-  highlight,
-  empty = "ยังไม่มีโมเดล",
-  actions,
-}: {
-  title: string;
-  model: ModelFile | null;
-  compare?: ModelFile | null;
-  highlight?: boolean;
-  empty?: string;
-  actions?: ReactNode;
-}) {
+// การ์ดโมเดลหนึ่งตัว (ใช้งานอยู่ / Draft) ขนาดเท่ากัน: ความแม่นยำ ติด 3 อันดับ จำนวนคำ/คลิป วันที่เทรน
+function ModelCard({ title, model, compare, empty, highlight }: { title: string; model: ModelFile | null; compare?: ModelFile | null; empty: string; highlight?: boolean }) {
   const diff = model?.val_accuracy != null && compare?.val_accuracy != null ? model.val_accuracy - compare.val_accuracy : null;
   return (
-    <section className={`glass-card flex flex-col gap-3 ${highlight ? "ring-2 ring-emerald-300" : ""}`}>
+    <section className={`flex h-full flex-col rounded-2xl bg-surface/80 p-5 ring-1 ${highlight ? "ring-2 ring-emerald-400/60" : "ring-sky"}`}>
       <header className="flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-brand">{title}</h3>
-        {model && <span className="text-xl font-bold text-navy">{model.label}</span>}
+        <span className="text-sm font-semibold text-ink/60">{title}</span>
+        {model && <span className="text-lg font-bold text-navy">{model.label}</span>}
       </header>
       {model ? (
         <>
-          <div className="flex items-end gap-3">
+          <div className="mt-2 flex flex-wrap items-baseline gap-2">
             <span className="text-4xl font-bold tabular-nums text-navy">{pct(model.val_accuracy)}</span>
-            <span className="pb-1 text-sm text-ink/60">
-              ทายถูกกับผู้แสดงใหม่
-              {diff != null && (
-                <span className={`ml-1.5 font-semibold ${diff >= 0 ? "text-emerald-700" : "text-danger"}`}>
-                  ({diff >= 0 ? "+" : ""}
-                  {Math.round(diff * 100)}%)
-                </span>
-              )}
-            </span>
+            <span className="text-sm text-ink/55">ทายถูกกับผู้แสดงที่ไม่เคยเห็น</span>
+            {diff != null && (
+              <span className={`text-sm font-semibold ${diff >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-danger"}`}>
+                {diff >= 0 ? "▲" : "▼"} {Math.abs(Math.round(diff * 100))}%
+              </span>
+            )}
           </div>
-          <dl className="grid grid-cols-3 gap-2 text-sm">
+          <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-sky/60 pt-3 text-sm">
             <div>
               <dt className="text-xs text-ink/55">ติด 3 อันดับแรก</dt>
               <dd className="font-semibold text-navy">{pct(model.val_top3)}</dd>
@@ -237,18 +236,124 @@ function ModelCard({
               <dd className="font-semibold text-navy">{model.samples ?? "–"} คลิป</dd>
             </div>
           </dl>
-          <p className="text-xs text-ink/50">เทรนเมื่อ {fmtDate(model.modified_at)}</p>
-          {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+          <p className="mt-auto pt-3 text-xs text-ink/45">เทรนเมื่อ {fmtDate(model.modified_at)}</p>
         </>
       ) : (
-        <p className="py-6 text-center text-sm text-ink/55">{empty}</p>
+        <p className="grid flex-1 place-items-center py-8 text-center text-sm text-ink/50">{empty}</p>
       )}
     </section>
   );
 }
 
-// การ์ดการเทรน: คำสั่งที่ใช้เทรนจากเครื่อง สถานะ ความคืบหน้า และ log (พับไว้)
-function TrainingCard({ status }: { status: TrainStatus | null }) {
+// แถวเทียบความแม่นยำรายคำ
+interface WordRow {
+  word: string;
+  active: number | null;
+  draft: number | null;
+  inActive: boolean;
+  inDraft: boolean;
+}
+
+// ป้ายความแม่นยำ (เขียว ≥70 / เหลือง ≥40 / แดง)
+function AccBadge({ v, included }: { v: number | null; included: boolean }) {
+  if (!included) return <span className="text-ink/30">–</span>;
+  if (v == null) return <span className="text-xs text-ink/45">ไม่ได้วัด</span>;
+  return <Badge tone={v >= 0.7 ? "success" : v >= 0.4 ? "warning" : "danger"}>{Math.round(v * 100)}%</Badge>;
+}
+
+// แท็บภาพรวม: การ์ดใช้งานอยู่ vs Draft และตารางเทียบความแม่นยำรายคำ
+function Overview({ active, draft }: { active: ModelFile | null; draft: ModelFile | null }) {
+  const [items, setItems] = useState<VocabItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+
+  // โหลดผลรายคำของทั้งสองเวอร์ชัน (จากคลังคำ)
+  useEffect(() => {
+    getVocabulary()
+      .then((v) => setItems(v.items))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [active?.version, draft?.version]);
+
+  const rows: WordRow[] = useMemo(
+    () =>
+      items
+        .filter((v) => (v.in_active_model || v.in_draft_model) && (!q.trim() || v.word.includes(q.trim())))
+        .map((v) => ({
+          word: v.word,
+          active: v.model?.active.accuracy ?? null,
+          draft: v.model?.draft.accuracy ?? null,
+          inActive: v.in_active_model,
+          inDraft: v.in_draft_model,
+        })),
+    [items, q],
+  );
+
+  const columns: Column<WordRow>[] = [
+    { key: "word", header: "คำ", sort: (r) => r.word, cell: (r) => <span className="font-semibold text-navy">{r.word}</span> },
+    {
+      key: "active",
+      header: `ใช้งานอยู่ ${active?.label ?? ""}`,
+      align: "center",
+      sort: (r) => r.active,
+      cell: (r) => <AccBadge v={r.active} included={r.inActive} />,
+    },
+    ...(draft
+      ? [
+          {
+            key: "draft",
+            header: `Draft ${draft.label}`,
+            align: "center" as const,
+            sort: (r: WordRow) => r.draft,
+            cell: (r: WordRow) => <AccBadge v={r.draft} included={r.inDraft} />,
+          },
+          {
+            key: "diff",
+            header: "เปลี่ยนแปลง",
+            align: "center" as const,
+            sort: (r: WordRow) => (r.active != null && r.draft != null ? r.draft - r.active : null),
+            cell: (r: WordRow) => {
+              if (r.active == null || r.draft == null) return <span className="text-ink/30">–</span>;
+              const d = Math.round((r.draft - r.active) * 100);
+              return (
+                <span
+                  className={`text-sm font-semibold tabular-nums ${
+                    d > 0 ? "text-emerald-600 dark:text-emerald-400" : d < 0 ? "text-danger" : "text-ink/45"
+                  }`}
+                >
+                  {d > 0 ? `+${d}` : d}%
+                </span>
+              );
+            },
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <>
+      <div className="mb-5 grid gap-4 md:grid-cols-2">
+        <ModelCard title="ใช้งานอยู่" model={active} empty="ยังไม่มีโมเดลที่ใช้งาน" highlight />
+        <ModelCard title="Draft (รอทดสอบ)" model={draft} compare={active} empty='ยังไม่มี Draft — เทรนใหม่ได้ที่แท็บ "การเทรน"' />
+      </div>
+      <h2 className="mb-2 text-base font-bold text-navy">ความแม่นยำรายคำ</h2>
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="ค้นหาคำ" className="min-w-[220px] flex-1" />
+      </Toolbar>
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.word}
+        loading={loading}
+        initialSort={{ key: draft ? "diff" : "active", dir: "asc" }}
+        empty="ยังไม่มีคำในโมเดล"
+      />
+    </>
+  );
+}
+
+// แท็บการเทรน: ขั้นตอน คำสั่ง ความคืบหน้า และ log
+function Training({ status }: { status: TrainStatus | null }) {
   const [copied, setCopied] = useState(false);
   const r = status?.run;
   const prog = r?.progress ?? {};
@@ -267,59 +372,108 @@ function TrainingCard({ status }: { status: TrainStatus | null }) {
     }
   };
 
-  return (
-    <Card title="เทรนโมเดล" action={<Badge tone={st.tone}>{st.label}</Badge>}>
-      <ol className="mb-3 flex flex-col gap-1 text-sm text-ink/70">
-        <li>1. เลือกคำในแท็บ "คลังคำศัพท์" และชุดทดสอบ (การ์ดข้าง ๆ)</li>
-        <li>2. รันคำสั่งนี้บนเครื่องที่มี torch (ที่รากโปรเจกต์)</li>
-        <li>3. ได้ Draft แล้วลองใช้ ถ้าดีกว่าตัวเดิมค่อยกดเผยแพร่</li>
-      </ol>
-      {status && (
-        <div className="flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-lg bg-navy/90 px-3 py-2 text-xs text-sky">{status.command}</code>
-          <Button size="sm" variant="ghost" icon={copied ? "check" : "text"} onClick={() => void copy()}>
-            {copied ? "คัดลอกแล้ว" : "คัดลอก"}
-          </Button>
-        </div>
-      )}
+  const steps = [
+    { title: "เลือกคำ", text: 'เปิดสวิตช์ "เทรน" ของคำที่ต้องการในหน้าคลังคำศัพท์' },
+    { title: "เลือกชุดทดสอบ", text: 'แท็บ "ชุดทดสอบ" (ไม่เลือก = สุ่มให้เอง)' },
+    { title: "รันคำสั่งเทรน", text: "บนเครื่องที่มี torch ที่รากโปรเจกต์ (~1 นาที)" },
+    { title: "ลองใช้แล้วเผยแพร่", text: 'ได้ Draft แล้วกด "ลองใช้ Draft" ด้านบน ถ้าดีกว่าค่อยเผยแพร่' },
+  ];
 
-      {r && (status?.status === "running" || status?.status === "stalled") && (
-        <div className="mt-3">
-          <div className="mb-1 flex justify-between text-xs text-ink/60">
-            <span>
-              {STAGES[prog.stage ?? "load"].label}
-              {prog.epoch && prog.epochs ? ` · รอบ ${prog.epoch}/${prog.epochs}` : ""}
-            </span>
-            <span className="font-semibold text-navy">{Math.round(fraction * 100)}%</span>
+  return (
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <section className="rounded-2xl bg-surface/80 p-5 ring-1 ring-sky">
+        <h2 className="mb-3 text-base font-bold text-navy">ขั้นตอน</h2>
+        <ol className="flex flex-col gap-3">
+          {steps.map((s, i) => (
+            <li key={s.title} className="flex gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand/15 text-sm font-bold text-brand">{i + 1}</span>
+              <span>
+                <span className="block text-sm font-semibold text-navy">{s.title}</span>
+                <span className="block text-xs text-ink/60">{s.text}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        {status && (
+          <div className="mt-4 flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-lg bg-deep px-3 py-2 font-mono text-xs text-white">{status.command}</code>
+            <Button size="sm" variant="ghost" icon={copied ? "check" : "text"} onClick={() => void copy()}>
+              {copied ? "คัดลอกแล้ว" : "คัดลอก"}
+            </Button>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-sky/50">
-            <div className="h-full rounded-full bg-gradient-to-r from-brand to-royal transition-[width] duration-700" style={{ width: `${fraction * 100}%` }} />
-          </div>
-          {status?.status === "stalled" && <p className="mt-1 text-xs text-amber-700">เครื่องที่เทรนเงียบไปเกิน 2 นาที อาจถูกปิดหรือหลุดการเชื่อมต่อ</p>}
-        </div>
-      )}
-      {r && (
-        <p className="mt-3 text-xs text-ink/55">
-          ครั้งล่าสุด {r.started_at ? fmtDate(r.started_at) : "-"}
-          {r.host && ` · เครื่อง ${r.host}`}
-          {prog.val_accuracy != null && ` · ทายถูก ${pct(prog.val_accuracy)}`}
-        </p>
-      )}
-      {r?.error && <p className="mt-1 text-xs text-danger">{r.error}</p>}
-      {r && r.log.length > 0 && (
-        <details className="mt-2">
-          <summary className="cursor-pointer text-xs font-semibold text-brand">ดู log การเทรน</summary>
-          <pre className="scrollbar-thin mt-1 max-h-48 overflow-auto rounded-lg bg-navy/90 p-2 text-[11px] leading-relaxed text-sky">{r.log.join("\n")}</pre>
-        </details>
-      )}
-    </Card>
+        )}
+      </section>
+
+      <section className="rounded-2xl bg-surface/80 p-5 ring-1 ring-sky">
+        <header className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-base font-bold text-navy">การเทรนล่าสุด</h2>
+          <Badge tone={st.tone}>{st.label}</Badge>
+        </header>
+        {!r ? (
+          <p className="py-6 text-center text-sm text-ink/50">ยังไม่เคยเทรน</p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <dt className="text-xs text-ink/55">เริ่ม</dt>
+                <dd className="font-semibold text-navy">{r.started_at ? fmtDate(r.started_at) : "–"}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-ink/55">เครื่อง</dt>
+                <dd className="truncate font-semibold text-navy" title={r.host ?? ""}>
+                  {r.host ?? "–"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink/55">ทายถูก</dt>
+                <dd className="font-semibold text-navy">{pct(prog.val_accuracy)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink/55">ได้โมเดล</dt>
+                <dd className="font-semibold text-navy">{r.model ? r.model.replace(/^model_signBridge_|\.npz$/g, "") : "–"}</dd>
+              </div>
+            </dl>
+            {(status?.status === "running" || status?.status === "stalled") && (
+              <div className="mt-4">
+                <div className="mb-1 flex justify-between text-xs text-ink/60">
+                  <span>
+                    {STAGES[prog.stage ?? "load"].label}
+                    {prog.epoch && prog.epochs ? ` · รอบ ${prog.epoch}/${prog.epochs}` : ""}
+                  </span>
+                  <span className="font-semibold text-navy">{Math.round(fraction * 100)}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-sky/50">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-brand to-royal transition-[width] duration-700"
+                    style={{ width: `${fraction * 100}%` }}
+                  />
+                </div>
+                {status?.status === "stalled" && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">เครื่องที่เทรนเงียบไปเกิน 2 นาที อาจถูกปิดหรือหลุดการเชื่อมต่อ</p>
+                )}
+              </div>
+            )}
+            {r.error && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">{r.error}</p>}
+            {r.log.length > 0 && (
+              <>
+                <h3 className="mb-1 mt-4 text-xs font-semibold text-ink/55">log การเทรน</h3>
+                <pre className="scrollbar-thin max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-deep p-3 font-mono text-[11px] leading-relaxed text-white/85">
+                  {r.log.join("\n")}
+                </pre>
+              </>
+            )}
+          </>
+        )}
+      </section>
+    </div>
   );
 }
 
-// การ์ดชุดทดสอบ: เลือกผู้แสดงที่กันไว้วัดความแม่นยำ (ไม่เลือก = สุ่มอัตโนมัติ)
-function TestSplitCard() {
+// แท็บชุดทดสอบ: ตารางผู้แสดงทุกคน เปิดสวิตช์เพื่อกันไว้ทดสอบ (ไม่เลือกเลย = สุ่ม 20%)
+function SplitTab() {
   const [data, setData] = useState<TestSplit | null>(null);
   const [q, setQ] = useState("");
+  const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -346,133 +500,153 @@ function TestSplitCard() {
   const selected = useMemo(() => data?.signers.filter((s) => s.test).map((s) => s.id) ?? [], [data]);
   // สลับผู้แสดงหนึ่งคน
   const toggle = (id: string, on: boolean) => void save(on ? [...selected, id] : selected.filter((x) => x !== id));
-  const groups = useMemo(() => {
-    const m = new Map<string, TestSplit["signers"]>();
-    for (const s of data?.signers ?? []) {
-      if (q.trim() && !s.name.toLowerCase().includes(q.trim().toLowerCase())) continue;
-      m.set(s.source, [...(m.get(s.source) ?? []), s]);
-    }
-    return [...m.entries()];
-  }, [data, q]);
+  const sources = useMemo(() => [...new Set(data?.signers.map((s) => s.source) ?? [])], [data]);
+  const rows = useMemo(
+    () =>
+      (data?.signers ?? []).filter(
+        (s) => (!source || s.source === source) && (!q.trim() || s.name.toLowerCase().includes(q.trim().toLowerCase())),
+      ),
+    [data, q, source],
+  );
   const testClips = data?.signers.filter((s) => s.test).reduce((n, s) => n + s.clips, 0) ?? 0;
   const allClips = data?.signers.reduce((n, s) => n + s.clips, 0) ?? 0;
+  // ชื่อชุดข้อมูลที่อ่านง่าย
+  const sourceLabel = (s: string) => (s === "ล่าม" ? "ทีม (อัดผ่านระบบ)" : s);
+
+  const columns: Column<SplitSigner>[] = [
+    { key: "name", header: "ผู้แสดง", sort: (s) => s.name, cell: (s) => <span className="font-semibold text-navy">{s.name}</span> },
+    { key: "source", header: "ชุดข้อมูล", sort: (s) => s.source, cell: (s) => <span className="text-ink/65">{sourceLabel(s.source)}</span> },
+    { key: "clips", header: "คลิป", align: "right", sort: (s) => s.clips, cell: (s) => <span className="tabular-nums">{s.clips}</span> },
+    { key: "words", header: "คำ", align: "right", hideBelow: "sm", sort: (s) => s.words, cell: (s) => <span className="tabular-nums">{s.words}</span> },
+    {
+      key: "test",
+      header: "ใช้เป็นชุดทดสอบ",
+      align: "center",
+      sort: (s) => (s.test ? 1 : 0),
+      cell: (s) => <Switch checked={s.test} disabled={busy} onChange={(on) => toggle(s.id, on)} label={`ใช้ ${s.name} เป็นชุดทดสอบ`} size="sm" />,
+    },
+  ];
 
   return (
-    <Card
-      title="ชุดทดสอบ"
-      action={
-        data && (
-          <Badge tone={data.mode === "auto" ? "neutral" : "brand"}>{data.mode === "auto" ? "สุ่มอัตโนมัติ" : `เลือกเอง ${selected.length} คน`}</Badge>
-        )
-      }
-    >
-      <p className="mb-2 text-xs text-ink/60">
-        ผู้แสดงที่เลือกจะไม่ถูกใช้ตอนเทรนรอบวัดผล ตัวเลข % จึงบอกว่าโมเดลทายคน "ที่ไม่เคยเห็น" ได้แค่ไหน · โมเดลจริงยังเทรนด้วยข้อมูลทุกคน
-        · ไม่เลือกใครเลย = สุ่ม 20% ให้เอง · เลือกรายคลิปได้ในแผงคำของแท็บคลังคำศัพท์
-      </p>
-      {data && selected.length > 0 && (
-        <p className="mb-2 text-xs text-navy">
-          ชุดทดสอบ {testClips.toLocaleString("th-TH")} จาก {allClips.toLocaleString("th-TH")} คลิป ({allClips ? Math.round((testClips / allClips) * 100) : 0}%)
-          <button type="button" className="ml-2 font-semibold text-brand hover:underline" disabled={busy} onClick={() => void save([])}>
-            กลับไปสุ่มอัตโนมัติ
-          </button>
-        </p>
-      )}
+    <>
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl bg-surface/80 px-4 py-3 ring-1 ring-sky">
+          <span className="block text-xs text-ink/55">วิธีเลือก</span>
+          <span className="mt-1 block text-lg font-bold text-navy">
+            {data?.mode === "manual" ? `เลือกเอง ${selected.length} คน` : "สุ่มอัตโนมัติ 20%"}
+          </span>
+        </div>
+        <div className="rounded-2xl bg-surface/80 px-4 py-3 ring-1 ring-sky">
+          <span className="block text-xs text-ink/55">คลิปในชุดทดสอบ</span>
+          <span className="mt-1 block text-lg font-bold text-navy">
+            {selected.length ? `${testClips.toLocaleString("th-TH")} (${allClips ? Math.round((testClips / allClips) * 100) : 0}%)` : "–"}
+            {data && data.recorded_test_clips > 0 && (
+              <span className="ml-1 text-xs font-normal text-ink/55">+ เลือกรายคลิป {data.recorded_test_clips}</span>
+            )}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 rounded-2xl bg-surface/80 px-4 py-3 ring-1 ring-sky">
+          <span className="text-xs text-ink/60">ชุดทดสอบใช้วัดผลเท่านั้น โมเดลจริงยังเทรนด้วยข้อมูลทุกคน</span>
+          {selected.length > 0 && (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save([])}>
+              สุ่มอัตโนมัติ
+            </Button>
+          )}
+        </div>
+      </div>
       {data && data.words_without_test.length > 0 && (
-        <p className="mb-2 flex gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
-          <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
-          คำที่ไม่มีคลิปทดสอบ (จะวัดความแม่นยำคำนี้ไม่ได้): {data.words_without_test.join(", ")}
+        <p className="mb-3 flex gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-400/10 dark:text-amber-300">
+          <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
+          คำที่ไม่มีคลิปทดสอบ (วัดความแม่นยำคำนี้ไม่ได้): {data.words_without_test.join(", ")}
         </p>
       )}
       {data && data.words_without_train.length > 0 && (
-        <p className="mb-2 flex gap-1.5 rounded-lg bg-danger/10 px-2.5 py-1.5 text-xs text-danger">
-          <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
-          คำที่ทุกคลิปอยู่ในชุดทดสอบ (เหลือให้เทรน 0): {data.words_without_train.join(", ")}
+        <p className="mb-3 flex gap-2 rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">
+          <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
+          คำที่ทุกคลิปอยู่ในชุดทดสอบ (ไม่เหลือให้เทรน): {data.words_without_train.join(", ")}
         </p>
       )}
-      {error && <p className="mb-2 text-xs text-danger">{error}</p>}
-      <SearchInput value={q} onChange={setQ} placeholder="ค้นหาผู้แสดง" />
-      <div className="scrollbar-thin mt-2 max-h-72 overflow-y-auto rounded-xl bg-white/70 ring-1 ring-sky">
-        {!data && <p className="px-3 py-6 text-center text-sm text-ink/50">กำลังโหลด…</p>}
-        {groups.map(([source, list]) => (
-          <section key={source}>
-            <h4 className="sticky top-0 border-b border-sky/60 bg-cream/95 px-3 py-1 text-xs font-bold text-navy">
-              {source === "ล่าม" ? "ทีมที่อัดผ่านระบบ" : source} · {list.length} คน
-            </h4>
-            <ul className="divide-y divide-sky/40">
-              {list.map((s) => (
-                <li key={s.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium text-navy">{s.name}</span>
-                    <span className="text-[11px] text-ink/50">
-                      {s.clips} คลิป · {s.words} คำ
-                    </span>
-                  </span>
-                  <Switch checked={s.test} disabled={busy} onChange={(on) => toggle(s.id, on)} label={`ใช้ ${s.name} เป็นชุดทดสอบ`} size="sm" />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
-    </Card>
+      {error && <p className="mb-3 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="ค้นหาผู้แสดง" className="min-w-[220px] flex-1" />
+        <FilterSelect
+          label="ชุดข้อมูล"
+          value={source}
+          onChange={setSource}
+          options={[{ value: "", label: "ทุกชุดข้อมูล" }, ...sources.map((s) => ({ value: s, label: sourceLabel(s) }))]}
+        />
+      </Toolbar>
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(s) => s.id}
+        loading={!data && !error}
+        initialSort={{ key: "source", dir: "asc" }}
+        empty="ไม่พบผู้แสดง"
+      />
+    </>
   );
 }
 
-// ประวัติเวอร์ชันทั้งหมด พร้อมปุ่มย้อนกลับไปใช้เวอร์ชันเก่า
-function HistoryCard({ models, onActivate }: { models: ModelFile[]; onActivate: (m: ModelFile) => void }) {
-  return (
-    <Card title={`ประวัติเวอร์ชัน (${models.length})`}>
-      {models.length === 0 ? (
-        <p className="text-sm text-ink/60">ยังไม่มีโมเดล</p>
-      ) : (
-        <div className="scrollbar-thin overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="text-left text-xs text-ink/50">
-              <tr>
-                <th className="py-1.5 pr-3 font-semibold">เวอร์ชัน</th>
-                <th className="py-1.5 pr-3 font-semibold">ทายถูก</th>
-                <th className="py-1.5 pr-3 font-semibold">คำ / คลิป</th>
-                <th className="py-1.5 pr-3 font-semibold">เทรนเมื่อ</th>
-                <th className="py-1.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-sky/50">
-              {models.map((m) => (
-                <tr key={m.version}>
-                  <td className="py-2 pr-3">
-                    <span className="font-semibold text-navy">{m.label}</span>
-                    {m.active && <Badge tone="success" className="ml-1.5">ใช้งานอยู่</Badge>}
-                    {m.draft && <Badge tone="warning" className="ml-1.5">Draft</Badge>}
-                  </td>
-                  <td className="py-2 pr-3 tabular-nums">
-                    {pct(m.val_accuracy)}
-                    <span className="text-xs text-ink/45"> (3 อันดับ {pct(m.val_top3)})</span>
-                  </td>
-                  <td className="py-2 pr-3 text-ink/70">
-                    {m.words ?? "–"} / {m.samples ?? "–"}
-                  </td>
-                  <td className="py-2 pr-3 text-xs text-ink/60">
-                    {fmtDate(m.modified_at)} · {fmtBytes(m.bytes)}
-                  </td>
-                  <td className="py-2 text-right">
-                    {!m.active &&
-                      (m.compatible === false || m.file_missing ? (
-                        <span className="text-xs text-ink/45" title={m.file_missing ? "ไม่พบไฟล์โมเดลในเครื่องเซิร์ฟเวอร์" : "เทรนด้วยรูปแบบข้อมูลเก่า ต้องเทรนใหม่"}>
-                          {m.file_missing ? "ไม่มีไฟล์" : "รูปแบบเก่า ใช้ไม่ได้"}
-                        </span>
-                      ) : (
-                        <Button size="sm" variant="ghost" onClick={() => onActivate(m)}>
-                          ใช้เวอร์ชันนี้
-                        </Button>
-                      ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
+// แท็บประวัติเวอร์ชัน: ทุกเวอร์ชันพร้อมปุ่มย้อนไปใช้เวอร์ชันเก่า (รูปแบบเก่า/ไม่มีไฟล์ = ใช้ไม่ได้)
+function History({ models, onActivate }: { models: ModelFile[]; onActivate: (m: ModelFile) => void }) {
+  const columns: Column<ModelFile>[] = [
+    {
+      key: "label",
+      header: "เวอร์ชัน",
+      sort: (m) => m.modified_at,
+      cell: (m) => (
+        <span className="flex items-center gap-2">
+          <span className="font-semibold text-navy">{m.label}</span>
+          {m.active && <Badge tone="success">ใช้งานอยู่</Badge>}
+          {m.draft && <Badge tone="warning">Draft</Badge>}
+        </span>
+      ),
+    },
+    { key: "acc", header: "ทายถูก", align: "right", sort: (m) => m.val_accuracy, cell: (m) => <span className="tabular-nums">{pct(m.val_accuracy)}</span> },
+    {
+      key: "top3",
+      header: "ติด 3 อันดับ",
+      align: "right",
+      hideBelow: "sm",
+      sort: (m) => m.val_top3,
+      cell: (m) => <span className="tabular-nums text-ink/65">{pct(m.val_top3)}</span>,
+    },
+    { key: "words", header: "คำ", align: "right", hideBelow: "md", sort: (m) => m.words, cell: (m) => <span className="tabular-nums">{m.words ?? "–"}</span> },
+    { key: "samples", header: "คลิป", align: "right", hideBelow: "md", sort: (m) => m.samples, cell: (m) => <span className="tabular-nums">{m.samples ?? "–"}</span> },
+    {
+      key: "date",
+      header: "เทรนเมื่อ",
+      hideBelow: "lg",
+      sort: (m) => m.modified_at,
+      cell: (m) => (
+        <span className="text-xs text-ink/60">
+          {fmtDate(m.modified_at)} · {fmtBytes(m.bytes)}
+        </span>
+      ),
+    },
+    {
+      key: "act",
+      header: <span className="sr-only">ใช้งาน</span>,
+      align: "right",
+      cell: (m) =>
+        m.active ? null : m.compatible === false || m.file_missing ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-ink/50">
+            {m.file_missing ? "ไม่มีไฟล์" : "รูปแบบเก่า"}
+            <HintIcon
+              text={
+                m.file_missing
+                  ? "ไม่พบไฟล์โมเดลนี้ในเครื่องเซิร์ฟเวอร์ จึงเปิดใช้ไม่ได้"
+                  : "โมเดลนี้เทรนด้วยรูปแบบข้อมูลเก่า ใช้กับตัวแปลปัจจุบันไม่ได้ ต้องเทรนใหม่"
+              }
+            />
+          </span>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={() => onActivate(m)}>
+            ใช้เวอร์ชันนี้
+          </Button>
+        ),
+    },
+  ];
+  return <DataTable rows={models} columns={columns} rowKey={(m) => m.version} initialSort={{ key: "label", dir: "desc" }} empty="ยังไม่มีโมเดล" />;
 }

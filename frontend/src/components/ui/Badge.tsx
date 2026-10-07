@@ -7,7 +7,7 @@ export type Tone = "neutral" | "brand" | "navy" | "success" | "warning" | "dange
 const TONES: Record<Tone, string> = {
   neutral: "bg-ink/5 text-ink/70 ring-ink/10",
   brand: "bg-brand/10 text-brand ring-brand/20",
-  navy: "bg-navy text-white ring-navy",
+  navy: "bg-deep text-white ring-deep",
   success: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   warning: "bg-amber-50 text-amber-800 ring-amber-200",
   danger: "bg-danger/10 text-danger ring-danger/20",

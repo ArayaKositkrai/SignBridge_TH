@@ -3,6 +3,31 @@
 @tailwind utilities;
 
 @layer base {
+  /* สีของธีม (ตัวเลข R G B) — โหมดสว่าง */
+  :root {
+    --c-cream: 251 246 241;
+    --c-sky: 187 214 225;
+    --c-brand: 56 133 171;
+    --c-navy: 24 80 121;
+    --c-royal: 17 50 154;
+    --c-ink: 60 51 51;
+    --c-surface: 255 255 255;
+    --c-panel: 251 246 241;
+    color-scheme: light;
+  }
+  /* โหมดมืด: แยกเป็นชั้นให้เห็นชัด พื้นหลังเข้มสุด (cream) < การ์ด (surface) < หน้าต่างป๊อปอัป/หัวตาราง (panel)
+     navy ใช้เป็นสีหัวข้อ จึงเป็นขาวอมฟ้า ส่วน brand เป็นสีเน้น (ลิงก์ ปุ่ม ตัวที่เลือก) */
+  .dark {
+    --c-cream: 8 12 18;
+    --c-surface: 20 28 39;
+    --c-panel: 27 37 51;
+    --c-sky: 54 72 94;
+    --c-brand: 96 176 218;
+    --c-navy: 232 240 248;
+    --c-royal: 128 156 240;
+    --c-ink: 214 222 232;
+    color-scheme: dark;
+  }
   html,
   body,
   #root {
@@ -14,6 +39,13 @@
       radial-gradient(60rem 36rem at 8% -8%, rgba(187, 214, 225, 0.75), transparent 62%),
       radial-gradient(46rem 32rem at 100% 4%, rgba(56, 133, 171, 0.16), transparent 58%),
       #fbf6f1;
+    background-attachment: fixed;
+  }
+  .dark body {
+    background:
+      radial-gradient(60rem 36rem at 8% -8%, rgba(56, 133, 171, 0.14), transparent 62%),
+      radial-gradient(46rem 32rem at 100% 4%, rgba(96, 120, 220, 0.08), transparent 58%),
+      #080c12;
     background-attachment: fixed;
   }
   :focus-visible {
@@ -32,15 +64,23 @@
 
 @layer components {
   .glass-card {
-    @apply rounded-2xl bg-white/80 p-4 backdrop-blur-md;
+    @apply rounded-2xl bg-surface/80 p-4 backdrop-blur-md;
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.9) inset,
       0 1px 2px rgba(60, 51, 51, 0.05),
       0 14px 32px -16px rgba(24, 80, 121, 0.35);
-    border: 1px solid rgba(187, 214, 225, 0.9);
+    border: 1px solid rgb(var(--c-sky) / 0.9);
+  }
+  .dark .glass-card {
+    background-color: rgb(var(--c-surface) / 0.92);
+    border-color: rgb(255 255 255 / 0.07);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 1px 2px rgba(0, 0, 0, 0.5),
+      0 18px 36px -18px rgba(0, 0, 0, 0.8);
   }
   .text-gradient {
-    background: linear-gradient(120deg, #11329a 0%, #3885ab 60%, #185079 100%);
+    background: linear-gradient(120deg, rgb(var(--c-royal)) 0%, rgb(var(--c-brand)) 60%, rgb(var(--c-navy)) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -82,4 +122,38 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* โหมดมืด: ป้าย/กล่องสีเขียว-เหลืองที่ใช้สีอ่อนของ Tailwind ตรง ๆ ให้เป็นสีโปร่งบนพื้นเข้ม ตัวอักษรสว่างขึ้น */
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: rgb(251 191 36 / 0.12);
+}
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: rgb(52 211 153 / 0.12);
+}
+.dark .text-amber-600,
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  color: rgb(252 211 77);
+}
+.dark .text-emerald-600,
+.dark .text-emerald-700,
+.dark .text-emerald-800 {
+  color: rgb(110 231 183);
+}
+.dark .ring-amber-200 {
+  --tw-ring-color: rgb(251 191 36 / 0.3);
+}
+.dark .ring-emerald-200,
+.dark .ring-emerald-300 {
+  --tw-ring-color: rgb(52 211 153 / 0.3);
+}
+
+/* โหมดมืด: ช่องกรอก/ตัวเลือกเข้มกว่าการ์ดหนึ่งระดับ (ดูเป็นช่องลึกลงไป) ไม่กลืนกับพื้นการ์ด */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(:disabled),
+.dark select:not(:disabled),
+.dark textarea:not(:disabled) {
+  background-color: rgb(var(--c-cream) / 0.75);
 }

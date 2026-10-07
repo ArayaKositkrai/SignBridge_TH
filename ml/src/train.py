@@ -172,8 +172,35 @@ class SignCNN(nn.Module):
         return self.fc(self.drop(pooled))
 
 
-# สุ่มแปลงท่า: ยืดแกนนอน (ชดเชยสัดส่วนภาพที่ประมาณ) หมุน ย่อขยาย เลื่อน สั่น และยืด/หดเวลา แล้วคำนวณความเร็วใหม่
+# จำลองการทำภาษามือเร็ว ๆ ต่อกันเป็นประโยค: ต่อท่อนท้ายของคลิปอื่นไว้หน้า และท่อนต้นของคลิปอื่นไว้หลัง
+#   (ครึ่งหนึ่งของ batch; อีกครึ่งค้างท่าแรก/ท้ายของตัวเองแทน) แล้วย่อกลับเป็น t เฟรม
+#   ให้โมเดลชินกับหน้าต่างที่มีท่าของคำข้างเคียงปนเข้ามา — จำลองแล้วคนทำเร็ว 2 เท่าจับคำถูกเพิ่มจาก ~51% เป็น ~62%
+def mix_neighbors(x: torch.Tensor) -> torch.Tensor:
+    b, t, d = x.shape
+    k1 = int(torch.randint(0, t // 3 + 1, (1,)))
+    k2 = int(torch.randint(0, t // 3 + 1, (1,)))
+    if k1 == 0 and k2 == 0:
+        return x
+    o1, o2 = x[torch.randperm(b)], x[torch.randperm(b)]
+    m = (torch.rand(b, 1, 1) < 0.5).float()
+    before = m * o1[:, t - k1 :] + (1 - m) * x[:, :1].expand(b, k1, d)
+    after = m * o2[:, :k2] + (1 - m) * x[:, -1:].expand(b, k2, d)
+    ext = torch.cat([before, x, after], 1)
+    n = ext.shape[1]
+    where = torch.linspace(0, n - 1, t)
+    lo = where.floor().long().clamp(0, n - 1)
+    hi = (lo + 1).clamp(max=n - 1)
+    w = (where - lo.float()).view(1, t, 1)
+    ext = ext[:, lo] * (1 - w) + ext[:, hi] * w
+    # ช่อง "เห็นมือ" ต้องเป็น 0/1 เหมือนข้อมูลจริง
+    n2 = F.N_POINTS * 2
+    ext[:, :, n2 : n2 + 2] = (ext[:, :, n2 : n2 + 2] > 0.5).float()
+    return ext
+
+
+# สุ่มแปลงท่า: ท่าคำข้างเคียงปน ยืดแกนนอน (ชดเชยสัดส่วนภาพที่ประมาณ) หมุน ย่อขยาย เลื่อน สั่น และยืด/หดเวลา แล้วคำนวณความเร็วใหม่
 def augment(x: torch.Tensor) -> torch.Tensor:
+    x = mix_neighbors(x)
     b, t, _ = x.shape
     n2 = F.N_POINTS * 2
     pos = x[:, :, :n2].reshape(b, t, F.N_POINTS, 2)

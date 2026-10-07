@@ -4,6 +4,7 @@ import Card from "../../components/ui/Card";
 import Icon, { type IconName } from "../../components/ui/Icon";
 import { fmtDate, fmtDuration, fmtNumber, fmtPct } from "../../lib/format";
 import { TARGET_SAMPLES } from "../contributor/constants";
+import PageHeader from "./components/PageHeader";
 import { getDashboard, versionLabel, type Dashboard } from "./services/adminApi";
 
 // ป้ายตัวเลขสรุปหนึ่งช่อง
@@ -40,7 +41,7 @@ function BarRow({ label, value, max, target }: { label: string; value: number; m
         />
         {target !== undefined && max > 0 && target <= max && (
           <span
-            className="absolute -top-0.5 h-4 w-0.5 rounded bg-navy/50"
+            className="absolute -top-0.5 h-4 w-0.5 rounded bg-deep/50"
             style={{ left: `${(target / max) * 100}%` }}
             aria-hidden="true"
           />
@@ -63,8 +64,21 @@ export default function DashboardView() {
       .catch((e) => setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ"));
   }, []);
 
-  if (error) return <p className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>;
-  if (!data) return <p className="text-sm text-ink/60">กำลังโหลด…</p>;
+  const header = <PageHeader title="ภาพรวม" description="จำนวนคำ คลิป ผู้แสดง คุณภาพข้อมูล และโมเดลที่ใช้อยู่" />;
+  if (error)
+    return (
+      <>
+        {header}
+        <p className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>
+      </>
+    );
+  if (!data)
+    return (
+      <>
+        {header}
+        <p className="text-sm text-ink/60">กำลังโหลด…</p>
+      </>
+    );
 
   const t = data.totals;
   const maxSamples = Math.max(TARGET_SAMPLES, ...data.words.map((w) => w.samples));
@@ -73,6 +87,7 @@ export default function DashboardView() {
 
   return (
     <div className="flex flex-col gap-4">
+      {header}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi icon="book" label="คำศัพท์" value={fmtNumber(t.words)} />
         <Kpi icon="camera" label="คลิป" value={fmtNumber(t.samples)} />

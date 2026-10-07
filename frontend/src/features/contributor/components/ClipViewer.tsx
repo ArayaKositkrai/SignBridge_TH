@@ -81,7 +81,7 @@ export default function ClipViewer({ samples, index, onIndex, onClose, onDelete 
             onClick={() => setShowSkeleton((v) => !v)}
             aria-pressed={showSkeleton}
             className={`flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
-              showSkeleton ? "bg-white text-navy" : "bg-white/15 text-white hover:bg-white/25"
+              showSkeleton ? "bg-white text-deep" : "bg-white/15 text-white hover:bg-white/25"
             }`}
           >
             <Icon name={showSkeleton ? "eye" : "eyeOff"} size={18} />

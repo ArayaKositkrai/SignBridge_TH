@@ -75,7 +75,8 @@ export default function ProfilePage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         <ProfileHeader profile={profile} />
         <PersonalCard profile={profile} onSaved={applyProfile} />
-        <DisabilityCard profile={profile} onSaved={applyProfile} />
+        {/* บัตรคนพิการเก็บเฉพาะผู้ใช้ทั่วไป (ล่าม/แอดมินไม่ต้องใช้) */}
+        {profile.role === "user" && <DisabilityCard profile={profile} onSaved={applyProfile} />}
         <SecurityCard profile={profile} />
         <AccountsCard profile={profile} enabled={enabledProviders} onSaved={applyProfile} />
         <DangerCard profile={profile} />

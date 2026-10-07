@@ -29,7 +29,7 @@ export default function UserMenu() {
     return (
       <Link
         to="/login"
-        className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-semibold text-navy ring-1 ring-sky transition hover:bg-white"
+        className="flex items-center gap-1.5 rounded-full bg-surface/70 px-3 py-1.5 text-sm font-semibold text-navy ring-1 ring-sky transition hover:bg-surface"
       >
         <Icon name="user" size={16} />
         <span className="hidden sm:inline">เข้าสู่ระบบ</span>
@@ -50,7 +50,7 @@ export default function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-semibold text-navy ring-1 ring-sky transition hover:bg-white"
+        className="flex items-center gap-1.5 rounded-full bg-surface/70 px-3 py-1.5 text-sm font-semibold text-navy ring-1 ring-sky transition hover:bg-surface"
       >
         <Icon name="user" size={16} />
         <span className="hidden max-w-[10rem] truncate sm:inline">{user.first_name}</span>
@@ -58,7 +58,7 @@ export default function UserMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-white p-2 text-sm shadow-card ring-1 ring-sky"
+          className="absolute right-0 top-full mt-2 w-56 rounded-xl bg-surface p-2 text-sm shadow-card ring-1 ring-sky"
         >
           <div className="border-b border-sky/60 px-2 pb-2">
             <p className="truncate font-semibold text-navy">{user.name}</p>

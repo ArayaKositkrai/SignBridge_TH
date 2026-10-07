@@ -42,7 +42,7 @@ export function StaffNav() {
           title={t.label}
           className={({ isActive }) =>
             `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 transition ${
-              isActive ? "bg-navy text-white ring-navy" : "bg-white/70 text-navy ring-sky hover:bg-white"
+              isActive ? "bg-deep text-white ring-deep" : "bg-surface/70 text-navy ring-sky hover:bg-surface"
             }`
           }
         >
@@ -65,7 +65,7 @@ export function TopNav() {
           end
           className={({ isActive }) =>
             `flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-              isActive ? "bg-navy text-white shadow" : "text-navy hover:bg-white/70"
+              isActive ? "bg-deep text-white shadow" : "text-navy hover:bg-surface/70"
             }`
           }
         >
@@ -83,7 +83,7 @@ export function BottomNav() {
   return (
     <nav
       style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-      className="pb-safe fixed inset-x-0 bottom-0 z-40 grid border-t border-sky bg-white/95 backdrop-blur md:hidden"
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 grid border-t border-sky bg-surface/95 backdrop-blur md:hidden"
       aria-label="เมนูหลัก"
     >
       {tabs.map((t) => (

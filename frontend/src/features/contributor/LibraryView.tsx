@@ -101,7 +101,7 @@ export default function LibraryView() {
               setCategory("");
             }}
             className={`rounded-full px-3 py-1 text-sm font-semibold transition ${
-              tab === t.value ? "bg-navy text-white" : "bg-sky/50 text-navy hover:bg-sky"
+              tab === t.value ? "bg-deep text-white" : "bg-sky/50 text-navy hover:bg-sky"
             }`}
           >
             {t.label} <span className="opacity-70">{vocab.filter(t.test).length}</span>
@@ -118,13 +118,13 @@ export default function LibraryView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="ค้นหาคำ"
-            className="h-10 w-full rounded-xl border border-sky bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            className="h-10 w-full rounded-xl border border-sky bg-surface pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-brand/30"
           />
         </div>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="h-10 rounded-xl border border-sky bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
+          className="h-10 rounded-xl border border-sky bg-surface px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
           aria-label="หมวด"
         >
           <option value="">ทุกหมวด</option>
@@ -137,7 +137,7 @@ export default function LibraryView() {
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
-          className="h-10 rounded-xl border border-sky bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
+          className="h-10 rounded-xl border border-sky bg-surface px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
           aria-label="เรียงตาม"
         >
           {SORTS.map((s) => (
@@ -169,7 +169,7 @@ export default function LibraryView() {
                 <th className="px-3 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-sky/60 bg-white/70">
+            <tbody className="divide-y divide-sky/60 bg-surface/70">
               {rows.map((v) => {
                 const d = v.data;
                 const ratio = Math.min(1, n(v) / TARGET_SAMPLES);

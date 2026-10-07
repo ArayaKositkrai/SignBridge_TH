@@ -128,10 +128,10 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `app/db/session.py` | การเชื่อมต่อ database |
 | `app/db/schema.py` | เพิ่มคอลัมน์ที่โค้ดใหม่ต้องใช้ตอนเปิดเซิร์ฟเวอร์ (คู่กับ `backend/sql/`) |
 | `app/services/auth_service.py` | รหัสผ่าน (scrypt) session (JWT) OAuth |
-| `app/services/user_service.py` | จัดการผู้ใช้ + ตรวจรูปแบบเบอร์โทร/เลขบัตรคนพิการ |
+| `app/services/user_service.py` | จัดการผู้ใช้ + ตรวจรูปแบบเบอร์โทร/เลขบัตรคนพิการ (ข้อมูลบัตรเก็บเฉพาะบทบาทผู้ใช้ทั่วไป `CARD_ROLES`) |
 | `app/services/card_image.py` | รูปบัตรคนพิการ (Storage แบบ private ดูได้เฉพาะเจ้าของ/แอดมิน ผ่าน backend) |
 | `app/services/test_split.py` | ชุดทดสอบโมเดล: ผู้แสดงที่แอดมินเลือก (ตาราง `app_settings`) และรายคลิป (`samples.split`) |
-| `app/services/recognition_service.py` | ตัวแปลภาษามือ: ทายจากหลายความยาวหน้าต่าง (1.2/1.7/2.2 วิ) เฉลี่ยความมั่นใจ แล้วตัดสินว่า "ได้คำ" (ส่ง `word` ครั้งเดียวต่อคำ) |
+| `app/services/recognition_service.py` | ตัวแปลภาษามือ: ทายจากหลายความยาวหน้าต่าง (0.7/1.0/1.4/2.0 วิ ทุก 0.1 วิ ให้ทันคนทำเร็ว) เฉลี่ยความมั่นใจ แล้วตัดสินว่า "ได้คำ" (มั่นใจ ≥ 0.45 สองรอบ หรือนำอันดับ 2 ห่าง 3 เท่าสามรอบ สำหรับท่าที่ทำเร็ว) ส่ง `word` ครั้งเดียวต่อคำ |
 | `app/services/retrieval_service.py` | หาท่าของแต่ละคำ (ข้อความ → ภาษามือ) |
 | `app/services/motion_library.py` | อ่านท่าอวตารจากตาราง `motions` |
 | `app/services/dataset_service.py` | คลิปของล่าม: แปลง skeleton ↔ ไฟล์ .npz, สถิติ, คลังคำ |
@@ -158,9 +158,11 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `src/features/emergency-aac/` | หน้าปุ่มฉุกเฉิน |
 | `src/features/contributor/` | พื้นที่ล่าม: อัดคลิป (`RecorderPanel`), ช่องเลือกคำ (`WordCombobox`), อ่านไฟล์ .npy/.npz (`parseLandmarkFile`), คลังคำ |
 | `src/features/admin/` | หน้าแอดมิน: แดชบอร์ด · ผู้ใช้ (`UsersView`) · คลังคำศัพท์ (`VocabularyView`) · โมเดล + ชุดทดสอบ (`ModelsView`) · บันทึกการใช้งาน (`LogsView`) |
+| `src/features/admin/components/` | ชิ้นส่วนของหน้าแอดมิน: หัวหน้า (`PageHeader`) การ์ดตัวเลขกดกรอง (`StatCards`) ตารางเรียง/แบ่งหน้า (`DataTable`) แท็บย่อย ตัวกรอง |
+| `src/lib/theme.ts`, `components/layout/ThemeToggle.tsx` | โหมดสว่าง/มืด (สีอยู่ใน CSS variable ที่ `src/styles/index.css` แยกชั้น พื้นหลัง < การ์ด `surface` < หน้าต่าง `panel`, จำค่าในเบราว์เซอร์) |
 | `src/features/profile/` | หน้าโปรไฟล์ของผู้ใช้ทุกบทบาท (`/profile`) |
 | `src/features/auth/` | หน้าล็อกอิน และสถานะผู้ใช้ |
-| `src/components/ui/` | ชิ้นส่วนหน้าจอที่ใช้ร่วมกัน (ปุ่ม การ์ด ช่องค้นหา สวิตช์ แผงด้านข้าง กล่องยืนยัน ฯลฯ) |
+| `src/components/ui/` | ชิ้นส่วนหน้าจอที่ใช้ร่วมกัน (ปุ่ม การ์ด ช่องค้นหา สวิตช์ หน้าต่างกลางจอ `Dialog`, tooltip `Tooltip`/`HintIcon`, กล่องยืนยัน ฯลฯ) |
 | `src/lib/mediapipe/` | โหลด MediaPipe, ตรวจจับท่า (`holistic.ts`), วาด skeleton (`draw.ts`), ลดการสั่น (`smoothing.ts`) |
 | `src/lib/avatar3d/` | ขยับตัวละคร 3D: โหลดโมเดล (`loadModel.ts`), IK แขน/ข้อมือ/นิ้ว และกันแขนทะลุตัว (`rig.ts`) |
 | `src/lib/avatar/skeleton.ts` | ผสมท่าระหว่าง keyframe และตัวละคร 2D |

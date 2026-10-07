@@ -136,7 +136,7 @@ export default function ResultPanel(p: Props) {
           {p.words.length ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {p.words.map((w, i) => (
-                <span key={`${w}-${i}`} className="animate-fadeUp rounded-lg bg-white px-2 py-0.5 text-lg font-semibold text-navy ring-1 ring-sky">
+                <span key={`${w}-${i}`} className="animate-fadeUp rounded-lg bg-surface px-2 py-0.5 text-lg font-semibold text-navy ring-1 ring-sky">
                   {w}
                 </span>
               ))}

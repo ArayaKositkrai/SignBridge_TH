@@ -44,7 +44,7 @@ export default function SkeletonOnlyPlayer({ frames, width, height }: Props) {
   }, [frames, aspect]);
 
   return (
-    <div className="absolute inset-0 grid place-items-center bg-navy">
+    <div className="absolute inset-0 grid place-items-center bg-deep">
       <canvas ref={ref} className="max-h-full max-w-full" style={{ aspectRatio: aspect }} />
       <span className="absolute bottom-2 right-3 rounded-full bg-black/50 px-2.5 py-1 text-xs text-white">
         ไฟล์ skeleton (ไม่มีวิดีโอ)

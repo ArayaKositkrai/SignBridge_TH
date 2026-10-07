@@ -166,6 +166,10 @@ export const setSampleSplit = (id: string, split: "train" | "test") =>
 // ดึงคลังคำศัพท์และท่ารวม
 export const getVocabulary = () => send<{ items: VocabItem[]; models: ModelsBrief }>(`${BASE}/vocabulary`);
 
+// เพิ่มคำใหม่เข้าคลัง
+export const addWord = (word: string, category: string, toRecord: boolean) =>
+  send<{ word: string }>(`${BASE}/vocabulary`, json("POST", { word, category, to_record: toRecord }));
+
 // เลือก/ไม่เลือกคำไว้เทรนโมเดล (มีผลในการเทรนครั้งถัดไป)
 export const setTrainWord = (word: string, inTrainSet: boolean) =>
   send<{ word: string; in_train_set: boolean }>(
@@ -232,7 +236,9 @@ const logQuery = (f: LogFilter) =>
 
 // ดึงรายการ log ตามตัวกรอง พร้อมจำนวนทั้งหมด และจำนวนวันนี้แยกตามผู้ทำ
 export const listLogs = (f: LogFilter) =>
-  send<{ items: LogEntry[]; total: number; today: Record<string, number> }>(`${BASE}/logs?${logQuery(f)}`);
+  send<{ items: LogEntry[]; total: number; today: Record<string, number>; today_summary: { failed: number; users: number } }>(
+    `${BASE}/logs?${logQuery(f)}`,
+  );
 
 // ลิงก์ดาวน์โหลด log ตามตัวกรองเป็นไฟล์ CSV
 export const logsCsvUrl = (f: LogFilter) => `${BASE}/logs/export.csv?${logQuery({ ...f, limit: undefined, offset: undefined })}`;

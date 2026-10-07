@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react";
+import { useState, type MutableRefObject } from "react";
 import Icon from "../../../components/ui/Icon";
 import type { SignClip } from "../../../types";
 import Avatar3D from "./Avatar3D";
@@ -33,19 +33,69 @@ function motionNote(clip: SignClip): string {
   return "ท่าทางประกอบตัวอย่าง ยังไม่ใช่ท่ามาตรฐานภาษามือไทย";
 }
 
-// ตัวเล่นภาษามือ: วิดีโอ (ถ้ามี) หรือตัวละครทำท่า พร้อมชื่อคำและแถบความคืบหน้า
+// คีย์ที่จำการเลือกโหมดกระจกไว้ในเบราว์เซอร์
+const MIRROR_KEY = "sb-avatar-mirror";
+
+// อ่านค่าโหมดกระจกที่เคยเลือก (อ่านไม่ได้ = ไม่กระจก)
+function loadMirror(): boolean {
+  try {
+    return localStorage.getItem(MIRROR_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// ป้ายบอกข้างมือที่ขอบซ้าย/ขวาของจอ (นิ่ง ไม่ตามแขน): คนทำท่าหันหน้าเข้าหาเรา มือขวาของเขาจึงอยู่ซ้ายจอ
+//   โหมดกระจกกลับภาพ มือขวาจึงย้ายไปขวาจอ
+function HandSides({ mirror }: { mirror: boolean }) {
+  const [left, right] = mirror ? ["มือซ้าย", "มือขวา"] : ["มือขวา", "มือซ้าย"];
+  const pill = "pointer-events-none absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 px-3 py-1 text-xs font-semibold text-white backdrop-blur";
+  return (
+    <>
+      <span className={`${pill} left-3`}>{left}</span>
+      <span className={`${pill} right-3`}>{right}</span>
+    </>
+  );
+}
+
+// ตัวเล่นภาษามือ: วิดีโอ (ถ้ามี) หรือตัวละครทำท่า พร้อมชื่อคำ ป้ายข้างมือซ้าย/ขวา และแถบความคืบหน้า
 export default function SignPlayer(p: Props) {
   const hasVideo = Boolean(p.clip?.url);
+  const [mirror, setMirror] = useState(loadMirror);
+
+  // สลับโหมดกระจก แล้วจำไว้
+  const toggleMirror = () => {
+    setMirror((m) => {
+      try {
+        localStorage.setItem(MIRROR_KEY, m ? "0" : "1");
+      } catch {
+        /* เก็บไม่ได้ก็ใช้ได้ปกติ แค่ไม่จำ */
+      }
+      return !m;
+    });
+  };
 
   return (
-    <div className="stage relative flex aspect-[4/3] flex-col overflow-hidden rounded-3xl shadow-card ring-2 ring-navy/30 md:aspect-video lg:aspect-[4/3]">
+    <div className="stage relative flex aspect-[4/3] flex-col overflow-hidden rounded-3xl shadow-card ring-2 ring-deep/30 md:aspect-video lg:aspect-[4/3]">
       <div className="stage-grid absolute inset-0" />
 
       {p.total > 0 && (
         <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-          <span className={`h-2 w-2 rounded-full ${p.playing ? "animate-pulse bg-emerald-300" : "bg-sky/70"}`} />
+          <span className={`h-2 w-2 rounded-full ${p.playing ? "animate-pulse bg-emerald-300" : "bg-mist/70"}`} />
           คำที่ {p.index + 1} จาก {p.total}
         </div>
+      )}
+
+      {!hasVideo && (
+        <button
+          type="button"
+          onClick={toggleMirror}
+          aria-pressed={mirror}
+          className="absolute right-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-black/60"
+        >
+          <Icon name="mirror" size={14} />
+          {mirror ? "แบบกระจก: ทำตามได้เลย" : "หันหน้าเข้าหาคุณ"}
+        </button>
       )}
 
       <div className="relative flex-1">
@@ -64,20 +114,22 @@ export default function SignPlayer(p: Props) {
             className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (
-          <Avatar3D motion={p.clip?.motion} progressRef={p.progressRef} />
+          <Avatar3D motion={p.clip?.motion} progressRef={p.progressRef} mirror={mirror} />
         )}
+
+        {p.clip && <HandSides mirror={mirror && !hasVideo} />}
 
         {p.loading && (
           <div className="absolute inset-0 grid place-items-center bg-black/30 backdrop-blur-[2px]">
-            <div className="flex items-center gap-3 text-sky">
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-sky/30 border-t-sky" />
+            <div className="flex items-center gap-3 text-mist">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-mist/30 border-t-sky" />
               กำลังแปล…
             </div>
           </div>
         )}
 
         {!p.loading && !p.clip && (
-          <p className="absolute bottom-5 left-5 right-5 text-center text-sm text-sky/80">
+          <p className="absolute bottom-5 left-5 right-5 text-center text-sm text-mist/80">
             พิมพ์หรือพูดข้อความ แล้วกด "แปลเป็นภาษามือ"
           </p>
         )}
@@ -86,7 +138,7 @@ export default function SignPlayer(p: Props) {
           <div key={p.clip.gloss + p.index} className="absolute bottom-4 left-5 right-1/2 flex animate-fadeUp flex-col items-start gap-1.5 pr-10 text-left">
             <p className="text-3xl font-bold tracking-wide text-white drop-shadow">{p.clip.word}</p>
             {!hasVideo && (
-              <p className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-sky/90">
+              <p className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-mist/90">
                 {motionNote(p.clip)}
               </p>
             )}
@@ -98,7 +150,7 @@ export default function SignPlayer(p: Props) {
         <button
           onClick={p.onToggle}
           disabled={!p.total}
-          className="grid h-9 w-9 place-items-center rounded-full bg-white text-navy shadow transition hover:scale-105 hover:bg-sky disabled:opacity-40 disabled:hover:scale-100"
+          className="grid h-9 w-9 place-items-center rounded-full bg-white text-deep shadow transition hover:scale-105 hover:bg-mist disabled:opacity-40 disabled:hover:scale-100"
           aria-label={p.playing ? "หยุดชั่วคราว" : "เล่น"}
         >
           <Icon name={p.playing ? "pause" : "play"} size={14} />
@@ -109,7 +161,7 @@ export default function SignPlayer(p: Props) {
             return (
               <div key={i} className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky to-white transition-[width] duration-100"
+                  className="h-full rounded-full bg-gradient-to-r from-mist to-white transition-[width] duration-100"
                   style={{ width: `${Math.max(0, Math.min(fill, 1)) * 100}%` }}
                 />
               </div>

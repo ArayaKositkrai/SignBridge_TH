@@ -11,6 +11,8 @@ import SkeletonAvatar from "./SkeletonAvatar";
 interface Props {
   motion: Motion | null | undefined;
   progressRef: MutableRefObject<number>;
+  // true = แสดงแบบกระจก (กลับภาพซ้าย-ขวา มือขวาของตัวละครอยู่ฝั่งขวาจอ ทำตามได้เหมือนส่องกระจก)
+  mirror?: boolean;
 }
 
 type Status = "loading" | "ready" | "error";
@@ -27,7 +29,7 @@ const POSE_SMOOTH_SEC = 0.06;
 
 // ตัวละครโมเดล 3D (X Bot จาก Mixamo) ขยับแขน มือ นิ้ว และเอียงหัวตามท่าทางปัจจุบัน
 // ถ้าโหลดโมเดลไม่สำเร็จ จะตกไปใช้ตัวโครงกระดูก 2D แทนโดยอัตโนมัติ
-export default function Avatar3D({ motion, progressRef }: Props) {
+export default function Avatar3D({ motion, progressRef, mirror = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const motionRef = useRef(motion);
   motionRef.current = motion;
@@ -59,7 +61,7 @@ export default function Avatar3D({ motion, progressRef }: Props) {
 
   return (
     <div className="absolute inset-0">
-      <div ref={containerRef} className="absolute inset-0" data-testid="avatar3d-container" />
+      <div ref={containerRef} className={`absolute inset-0 ${mirror ? "-scale-x-100" : ""}`} data-testid="avatar3d-container" />
       {status === "loading" && (
         <div className="absolute inset-0 grid place-items-center text-sky/70">
           <span className="h-6 w-6 animate-spin rounded-full border-2 border-sky/30 border-t-sky" />
@@ -180,3 +182,4 @@ function startScene(
     if (renderer.domElement.parentElement === container) container.removeChild(renderer.domElement);
   };
 }
+

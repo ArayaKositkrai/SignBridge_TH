@@ -59,7 +59,7 @@ function StageButton(p: {
       aria-label={p.label}
       aria-pressed={p.active}
       className={`grid h-11 w-11 place-items-center rounded-full backdrop-blur transition hover:scale-105 disabled:pointer-events-none disabled:opacity-35 ${
-        p.active ? "bg-white text-navy" : "bg-black/45 text-white hover:bg-black/60"
+        p.active ? "bg-white text-deep" : "bg-black/45 text-white hover:bg-black/60"
       }`}
     >
       <Icon name={p.icon} size={20} />
@@ -238,8 +238,8 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
     if (!on) return { dot: "bg-white/40", text: "กล้องปิดอยู่" };
     if (mp.status === "loading") return { dot: "bg-amber-300 animate-pulse", text: "กำลังโหลดโมเดล…" };
     if (mp.handsVisible) return { dot: "bg-emerald-300", text: "เห็นมือแล้ว พร้อมอัด" };
-    if (mp.bodyVisible) return { dot: "bg-sky", text: "ยกมือขึ้นมาในกรอบ" };
-    return { dot: "bg-sky/70", text: "ยืนให้เห็นครึ่งตัว" };
+    if (mp.bodyVisible) return { dot: "bg-mist", text: "ยกมือขึ้นมาในกรอบ" };
+    return { dot: "bg-mist/70", text: "ยืนให้เห็นครึ่งตัว" };
   })();
 
   return (
@@ -253,7 +253,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
             ? "ring-danger shadow-[0_0_40px_-8px_rgba(214,40,57,.7)]"
             : mp.handsVisible && !take
               ? "ring-brand"
-              : "ring-navy/30"
+              : "ring-deep/30"
         }`}
       >
         <div className="stage-grid absolute inset-0" />
@@ -276,16 +276,16 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
 
         {/* กำลังสกัด skeleton จากไฟล์ */}
         {rec.state === "processing" && (
-          <div className="absolute inset-0 grid place-items-center bg-navy/70 p-6 backdrop-blur-sm">
+          <div className="absolute inset-0 grid place-items-center bg-deep/70 p-6 backdrop-blur-sm">
             <div className="flex w-full max-w-xs flex-col items-center gap-3 text-center text-white">
               <span className="text-sm font-semibold">กำลังสร้าง skeleton {SKELETON_FPS} fps จากวิดีโอ</span>
               <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky to-brand transition-[width]"
+                  className="h-full rounded-full bg-gradient-to-r from-mist to-brand transition-[width]"
                   style={{ width: `${Math.round(rec.progress * 100)}%` }}
                 />
               </div>
-              <span className="text-xs text-sky">{Math.round(rec.progress * 100)}%</span>
+              <span className="text-xs text-mist">{Math.round(rec.progress * 100)}%</span>
               <Button variant="ghost" size="sm" icon="close" onClick={rec.cancel}>
                 ยกเลิก
               </Button>
@@ -415,10 +415,10 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
         {!on && !take && rec.state !== "processing" && (
           <div className="absolute inset-0 grid place-items-center p-6 text-center">
             <div className="flex max-w-sm flex-col items-center gap-4">
-              <span className="grid h-16 w-16 place-items-center rounded-full bg-white/10 text-sky ring-1 ring-sky/30">
+              <span className="grid h-16 w-16 place-items-center rounded-full bg-white/10 text-mist ring-1 ring-mist/30">
                 <Icon name={cam.status === "error" ? "cameraOff" : "camera"} size={28} />
               </span>
-              <p className="text-sm text-sky">
+              <p className="text-sm text-mist">
                 {cam.status === "error" ? cam.error : "เปิดกล้องเพื่ออัดท่าภาษามือ หรืออัปโหลดคลิปที่มีอยู่แล้ว"}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
@@ -481,7 +481,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
 
       {/* แถบตัดสินใจหลังอัด: ดูคุณภาพ แล้วเก็บ / อัดใหม่ / ทิ้ง */}
       {take && quality && (
-        <div className="flex animate-fadeUp flex-col gap-3 rounded-2xl bg-white/80 p-3 ring-1 ring-sky sm:flex-row sm:items-center">
+        <div className="flex animate-fadeUp flex-col gap-3 rounded-2xl bg-surface/80 p-3 ring-1 ring-sky sm:flex-row sm:items-center">
           <div className="flex flex-1 flex-col gap-1.5">
             <span className="text-sm font-bold text-navy">ใช้คลิปนี้ไหม?</span>
             <div className="flex flex-wrap gap-1.5">

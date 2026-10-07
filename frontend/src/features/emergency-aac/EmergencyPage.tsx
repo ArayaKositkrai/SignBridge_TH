@@ -87,7 +87,7 @@ export default function EmergencyPage() {
             onClick={() => setEditing((v) => !v)}
             disabled={!custom.phrases.length && !editing}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-40 ${
-              editing ? "bg-navy text-white" : "bg-sky/50 text-navy hover:bg-sky"
+              editing ? "bg-deep text-white" : "bg-sky/50 text-navy hover:bg-sky"
             }`}
           >
             <Icon name={editing ? "close" : "edit"} size={13} />
@@ -122,7 +122,7 @@ export default function EmergencyPage() {
 
       <div
         aria-live="polite"
-        className="flex min-h-[3.5rem] items-center gap-3 rounded-2xl bg-navy px-4 py-3 text-white"
+        className="flex min-h-[3.5rem] items-center gap-3 rounded-2xl bg-deep px-4 py-3 text-white"
       >
         <Icon name="volume" size={20} className="shrink-0 text-sky" />
         <p className="text-sm">

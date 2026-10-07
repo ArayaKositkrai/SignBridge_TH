@@ -19,7 +19,7 @@ export default function SearchInput({ value, onChange, placeholder = "ค้น�
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="h-10 w-full rounded-xl border border-sky bg-white pl-9 pr-9 text-sm outline-none transition placeholder:text-ink/40 focus:border-brand focus:ring-2 focus:ring-brand/20"
+        className="h-10 w-full rounded-xl border border-sky bg-surface pl-9 pr-9 text-sm outline-none transition placeholder:text-ink/40 focus:border-brand focus:ring-2 focus:ring-brand/20"
       />
       {value && (
         <button

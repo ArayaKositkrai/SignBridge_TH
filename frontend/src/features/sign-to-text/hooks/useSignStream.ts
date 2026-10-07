@@ -12,8 +12,8 @@ interface Options {
   enabled: boolean;
 }
 
-// ส่งข้อมูลไป backend ทุกกี่มิลลิวินาที
-const SEND_INTERVAL_MS = 100;
+// ส่งข้อมูลไป backend ทุกกี่มิลลิวินาที (20 เฟรม/วิ: ท่าเร็ว ๆ ยาว 0.7 วิ ยังได้ ~14 เฟรม พอให้โมเดลจำได้)
+const SEND_INTERVAL_MS = 50;
 // จำนวนคำสูงสุดในประโยคหนึ่ง
 const MAX_WORDS = 20;
 // จำนวนประโยคที่เก็บไว้แสดง

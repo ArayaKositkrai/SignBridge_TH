@@ -37,6 +37,7 @@ ACTION_NAMES = {
     "POST /api/admin/publish": "เผยแพร่โมเดล",
     "POST /api/admin/models/active": "เปลี่ยนเวอร์ชันโมเดลที่ใช้",
     "PATCH /api/admin/vocabulary/{word}": "เลือกคำไว้เทรน",
+    "POST /api/admin/vocabulary": "เพิ่มคำในคลัง",
     "PUT /api/admin/test-split": "เลือกผู้แสดงชุดทดสอบ",
     "PATCH /api/admin/samples/{sample_id}": "สลับคลิปเทรน/ทดสอบ",
     "POST /api/auth/register": "สมัครสมาชิก",
@@ -112,7 +113,7 @@ def list_logs(
     items, total = activity_log.query(
         **_filters(actor, kind, q, date_from, date_to, hide_pages, failed), limit=limit, offset=offset
     )
-    return {"items": items, "total": total, "today": activity_log.today_counts()}
+    return {"items": items, "total": total, "today": activity_log.today_counts(), "today_summary": activity_log.today_summary()}
 
 
 # ดาวน์โหลด log ตามตัวกรองเป็นไฟล์ CSV (เปิดใน Excel ภาษาไทยได้)

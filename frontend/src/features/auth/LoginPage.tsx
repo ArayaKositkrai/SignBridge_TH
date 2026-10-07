@@ -8,13 +8,13 @@ import { providerLoginUrl, type Provider } from "./services/authApi";
 
 // สไตล์ช่องกรอกข้อมูล
 const INPUT =
-  "h-11 w-full rounded-xl border border-sky bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-brand/30";
+  "h-11 w-full rounded-xl border border-sky bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-brand/30";
 
 // ปุ่มล็อกอินด้วยบัญชีภายนอก: ชื่อ สี และโลโก้
 const PROVIDERS: Record<Provider, { label: string; className: string; logo: JSX.Element }> = {
   google: {
     label: "เข้าสู่ระบบด้วย Google",
-    className: "bg-white text-ink ring-1 ring-sky hover:bg-sky/30",
+    className: "bg-surface text-ink ring-1 ring-sky hover:bg-sky/30",
     logo: (
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -94,7 +94,7 @@ export default function LoginPage() {
               aria-selected={mode === m}
               onClick={() => switchMode(m)}
               className={`rounded-full py-1.5 text-sm font-semibold transition ${
-                mode === m ? "bg-navy text-white shadow" : "text-navy hover:bg-white/70"
+                mode === m ? "bg-deep text-white shadow" : "text-navy hover:bg-surface/70"
               }`}
             >
               {m === "login" ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}

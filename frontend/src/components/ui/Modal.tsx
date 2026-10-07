@@ -22,14 +22,14 @@ export default function Modal({ open, title, onClose, children }: Props) {
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-[2px] dark:bg-black/70 sm:items-center sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       <div
-        className="w-full max-w-md animate-fadeUp rounded-t-3xl bg-cream p-5 shadow-2xl sm:rounded-3xl"
+        className="w-full max-w-md animate-fadeUp rounded-t-3xl bg-surface p-5 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.5)] ring-1 ring-black/10 dark:ring-white/10 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">

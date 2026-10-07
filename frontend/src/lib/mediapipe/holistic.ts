@@ -169,7 +169,13 @@ export function detect(models: Landmarkers, video: HTMLVideoElement, timestampMs
     face: toPoints(r.faceLandmarks),
   };
   dropHiddenHands(frame);
-  if (models.hands && frame.pose.length && (!frame.leftHand.length || !frame.rightHand.length)) {
+  // รันโมเดลมือเพิ่มเฉพาะเมื่อข้างที่หายมีข้อมืออยู่ในภาพจริง (ท่ามือเดียวที่อีกมือห้อยนอกภาพไม่ต้องรัน
+  //   ประหยัดเวลาประมวลผลเกือบครึ่งต่อเฟรมบนโน้ตบุ๊ก = ได้เฟรมต่อวินาทีมากขึ้น จับท่าที่ทำเร็วได้ดีขึ้น)
+  const wantFill =
+    frame.pose.length > POSE_R_WRIST &&
+    ((!frame.leftHand.length && visibilityOf(frame.pose[POSE_L_WRIST]) >= FILL_MIN_VISIBILITY) ||
+      (!frame.rightHand.length && visibilityOf(frame.pose[POSE_R_WRIST]) >= FILL_MIN_VISIBILITY));
+  if (models.hands && wantFill) {
     lastHandTimestamp = Math.max(timestampMs, lastHandTimestamp + 1);
     const h = models.hands.detectForVideo(video, lastHandTimestamp);
     // ข้างที่โมเดลมือบอกคิดจากภาพแบบกระจก: วิดีโอที่ไม่กลับภาพ "Left" จึงเป็นมือขวาของคนทำท่า

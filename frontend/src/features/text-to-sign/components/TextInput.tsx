@@ -21,7 +21,7 @@ export default function TextInput({ value, onChange, onSubmit }: Props) {
         rows={4}
         maxLength={200}
         placeholder="พิมพ์ข้อความ เช่น สวัสดี ขอบคุณ ครับ"
-        className="w-full resize-none rounded-xl border-0 bg-cream/70 p-3 pb-7 text-base text-ink ring-1 ring-sky placeholder:text-ink/40 focus:bg-white focus:ring-2 focus:ring-brand"
+        className="w-full resize-none rounded-xl border-0 bg-cream/70 p-3 pb-7 text-base text-ink ring-1 ring-sky placeholder:text-ink/40 focus:bg-surface focus:ring-2 focus:ring-brand"
       />
       <span className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-ink/40">
         {value.length}/200

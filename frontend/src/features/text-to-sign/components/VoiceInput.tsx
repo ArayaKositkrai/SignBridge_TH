@@ -21,7 +21,7 @@ export default function VoiceInput({ onText, onFinal }: Props) {
         className={`relative flex h-11 items-center justify-center gap-2 overflow-hidden rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
           listening
             ? "bg-danger text-white animate-pulseRing"
-            : "bg-white text-navy ring-1 ring-sky hover:bg-sky/40"
+            : "bg-surface text-navy ring-1 ring-sky hover:bg-sky/40"
         }`}
       >
         {listening ? (
@@ -43,7 +43,7 @@ export default function VoiceInput({ onText, onFinal }: Props) {
       {listening && (
         <div
           aria-live="polite"
-          className="animate-fadeUp rounded-xl bg-navy px-3 py-2 text-sm text-white"
+          className="animate-fadeUp rounded-xl bg-deep px-3 py-2 text-sm text-white"
         >
           <span className="mr-2 text-[11px] uppercase tracking-wide text-sky/80">ได้ยินว่า</span>
           {interim || <span className="text-sky/70">พูดได้เลย…</span>}

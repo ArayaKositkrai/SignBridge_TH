@@ -22,6 +22,8 @@ export function useMediaPipe({ videoRef, active }: Options) {
   const [status, setStatus] = useState<ModelStatus>("idle");
   const [handsVisible, setHandsVisible] = useState(false);
   const [bodyVisible, setBodyVisible] = useState(false);
+  // จำนวนเฟรมที่ตรวจจับได้ต่อวินาที (น้อย = เครื่องประมวลผลไม่ทัน ท่าที่ทำเร็วจะมีเฟรมน้อยจนจำยาก)
+  const [fps, setFps] = useState(0);
 
   // เริ่มโหลดโมเดลและวนตรวจจับเมื่อเปิดกล้อง หยุดเมื่อปิด
   useEffect(() => {
@@ -31,12 +33,15 @@ export function useMediaPipe({ videoRef, active }: Options) {
       smootherRef.current.reset();
       setHandsVisible(false);
       setBodyVisible(false);
+      setFps(0);
       return;
     }
 
     let cancelled = false;
     let raf = 0;
     let lastVideoTime = -1;
+    let fpsCount = 0;
+    let fpsStart = performance.now();
     let lastHands = false;
     let lastBody = false;
 
@@ -56,6 +61,13 @@ export function useMediaPipe({ videoRef, active }: Options) {
               frameRef.current = frame;
               displayRef.current = smootherRef.current.apply(frame, performance.now());
               frameIdRef.current += 1;
+              fpsCount += 1;
+              const now = performance.now();
+              if (now - fpsStart >= 1000) {
+                setFps(Math.round((fpsCount * 1000) / (now - fpsStart)));
+                fpsCount = 0;
+                fpsStart = now;
+              }
               const hands = frame.leftHand.length > 0 || frame.rightHand.length > 0;
               const body = frame.pose.length > 0;
               if (hands !== lastHands) setHandsVisible((lastHands = hands));
@@ -78,5 +90,5 @@ export function useMediaPipe({ videoRef, active }: Options) {
     };
   }, [active, videoRef]);
 
-  return { frameRef, displayRef, frameIdRef, status, handsVisible, bodyVisible };
+  return { frameRef, displayRef, frameIdRef, status, handsVisible, bodyVisible, fps };
 }
