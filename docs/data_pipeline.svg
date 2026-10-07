@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1010" font-family="Tahoma, 'Noto Sans Thai', sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#222"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker>
+    <style>
+      .box{fill:#fff;stroke:#222;stroke-width:2.5;rx:6}
+      .t{font-size:19px;font-weight:700;fill:#111;text-anchor:middle}
+      .s{font-size:14px;fill:#333;text-anchor:middle}
+      .n{font-size:13.5px;fill:#444}
+      .ln{stroke:#222;stroke-width:2.5;fill:none;marker-end:url(#a)}
+      .dash{stroke:#555;stroke-width:2;fill:none;stroke-dasharray:7 5;marker-end:url(#a)}
+      .gap{stroke:#c0392b;stroke-width:2.5;fill:none;stroke-dasharray:7 5;marker-end:url(#r)}
+      .gapt{font-size:13.5px;fill:#c0392b;font-weight:700}
+      .chip{font-size:20px;font-weight:700;fill:#111}
+    </style>
+  </defs>
+  <rect width="1500" height="1010" fill="#fafafa"/>
+  <rect x="440" y="14" width="620" height="54" class="box"/>
+  <text x="750" y="50" class="t" style="font-size:26px">SignBridge TH — Machine Learning Engineering</text>
+
+  <!-- chips -->
+  <rect x="20" y="95" width="250" height="40" rx="6" fill="#f6d36b"/><text x="145" y="122" class="chip" text-anchor="middle">DATA PIPELINE</text>
+  <rect x="20" y="470" width="250" height="40" rx="6" fill="#f3a06b"/><text x="145" y="497" class="chip" text-anchor="middle">MACHINE LEARNING PIPELINE</text>
+  <rect x="20" y="770" width="250" height="40" rx="6" fill="#7fb8d8"/><text x="145" y="797" class="chip" text-anchor="middle">SOFTWARE CODE PIPELINE</text>
+
+  <!-- 1 sources -->
+  <rect x="40" y="150" width="230" height="170" class="box"/>
+  <text x="155" y="180" class="t">① แหล่งข้อมูล</text>
+  <text x="155" y="206" class="s">ชุด TSL-51 / TSL-ONE-S</text><text x="155" y="224" class="s">(Supabase Storage)</text>
+  <text x="155" y="250" class="s">คลิปที่ล่ามอัดผ่านเว็บ</text><text x="155" y="268" class="s">(กล้อง / .npy / .npz)</text>
+  <text x="155" y="294" class="s">Excel รายคำของทีม</text>
+
+  <!-- 2 explore -->
+  <rect x="340" y="150" width="230" height="170" class="box"/>
+  <text x="455" y="180" class="t">② ตรวจสอบข้อมูล</text>
+  <text x="455" y="205" class="s">Exploration &amp; Validation</text>
+  <text x="455" y="233" class="s">รูปแบบ (T,48,2) ถูกต้อง?</text>
+  <text x="455" y="253" class="s">คำนั้นมี ≥ 5 คลิป?</text>
+  <text x="455" y="273" class="s">เลือกคำที่จะเทรน (แอดมิน)</text>
+  <text x="455" y="293" class="s">import_tsl · dataset_service</text>
+
+  <!-- 3 wrangling -->
+  <rect x="640" y="150" width="230" height="170" class="box"/>
+  <text x="755" y="180" class="t">③ ทำความสะอาด</text>
+  <text x="755" y="205" class="s">Wrangling · features.py</text>
+  <text x="755" y="233" class="s">เติมมือหาย ≤ 6 เฟรม</text>
+  <text x="755" y="253" class="s">ปรับทุกคลิป = 32 เฟรม</text>
+  <text x="755" y="273" class="s">ทำเป็น feature มือ+แขน+สีหน้า</text>
+  <text x="755" y="293" class="s">FEATURE_VERSION = 2</text>
+
+  <path class="ln" d="M270,235 H340"/><path class="ln" d="M570,235 H640"/>
+  <path class="dash" d="M640,300 H585"/>
+
+  <!-- DATA -->
+  <rect x="640" y="370" width="230" height="70" fill="#f6d36b" stroke="#222" stroke-width="3" rx="6"/>
+  <text x="755" y="403" class="t" style="font-size:26px">DATA</text>
+  <text x="755" y="426" class="s">ข้อมูลพร้อมเทรน (มีเวอร์ชัน)</text>
+  <path class="ln" d="M755,320 V370"/>
+  <text x="900" y="395" class="n">Data versioning:</text>
+  <text x="900" y="415" class="n">tsl_skeleton.npz · ตาราง samples/words</text>
+  <text x="900" y="435" class="n">words.in_train_set · FEATURE_VERSION</text>
+
+  <!-- split -->
+  <rect x="540" y="485" width="150" height="46" class="box"/><text x="615" y="515" class="t">TRAIN 80%</text>
+  <rect x="830" y="485" width="150" height="46" class="box"/><text x="905" y="515" class="t">TEST 20%</text>
+  <path class="ln" d="M720,440 L630,485"/><path class="ln" d="M790,440 L880,485"/>
+  <text x="993" y="505" class="n">แบ่งตาม "ผู้แสดง"</text>
+  <text x="993" y="523" class="n">คนทดสอบไม่อยู่ในชุดเทรน</text>
+
+  <!-- ML pipeline row -->
+  <rect x="300" y="580" width="250" height="110" class="box"/>
+  <text x="425" y="612" class="t">④ สร้างโมเดล</text><text x="425" y="634" class="s">Model Engineering · train.py</text>
+  <text x="425" y="654" class="s">CNN 1 มิติ 3 ชั้น · 80 รอบ</text><text x="425" y="674" class="s">LR 2e-3 · dropout 0.3</text>
+
+  <rect x="620" y="580" width="250" height="110" class="box"/>
+  <text x="745" y="612" class="t">⑤ ประเมินผล</text><text x="745" y="634" class="s">Model Evaluation</text>
+  <text x="745" y="654" class="s">Top-1 / Top-3 บนชุดทดสอบ</text><text x="745" y="674" class="s">ความแม่นยำรายคำ</text>
+
+  <rect x="940" y="580" width="250" height="110" class="box"/>
+  <text x="1065" y="612" class="t">⑥ แพ็กโมเดล</text><text x="1065" y="634" class="s">Model Packaging</text>
+  <text x="1065" y="654" class="s">น้ำหนัก → .npz (numpy ล้วน)</text><text x="1065" y="674" class="s">บันทึกลงตาราง models (Draft)</text>
+
+  <rect x="1260" y="595" width="200" height="80" fill="#f3a06b" stroke="#222" stroke-width="3" rx="6"/>
+  <text x="1360" y="630" class="t" style="font-size:24px">MODEL</text><text x="1360" y="655" class="s">v0.0.x · draft → active</text>
+
+  <path class="ln" d="M615,531 V555 H425 V580"/>
+  <path class="ln" d="M905,531 V555 H745 V580" style="stroke-dasharray:7 5"/>
+  <path class="ln" d="M550,625 H620"/><path class="ln" d="M620,650 H550" style="stroke-dasharray:3 3"/>
+  <path class="ln" d="M870,635 H940"/><path class="ln" d="M1190,635 H1260"/>
+  <text x="560" y="618" class="n" style="font-size:12px">โค้ด</text>
+  <text x="560" y="668" class="n" style="font-size:12px">พารามิเตอร์</text>
+  <!-- retrain loop if poor -->
+  <path class="dash" d="M745,690 V725 H300 V635 H300" style="marker-end:none"/>
+  <text x="330" y="745" class="n">ถ้าไม่ดีพอ: ปรับ feature / เพิ่มคลิป แล้วเทรนใหม่</text>
+
+  <!-- Software code pipeline -->
+  <rect x="300" y="830" width="230" height="80" fill="#7fb8d8" stroke="#222" stroke-width="3" rx="6"/>
+  <text x="415" y="866" class="t" style="font-size:24px">CODE</text><text x="415" y="890" class="s">Git · branch ต่อคน → main</text>
+  <rect x="680" y="815" width="280" height="110" class="box"/>
+  <text x="820" y="847" class="t">⑦ Build &amp; ทดสอบ</text>
+  <text x="820" y="870" class="s">npm run build (ตรวจ type)</text>
+  <text x="820" y="890" class="s">Docker build</text>
+  <text x="820" y="912" class="gapt" text-anchor="middle">⚠ ยังไม่มีเทสอัตโนมัติ</text>
+  <rect x="1100" y="815" width="250" height="110" class="box"/>
+  <text x="1225" y="847" class="t">⑧ Deployment</text>
+  <text x="1225" y="870" class="s">docker compose up</text>
+  <text x="1225" y="890" class="s">Backend FastAPI + Frontend</text>
+  <text x="1225" y="910" class="s">เผยแพร่โมเดลที่หน้าแอดมิน</text>
+  <path class="ln" d="M530,870 H680"/><path class="ln" d="M960,870 H1100"/>
+  <path class="dash" d="M1360,675 V740 H820 V815"/>
+  <text x="1380" y="720" class="n">โมเดล active</text>
+  <text x="1380" y="738" class="n">ถูกโหลดเข้า backend</text>
+
+  <!-- Serving + monitoring -->
+  <path class="ln" d="M1350,870 H1440 V215 H1380"/>
+  <text x="1448" y="560" class="n" transform="rotate(90 1448 560)" text-anchor="middle">ผู้ใช้จริงใช้งาน</text>
+  <rect x="1090" y="130" width="290" height="170" class="box"/>
+  <text x="1235" y="160" class="t">⑨ ติดตามผล</text><text x="1235" y="182" class="s">Monitoring &amp; Logging</text>
+  <text x="1235" y="208" class="s">activity_log · หน้าแอดมิน/Logs</text>
+  <text x="1235" y="228" class="s">สถานะการเทรน (training_runs)</text>
+  <text x="1235" y="254" class="gapt" text-anchor="middle">⚠ ยังไม่วัดความแม่นยำ</text>
+  <text x="1235" y="272" class="gapt" text-anchor="middle">จากการใช้งานจริง</text>
+
+  <!-- feedback -->
+  <path class="ln" d="M1090,170 C1000,60 800,60 700,148"/>
+  <text x="1090" y="36" class="n" style="font-size:15px;font-weight:700">FEEDBACK: คำที่ทายพลาด → ล่ามอัดคลิปเพิ่ม</text>
+  <text x="1090" y="56" class="n" style="font-size:15px;font-weight:700">→ ข้อมูลใหม่ วนกลับเข้า Data Pipeline</text>
+  <path class="dash" d="M300,620 C200,560 120,420 100,320"/>
+
+  <!-- legend -->
+  <text x="40" y="960" class="n">เส้นทึบ = ลำดับงานหลัก · เส้นประดำ = วนกลับ/ใช้ซ้ำ · <tspan class="gapt">ตัวแดง = ส่วนที่ยังขาด</tspan></text>
+</svg>
