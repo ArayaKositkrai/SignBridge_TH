@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import Badge, { type Tone } from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
@@ -76,7 +77,12 @@ export default function UsersView() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<Tab>("all");
+  // เปิดมาที่ตัวกรองไหนก็ได้ผ่านลิงก์ เช่น /admin/users?tab=contributor (ค่าที่ไม่รู้จัก = ทั้งหมด)
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = params.get("tab") as Tab | null;
+    return t && t in TAB_TEST ? t : "all";
+  });
   const [selected, setSelected] = useState<User | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);

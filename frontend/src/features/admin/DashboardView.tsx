@@ -7,10 +7,14 @@ import { TARGET_SAMPLES } from "../contributor/constants";
 import PageHeader from "./components/PageHeader";
 import { getDashboard, versionLabel, type Dashboard } from "./services/adminApi";
 
-// ป้ายตัวเลขสรุปหนึ่งช่อง
-function Kpi({ icon, label, value, hint }: { icon: IconName; label: string; value: string; hint?: string }) {
+// ป้ายตัวเลขสรุปหนึ่งช่อง (กดแล้วไปหน้าที่เกี่ยวข้อง)
+function Kpi({ icon, label, value, hint, to, go }: { icon: IconName; label: string; value: string; hint?: string; to: string; go: string }) {
   return (
-    <div className="glass-card flex items-center gap-3">
+    <Link
+      to={to}
+      title={`ไปที่หน้า${go}`}
+      className="glass-card flex items-center gap-3 transition hover:ring-2 hover:ring-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+    >
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-royal text-white">
         <Icon name={icon} size={20} />
       </span>
@@ -21,7 +25,7 @@ function Kpi({ icon, label, value, hint }: { icon: IconName; label: string; valu
           {hint && <span className="ml-1 text-ink/45">· {hint}</span>}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -89,10 +93,10 @@ export default function DashboardView() {
     <div className="flex flex-col gap-4">
       {header}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi icon="book" label="คำศัพท์" value={fmtNumber(t.words)} />
-        <Kpi icon="camera" label="คลิป" value={fmtNumber(t.samples)} />
-        <Kpi icon="user" label="ผู้แสดง" value={fmtNumber(t.signers)} />
-        <Kpi icon="users" label="ผู้ใช้" value={fmtNumber(t.users)} />
+        <Kpi icon="book" label="คำศัพท์" value={fmtNumber(t.words)} to="/admin/vocabulary" go="คลังคำศัพท์" />
+        <Kpi icon="camera" label="คลิป" value={fmtNumber(t.samples)} to="/admin/vocabulary" go="คลังคำศัพท์" />
+        <Kpi icon="user" label="ผู้แสดง" value={fmtNumber(t.signers)} to="/admin/users?tab=contributor" go="ผู้ใช้ (ล่าม)" />
+        <Kpi icon="users" label="ผู้ใช้" value={fmtNumber(t.users)} to="/admin/users" go="ผู้ใช้" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
