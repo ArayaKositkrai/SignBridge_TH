@@ -89,7 +89,7 @@ class WordIn(BaseModel):
 
 
 # ช่องข้อมูลผู้ใช้ที่ล่ามเห็นได้ (ใช้เลือกผู้แสดง) — ไม่รวมอีเมลและวันที่สมัคร
-STAFF_USER_FIELDS = ("id", "name", "role", "active")
+STAFF_USER_FIELDS = ("id", "name", "role", "active", "split")
 
 
 # ข้อมูลที่รับตอนเลือกเวอร์ชันโมเดลที่จะใช้งาน
@@ -167,10 +167,22 @@ def dashboard():
 # รายชื่อผู้ใช้ทั้งหมด: แอดมินเห็นข้อมูลเต็ม ล่ามเห็นแค่ชื่อ/บทบาท (ไว้เลือกผู้แสดง ไม่เห็นอีเมลของคนอื่น)
 @router.get("/users")
 def list_users(me: dict = Depends(require_staff)):
-    users = user_service.list_users()
+    users = test_split.annotate_users(user_service.list_users())
     if me["role"] != "admin":
         users = [{k: u.get(k) for k in STAFF_USER_FIELDS} for u in users]
-    return {"users": users}
+    return {"users": users, "unknown_split": test_split.unknown_signer_split()}
+
+
+# ตั้งคลิปทั้งหมดของผู้แสดงคนนี้ (ล่าม/แอดมิน/ผู้แสดงไม่มีบัญชี) เป็นชุดเทรนหรือชุดทดสอบ (มีผลตอนเทรนครั้งถัดไป)
+@router.put("/users/{user_id}/split", dependencies=ADMIN)
+def set_user_split(user_id: str, body: SampleSplitIn):
+    user = next((u for u in user_service.list_users() if u["id"] == user_id), None)
+    if user is None:
+        raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+    if user["role"] == "user":
+        raise HTTPException(status_code=400, detail="ผู้ใช้ทั่วไปไม่ได้อัดคลิป จึงไม่มีชุดเทรน/ทดสอบ")
+    test_split.set_signer_test(user["name"], body.split == "test")
+    return test_split.annotate_users([user])[0]
 
 
 # เพิ่มผู้ใช้
@@ -194,7 +206,7 @@ def update_user(user_id: str, body: UserPatch, me: dict = Depends(require_admin)
         raise HTTPException(status_code=422, detail=str(e))
     if user is None:
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
-    return user
+    return test_split.annotate_users([user])[0]
 
 
 # ลบผู้ใช้

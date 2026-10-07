@@ -14,7 +14,18 @@ import DataTable, { type Column } from "./components/DataTable";
 import PageHeader from "./components/PageHeader";
 import StatCards, { type Stat } from "./components/StatCards";
 import Toolbar from "./components/Toolbar";
-import { addUser, deleteUser, listUsers, updateUser, userCardImage, type Role, type User, type UserChanges } from "./services/adminApi";
+import {
+  addUser,
+  deleteUser,
+  listUsers,
+  setUserSplit,
+  updateUser,
+  userCardImage,
+  type Role,
+  type Split,
+  type User,
+  type UserChanges,
+} from "./services/adminApi";
 
 // บทบาท: ชื่อไทย คำอธิบาย และสีป้าย
 const ROLES: { value: Role; label: string; hint: string; tone: Tone }[] = [
@@ -124,6 +135,13 @@ export default function UsersView() {
       ),
     },
     { key: "role", header: "บทบาท", sort: (u) => ROLE_OF[u.role].label, cell: (u) => <Badge tone={ROLE_OF[u.role].tone}>{ROLE_OF[u.role].label}</Badge> },
+    {
+      key: "split",
+      header: "คลิปที่อัด",
+      hideBelow: "md",
+      sort: (u) => (u.split == null ? null : `${u.split}${String(u.clips ?? 0).padStart(6, "0")}`),
+      cell: (u) => (u.split == null ? <span className="text-ink/35">–</span> : <SplitBadge split={u.split} clips={u.clips ?? 0} />),
+    },
     { key: "phone", header: "เบอร์โทร", hideBelow: "lg", sort: (u) => u.phone, cell: (u) => <span className="tabular-nums text-ink/70">{u.phone ?? "–"}</span> },
     {
       key: "card",
@@ -208,6 +226,22 @@ export default function UsersView() {
   );
 }
 
+// ชื่อและคำอธิบายของชุดข้อมูล (ใช้ทั้งในตารางและหน้าต่างแก้ไข)
+const SPLITS: { value: Split; label: string; hint: string }[] = [
+  { value: "train", label: "เทรน", hint: "ให้โมเดลเรียนจากท่าของคนนี้" },
+  { value: "test", label: "ทดสอบ", hint: "กันไว้วัดความแม่นยำ โมเดลไม่เคยเห็นคนนี้" },
+];
+
+// ป้ายชุดข้อมูลของคลิปที่ผู้แสดงคนนี้อัด พร้อมจำนวนคลิป
+function SplitBadge({ split, clips }: { split: Split; clips: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Badge tone={split === "test" ? "warning" : "brand"}>{split === "test" ? "ทดสอบ" : "เทรน"}</Badge>
+      <span className="text-xs tabular-nums text-ink/50">{clips.toLocaleString("th-TH")} คลิป</span>
+    </span>
+  );
+}
+
 // ช่องข้อมูลที่เก็บของแต่ละบทบาท (ตรงกับ CARD_ROLES ใน backend: บัตรคนพิการเก็บเฉพาะผู้ใช้ทั่วไป)
 const ROLE_FIELDS: Record<Role, { card: boolean; note: string }> = {
   admin: { card: false, note: "แอดมินเก็บเฉพาะชื่อและเบอร์ติดต่อ" },
@@ -272,6 +306,21 @@ function UserDialog({
     try {
       onSaved(await updateUser(user.id, changes));
       setMsg({ ok: true, text: okText });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // เปลี่ยนชุดข้อมูลของคลิปทั้งหมดที่อัดในชื่อนี้
+  const saveSplit = async (split: Split) => {
+    if (!user || user.split === split) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      onSaved({ ...user, ...(await setUserSplit(user.id, split)) });
+      setMsg({ ok: true, text: split === "test" ? "ตั้งเป็นชุดทดสอบแล้ว" : "ตั้งเป็นชุดเทรนแล้ว" });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
     } finally {
@@ -396,6 +445,37 @@ function UserDialog({
                 <Switch checked={user.active} disabled={busy || isMe} label="เปิดใช้งาน" onChange={(v) => void save({ active: v }, v ? "เปิดใช้งานแล้ว" : "ปิดใช้งานแล้ว")} />
               </div>
               {isMe && <p className="text-xs text-ink/50">เปลี่ยนบทบาท ปิด หรือลบบัญชีของตัวเองไม่ได้</p>}
+              {user.split != null && (
+                <div className="rounded-xl bg-panel px-3 py-2.5 ring-1 ring-sky">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-navy">คลิปที่อัดในชื่อนี้ใช้เป็น</span>
+                    <span className="text-xs tabular-nums text-ink/55">{(user.clips ?? 0).toLocaleString("th-TH")} คลิป</span>
+                  </div>
+                  <div role="radiogroup" aria-label="ชุดข้อมูล" className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-surface p-1 ring-1 ring-sky">
+                    {SPLITS.map((sp) => {
+                      const on = user.split === sp.value;
+                      return (
+                        <button
+                          key={sp.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          disabled={busy}
+                          onClick={() => void saveSplit(sp.value)}
+                          className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                            on ? (sp.value === "test" ? "bg-amber-400 text-amber-950" : "bg-deep text-white") : "text-ink/70 hover:bg-sky/40"
+                          }`}
+                        >
+                          {sp.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink/55">
+                    {SPLITS.find((sp) => sp.value === user.split)!.hint} · มีผลตอนเทรนครั้งถัดไป และคลิปที่จะอัดต่อจากนี้ด้วย
+                  </p>
+                </div>
+              )}
               <dl className="grid grid-cols-2 gap-2">
                 <Fact label="สมัครเมื่อ">{fmtDate(user.created_at)}</Fact>
                 <Fact label="เข้าใช้ล่าสุด">{performer ? "–" : ago(user.last_login_at)}</Fact>

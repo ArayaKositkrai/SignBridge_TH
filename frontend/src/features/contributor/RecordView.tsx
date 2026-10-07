@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Card from "../../components/ui/Card";
 import ClipViewer from "./components/ClipViewer";
 import ModelBadge from "./components/ModelBadge";
+import SplitNotice from "./components/SplitNotice";
 import RecorderPanel from "./components/RecorderPanel";
 import SampleList from "./components/SampleList";
 import WordCombobox from "./components/WordCombobox";
@@ -13,7 +14,7 @@ import { deleteSample, listSamples, type SampleMeta } from "./services/contribut
 
 // หน้าอัดคลิป (พอดีจอบนจอกว้าง): เลือกคำ → อัด/อัปโหลด → ตรวจ → เก็บ พร้อมคลิปของคำนั้นด้านขวา
 export default function RecordView() {
-  const { words, vocab, models, refresh, signer, setError } = useContributor();
+  const { words, vocab, models, refresh, signer, signerSplit, setError } = useContributor();
   const [params, setParams] = useSearchParams();
   const [word, setWord] = useState(params.get("word") ?? "");
   const [samples, setSamples] = useState<SampleMeta[]>([]);
@@ -109,6 +110,9 @@ export default function RecordView() {
                 )}
               </p>
             )}
+          </div>
+          <div className="mb-3">
+            <SplitNotice signer={signer} split={signerSplit} compact />
           </div>
           <RecorderPanel
             word={word}

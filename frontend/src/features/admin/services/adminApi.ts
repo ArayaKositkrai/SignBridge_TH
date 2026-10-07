@@ -24,7 +24,14 @@ export interface User {
   can_login?: boolean;
   created_at?: string;
   last_login_at?: string | null;
+  // คลิปที่คนนี้อัด (ในฐานะผู้แสดง) ใช้เป็นชุดเทรนหรือชุดทดสอบ (ผู้ใช้ทั่วไป = null)
+  split?: Split | null;
+  // จำนวนคลิปที่อัดไว้ในชื่อนี้ (เฉพาะแอดมิน)
+  clips?: number | null;
 }
+
+// ชุดข้อมูลของคลิป: เทรน (ให้โมเดลเรียน) หรือทดสอบ (กันไว้วัดความแม่นยำ)
+export type Split = "train" | "test";
 
 // ช่องที่แอดมินแก้ไขผู้ใช้ได้
 export type UserChanges = Partial<
@@ -140,6 +147,11 @@ export const getDashboard = () => send<Dashboard>(`${BASE}/dashboard`);
 
 // ดึงรายชื่อผู้ใช้
 export const listUsers = () => send<{ users: User[] }>(`${BASE}/users`).then((r) => r.users);
+// รายชื่อผู้ใช้ พร้อมชุดข้อมูลของคลิปที่อัดโดยไม่ระบุผู้แสดง (ใช้ในหน้าอัดคลิป)
+export const listSigners = () => send<{ users: User[]; unknown_split: Split }>(`${BASE}/users`);
+// ตั้งคลิปทั้งหมดของผู้แสดงคนนี้เป็นชุดเทรน/ทดสอบ (มีผลตอนเทรนครั้งถัดไป)
+export const setUserSplit = (id: string, split: Split) =>
+  send<User>(`${BASE}/users/${encodeURIComponent(id)}/split`, json("PUT", { split }));
 // เพิ่มผู้ใช้
 export const addUser = (name: string, role: Role) => send<User>(`${BASE}/users`, json("POST", { name, role }));
 // แก้ไขข้อมูลผู้ใช้ (บทบาท สถานะ ชื่อ เบอร์ เลขบัตร)

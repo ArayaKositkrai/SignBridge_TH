@@ -2,7 +2,7 @@ import threading
 from collections import defaultdict
 
 import numpy as np
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.config import ML_DIR
 from app.db.models import AppSetting, Contributor, Sample, Word
@@ -110,6 +110,48 @@ def overview() -> dict:
         "words_without_test": sorted(w for w, (tr, te) in per_word.items() if te == 0) if selected or clip_tests else [],
         "words_without_train": sorted(w for w, (tr, te) in per_word.items() if tr == 0),
     }
+
+
+# รหัสผู้แสดงของคลิปที่ล่ามอัด จากชื่อผู้แสดง (ตรงกับ train.py load_recorded)
+def signer_id(name: str | None) -> str:
+    return RECORDED_PREFIX + ((name or "").strip() or UNKNOWN_SIGNER)
+
+
+# ตั้งผู้แสดงที่ล่ามอัดหนึ่งคนให้เป็นชุดทดสอบ (True) หรือชุดเทรน (False)
+def set_signer_test(name: str | None, test: bool) -> None:
+    sid = signer_id(name)
+    selected = set(selected_signers())
+    selected = selected | {sid} if test else selected - {sid}
+    set_selected_signers(sorted(selected))
+
+
+# จำนวนคลิปที่ล่ามอัด (ไม่นับที่ถูกปฏิเสธ) แยกตามชื่อผู้แสดง
+def recorded_clip_counts() -> dict[str, int]:
+    with SessionLocal() as db:
+        rows = db.execute(
+            select(Contributor.name, func.count(Sample.id))
+            .join(Sample, Sample.contributor_id == Contributor.id)
+            .where(Sample.status != "rejected", Sample.source.in_(("record", "upload")))
+            .group_by(Contributor.name)
+        ).all()
+    return {name: n for name, n in rows}
+
+
+# เติมชุดข้อมูลของคลิปที่ผู้ใช้แต่ละคนอัด (split = train/test, clips = จำนวนคลิป) ให้รายชื่อผู้ใช้
+#   ผู้ใช้ทั่วไปไม่ได้เป็นผู้แสดง จึงเป็น None
+def annotate_users(users: list[dict]) -> list[dict]:
+    selected = set(selected_signers())
+    counts = recorded_clip_counts()
+    for u in users:
+        performer = u.get("role") != "user"
+        u["split"] = ("test" if signer_id(u["name"]) in selected else "train") if performer else None
+        u["clips"] = counts.get(u["name"], 0) if performer else None
+    return users
+
+
+# ชุดข้อมูลของผู้แสดงที่ยังไม่มีชื่อ ("ไม่ระบุ") ไว้แสดงในหน้าอัดคลิปตอนยังไม่เลือกผู้แสดง
+def unknown_signer_split() -> str:
+    return "test" if signer_id(None) in set(selected_signers()) else "train"
 
 
 # ตั้งคลิปที่ล่ามอัดหนึ่งคลิปเป็นชุดเทรน/ทดสอบ คืน False ถ้าไม่พบคลิป

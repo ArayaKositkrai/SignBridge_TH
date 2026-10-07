@@ -3,7 +3,8 @@ import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import Icon, { type IconName } from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
 import { fmtDuration, fmtNumber } from "../../lib/format";
-import { listUsers, type User } from "../admin/services/adminApi";
+import { listSigners, type Split, type User } from "../admin/services/adminApi";
+import SplitNotice from "./components/SplitNotice";
 import { TARGET_SAMPLES } from "./constants";
 import type { ContributorContext } from "./context";
 import LibraryView from "./LibraryView";
@@ -64,6 +65,7 @@ function ContributorLayout() {
   const [vocab, setVocab] = useState<VocabEntry[]>([]);
   const [models, setModels] = useState<ModelsBrief | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [unknownSplit, setUnknownSplit] = useState<Split>("train");
   const [signer, setSigner] = useState<string | null>(readSigner);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,8 +84,11 @@ function ContributorLayout() {
   // โหลดคำศัพท์และรายชื่อผู้แสดงตอนเปิดหน้า
   useEffect(() => {
     void refresh();
-    listUsers()
-      .then(setUsers)
+    listSigners()
+      .then((r) => {
+        setUsers(r.users);
+        setUnknownSplit(r.unknown_split);
+      })
       .catch(() => setUsers([]));
   }, [refresh]);
 
@@ -95,6 +100,8 @@ function ContributorLayout() {
   };
 
   const signers = users.filter((u) => u.active && u.role !== "user");
+  // ชุดข้อมูลของผู้แสดงที่เลือก (ไม่ระบุ/ไม่พบชื่อ = ตามค่าของ "ไม่ระบุ")
+  const signerSplit: Split = (signer ? users.find((u) => u.name === signer)?.split : null) ?? unknownSplit;
   const total = {
     words: words.filter((w) => w.samples).length,
     samples: words.reduce((n, w) => n + w.samples, 0),
@@ -139,6 +146,9 @@ function ContributorLayout() {
               ))}
               {signer && !signers.some((u) => u.name === signer) && <option value={signer}>{signer}</option>}
             </select>
+            <div className="mt-2">
+              <SplitNotice signer={signer} split={signerSplit} />
+            </div>
             {!signers.length && (
               <p className="mt-1.5 text-xs text-ink/60">
                 ยังไม่มีรายชื่อ เพิ่มได้ที่{" "}
@@ -221,7 +231,7 @@ function ContributorLayout() {
         </aside>
 
         <div className="min-w-0">
-          <Outlet context={{ words, vocab, models, refresh, signer, setError } satisfies ContributorContext} />
+          <Outlet context={{ words, vocab, models, refresh, signer, signerSplit, setError } satisfies ContributorContext} />
         </div>
       </div>
     </>

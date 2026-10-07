@@ -204,6 +204,7 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | GET | `/api/admin/users` | ล่าม (เห็นแค่ชื่อ) / แอดมิน (เต็ม) |
 | POST/PATCH/DELETE | `/api/admin/users` · GET `/api/admin/users/{id}/card-image` | แอดมิน |
 | GET/PUT | `/api/admin/test-split` · PATCH `/api/admin/samples/{id}` (เทรน/ทดสอบ) | แอดมิน |
+| PUT | `/api/admin/users/{id}/split` (คลิปทั้งหมดของผู้แสดงคนนี้เป็นเทรน/ทดสอบ ใช้ที่เดียวกับ test-split; รายชื่อผู้ใช้มี `split`/`clips` ด้วย) | แอดมิน |
 | GET | `/api/admin/dashboard` · `/vocabulary` · `/models` · `/train/status` | แอดมิน |
 | PATCH | `/api/admin/vocabulary/{word}` (ติ๊กคำเทรน) | แอดมิน |
 | POST | `/api/admin/models/active` · `/api/admin/publish` | แอดมิน |
