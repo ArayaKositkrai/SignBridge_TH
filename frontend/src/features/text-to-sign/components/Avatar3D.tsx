@@ -16,10 +16,12 @@ interface Props {
 type Status = "loading" | "ready" | "error";
 
 // กรอบกล้อง (พิกัด 0-1 แบบเดียวกับที่ใช้กำหนดท่ามือใน motion_library.py):
-// บนสุดเผื่อพื้นที่เหนือหัวตอนยกมือสุด (เช่นท่า "ช่วยด้วย" มืออยู่ที่ y~0.16)
-// ล่างสุดคลุมถึงท่าระดับเอว (เช่นท่า "หิว" มืออยู่ที่ y~0.66)
-const FRAME_TOP_UNIT = 0.02;
-const FRAME_BOTTOM_UNIT = 0.68;
+// เผื่อขอบไว้กว้างเพราะท่าที่สร้างจากคลิปจริงยกมือเหนือหัวและลดแขนต่ำกว่าเอวได้
+// (ท่าจริงมือสูงสุด y≈-0.04 "พ่อมด" ต่ำสุด y≈0.77 "เพื่อน" บวกความยาวนิ้ว เดิม 0.02-0.68 จึงหลุดเฟรม)
+const FRAME_TOP_UNIT = -0.14;
+const FRAME_BOTTOM_UNIT = 0.87;
+// ความกว้างที่ต้องเห็นเสมอ (หน่วยเดียวกัน) กันแขนที่กางออกข้างหลุดเฟรมเมื่อกล่องแคบ เช่นจอมือถือแนวตั้ง
+const FRAME_WIDTH_UNIT = 1.05;
 // เวลาที่ใช้ไล่ท่าให้ทันท่าใหม่ (วินาที) ยิ่งน้อยยิ่งตามไว ช่วยกันมือ/นิ้วกระตุกหรือหมุนวูบเมื่อท่าเปลี่ยนเร็ว
 const POSE_SMOOTH_SEC = 0.06;
 
@@ -92,11 +94,14 @@ function startScene(
   const unitToReal = (unitY: number) => rig.frame.chest.y - (unitY - anchorUnitY) * rig.armScale;
   const visibleHeight = (FRAME_BOTTOM_UNIT - FRAME_TOP_UNIT) * rig.armScale;
   const midY = (unitToReal(FRAME_TOP_UNIT) + unitToReal(FRAME_BOTTOM_UNIT)) / 2;
+  const visibleWidth = FRAME_WIDTH_UNIT * rig.armScale;
   const fovDeg = 32;
-  const distance = visibleHeight / 2 / Math.tan((fovDeg * Math.PI) / 360);
+  const halfTan = Math.tan((fovDeg * Math.PI) / 360);
+  // ระยะกล้องที่เห็นทั้งความสูงและความกว้างที่ต้องการ ตามสัดส่วนกล่อง (กว้าง/สูง)
+  const distanceFor = (aspect: number) => Math.max(visibleHeight, visibleWidth / aspect) / 2 / halfTan;
   const lookAt = new THREE.Vector3(0, midY, rig.frame.chest.z);
-  const camera = new THREE.PerspectiveCamera(fovDeg, 1, 0.1, distance * 4);
-  camera.position.set(lookAt.x, lookAt.y, lookAt.z + distance);
+  const camera = new THREE.PerspectiveCamera(fovDeg, 1, 0.1, distanceFor(0.25) * 4);
+  camera.position.set(lookAt.x, lookAt.y, lookAt.z + distanceFor(1));
   camera.lookAt(lookAt);
 
   // แปะหน้าการ์ตูน (วาดสีหน้าไม่ได้ผ่านกระดูกเพราะโมเดลนี้ไม่มี blendshape) ไว้เป็นลูกของ
@@ -135,6 +140,7 @@ function startScene(
         lastH = h;
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
+        camera.position.z = lookAt.z + distanceFor(w / h);
         camera.updateProjectionMatrix();
       }
       // หายใจเบา ๆ ตอนไม่มีท่า ไม่ให้ตัวละครดูนิ่งค้าง (เหมือนตัว 2D เดิม)

@@ -7,14 +7,47 @@ const BASE = `${API_URL}/api/admin`;
 // บทบาทผู้ใช้: แอดมิน ล่าม (อัดคลิป) ผู้ใช้ทั่วไป
 export type Role = "admin" | "contributor" | "user";
 
-// ผู้ใช้หนึ่งคน
+// ผู้ใช้หนึ่งคน (ล่ามได้แค่ id/name/role/active ช่องอื่นมีเฉพาะแอดมิน)
 export interface User {
   id: string;
   name: string;
-  email: string | null;
+  first_name?: string;
+  last_name?: string | null;
+  email?: string | null;
   role: Role;
   active: boolean;
-  created_at: string;
+  phone?: string | null;
+  // เลขบัตรคนพิการแบบเต็ม (แอดมินเท่านั้น)
+  disability_card_number?: string | null;
+  has_card_image?: boolean;
+  // false = เพิ่มจากหน้าแอดมินเป็นชื่อผู้แสดง ไม่มีอีเมล ล็อกอินไม่ได้
+  can_login?: boolean;
+  created_at?: string;
+  last_login_at?: string | null;
+}
+
+// ช่องที่แอดมินแก้ไขผู้ใช้ได้
+export type UserChanges = Partial<
+  Pick<User, "role" | "active" | "first_name" | "last_name" | "phone" | "disability_card_number">
+>;
+
+// ผู้แสดงหนึ่งคนในหน้าเลือกชุดทดสอบ (id ตรงกับที่ train.py ใช้)
+export interface SplitSigner {
+  id: string;
+  name: string;
+  source: string;
+  clips: number;
+  words: number;
+  test: boolean;
+}
+
+// ภาพรวมชุดทดสอบ: auto = สุ่มเอง, manual = แอดมินเลือก พร้อมคำเตือนคำที่ไม่มีคลิปทดสอบ/เทรน
+export interface TestSplit {
+  mode: "auto" | "manual";
+  signers: SplitSigner[];
+  recorded_test_clips: number;
+  words_without_test: string[];
+  words_without_train: string[];
 }
 
 // ข้อมูลภาพรวมบนแดชบอร์ด
@@ -56,6 +89,10 @@ export interface ModelFile {
   modified_at: string;
   active: boolean;
   draft: boolean;
+  // false = เทรนด้วยรูปแบบข้อมูล (feature) เก่า โหลดใช้ไม่ได้แล้ว
+  compatible?: boolean;
+  // ไม่มีไฟล์โมเดลในเครื่องเซิร์ฟเวอร์
+  file_missing?: boolean;
 }
 
 // สถานะการเทรนโมเดลและเวอร์ชันปัจจุบัน
@@ -105,11 +142,26 @@ export const getDashboard = () => send<Dashboard>(`${BASE}/dashboard`);
 export const listUsers = () => send<{ users: User[] }>(`${BASE}/users`).then((r) => r.users);
 // เพิ่มผู้ใช้
 export const addUser = (name: string, role: Role) => send<User>(`${BASE}/users`, json("POST", { name, role }));
-// แก้ไขบทบาท/สถานะผู้ใช้
-export const updateUser = (id: string, changes: Partial<Pick<User, "role" | "active">>) =>
+// แก้ไขข้อมูลผู้ใช้ (บทบาท สถานะ ชื่อ เบอร์ เลขบัตร)
+export const updateUser = (id: string, changes: UserChanges) =>
   send<User>(`${BASE}/users/${encodeURIComponent(id)}`, json("PATCH", changes));
 // ลบผู้ใช้
 export const deleteUser = (id: string) => send<void>(`${BASE}/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+// ดึงรูปบัตรคนพิการของผู้ใช้เป็น blob URL (รูปส่วนตัว ดึงผ่าน backend พร้อม cookie ไม่ใช้ลิงก์สาธารณะ)
+export async function userCardImage(id: string): Promise<string> {
+  const res = await fetch(`${BASE}/users/${encodeURIComponent(id)}/card-image`, { credentials: "include" });
+  if (!res.ok) throw new Error(res.status === 404 ? "ยังไม่มีรูปบัตร" : `โหลดรูปไม่สำเร็จ (${res.status})`);
+  return URL.createObjectURL(await res.blob());
+}
+
+// ดูผู้แสดงทุกคนและชุดทดสอบที่เลือก
+export const getTestSplit = () => send<TestSplit>(`${BASE}/test-split`);
+// เลือกผู้แสดงที่กันไว้ทดสอบ (ว่าง = สุ่มอัตโนมัติ)
+export const setTestSplit = (signers: string[]) => send<TestSplit>(`${BASE}/test-split`, json("PUT", { signers }));
+// ตั้งคลิปที่ล่ามอัดเป็นชุดเทรน/ทดสอบ
+export const setSampleSplit = (id: string, split: "train" | "test") =>
+  send<{ id: string; split: string }>(`${BASE}/samples/${encodeURIComponent(id)}`, json("PATCH", { split }));
 
 // ดึงคลังคำศัพท์และท่ารวม
 export const getVocabulary = () => send<{ items: VocabItem[]; models: ModelsBrief }>(`${BASE}/vocabulary`);
@@ -151,8 +203,6 @@ export interface LogEntry {
   method: string | null;
   path: string | null;
   status: number | null;
-  device: string | null;
-  ip: string | null;
   // ผู้ใช้ที่ล็อกอินตอนทำ (null = ไม่ได้ล็อกอิน)
   user_id: string | null;
   user_name: string | null;
@@ -165,6 +215,9 @@ export interface LogFilter {
   q?: string;
   date_from?: string;
   date_to?: string;
+  // ซ่อน log การเปิดหน้า / เฉพาะที่ไม่สำเร็จ
+  hide_pages?: boolean;
+  failed?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -173,7 +226,7 @@ export interface LogFilter {
 const logQuery = (f: LogFilter) =>
   new URLSearchParams(
     Object.entries(f)
-      .filter(([, v]) => v !== undefined && v !== "")
+      .filter(([, v]) => v !== undefined && v !== "" && v !== false)
       .map(([k, v]) => [k, String(v)]),
   ).toString();
 

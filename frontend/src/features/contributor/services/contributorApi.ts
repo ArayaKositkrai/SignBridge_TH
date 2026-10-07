@@ -31,6 +31,9 @@ export interface SampleMeta {
   frame_count: number;
   lh_present_rate?: number;
   rh_present_rate?: number;
+  status?: "pending" | "approved" | "rejected";
+  // ชุดที่ใช้ตอนเทรน (แอดมินสลับได้ในหน้าคลังคำศัพท์)
+  split?: "train" | "test";
   created_at: string;
 }
 

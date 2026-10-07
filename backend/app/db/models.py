@@ -161,6 +161,15 @@ class Model(Base):
     bytes: Mapped[int | None] = mapped_column(BigInteger)
 
 
+# ตั้งค่าของระบบแบบ key → JSON (เช่น test_split) ตารางสร้างโดย app/db/schema.py
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 # คำที่โมเดลแต่ละเวอร์ชันรู้จัก + ผลรายคำ
 class ModelWord(Base):
     __tablename__ = "model_words"

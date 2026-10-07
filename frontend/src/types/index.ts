@@ -34,6 +34,10 @@ export interface SignResult {
   model?: string | null;
   // ข้อความแจ้งจากระบบ เช่น ยังไม่มีโมเดลที่ใช้งาน
   notice?: string;
+  // คำที่ระบบตัดสินแล้วว่าได้คำ (ส่งมาครั้งเดียวต่อคำ ให้ต่อเข้าประโยค) null = ยังไม่ได้คำใหม่
+  word?: string | null;
+  // true = กำลังดูท่าอยู่ ยังไม่มั่นใจพอจะนับเป็นคำ
+  pending?: boolean;
 }
 
 // สถานะการเชื่อมต่อ WebSocket

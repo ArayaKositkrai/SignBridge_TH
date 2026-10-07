@@ -18,6 +18,10 @@ export interface AuthUser {
   role: Role;
   has_password: boolean;
   providers: Provider[];
+  phone: string | null;
+  // เลขบัตรคนพิการแบบปิดบางหลัก (เลขเต็มอยู่ในหน้าโปรไฟล์)
+  disability_card_masked: string | null;
+  has_card_image: boolean;
 }
 
 // ข้อมูลที่ส่งตอนสมัครสมาชิก

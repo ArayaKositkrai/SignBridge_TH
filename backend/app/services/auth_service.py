@@ -22,6 +22,7 @@ from app.core.config import (
 )
 from app.db.models import User, UserIdentity
 from app.db.session import SessionLocal
+from app.services.user_service import mask_card
 
 if not AUTH_SECRET:
     raise RuntimeError("ยังไม่ได้ตั้งค่า AUTH_SECRET (ดูไฟล์ .env ที่รากโปรเจกต์)")
@@ -109,6 +110,10 @@ def public_user(user: User, providers: list[str] | None = None) -> dict:
         "role": user.role,
         "has_password": bool(user.password_hash),
         "providers": providers or [],
+        # ข้อมูลส่วนตัวในหน้าโปรไฟล์ (เลขบัตรปิดบางหลัก ส่งเลขเต็มเฉพาะตอนเปิดหน้าโปรไฟล์ /api/profile)
+        "phone": user.phone,
+        "disability_card_masked": mask_card(user.disability_card_number),
+        "has_card_image": bool(user.disability_card_image),
     }
 
 

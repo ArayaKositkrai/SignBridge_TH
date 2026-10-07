@@ -14,16 +14,15 @@ interface Options {
 
 // ส่งข้อมูลไป backend ทุกกี่มิลลิวินาที
 const SEND_INTERVAL_MS = 100;
-// ความมั่นใจขั้นต่ำที่จะนับเป็นคำ
-const MIN_CONFIDENCE = 0.6;
-// ต้องได้ผลเดิมกี่ครั้งติดกันถึงจะนับเป็นคำ
-const STABLE_HITS = 3;
 // จำนวนคำสูงสุดในประโยคหนึ่ง
 const MAX_WORDS = 20;
 // จำนวนประโยคที่เก็บไว้แสดง
 const MAX_SENTENCES = 6;
-// No hand for this long = the signer finished a sentence.
-const SENTENCE_GAP_MS = 2500;
+// ลดมือ/ไม่เห็นมือนานเท่านี้ = จบประโยค (ระหว่างยังเห็นมือ ถือว่ากำลังทำท่าคำถัดไปอยู่ ไม่ตัดประโยค)
+const SENTENCE_GAP_MS = 2000;
+
+// เฟรมนี้เห็นมืออย่างน้อยหนึ่งข้างไหม
+const hasHands = (f: LandmarkFrame | null) => !!f && (f.leftHand.length > 0 || f.rightHand.length > 0);
 
 // hook ส่ง landmarks ผ่าน WebSocket ต่อคำเป็นประโยค และจบประโยคเมื่อลดมือ
 export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version = "active" }: Options) {
@@ -38,7 +37,7 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
   const [notice, setNotice] = useState<string | null>(null);
 
   const wordsRef = useRef<string[]>([]);
-  const pending = useRef({ text: "", hits: 0 });
+  // เวลาล่าสุดที่ยังเห็นมือหรือได้คำ (ใช้ตัดสินว่าจบประโยคหรือยัง)
   const lastActive = useRef(0);
 
   // อัปเดตรายการคำ (เก็บทั้งใน state และ ref)
@@ -49,36 +48,30 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
 
   // จบประโยค: ย้ายคำที่สะสมไปเป็นประโยคที่เสร็จแล้ว
   const commit = useCallback(() => {
-    const sentence = wordsRef.current.join(" ").trim();
+    // ภาษาไทยไม่เว้นวรรคระหว่างคำ (อ่านออกเสียงได้เป็นประโยคต่อเนื่อง)
+    const sentence = wordsRef.current.join("").trim();
     if (!sentence) return;
     // บันทึกแค่จำนวนคำที่แปลได้ ไม่บันทึกตัวคำ
     logEvent("แปลภาษามือได้ 1 ประโยค", `${wordsRef.current.length} คำ`);
     setSentences((s) => [...s, sentence].slice(-MAX_SENTENCES));
     setWordList([]);
-    pending.current = { text: "", hits: 0 };
   }, [setWordList]);
 
-  // รับผลจาก backend: นับเป็นคำเมื่อมั่นใจพอและได้ผลเดิมติดกันหลายครั้ง
+  // รับผลจาก backend: แสดงคำที่กำลังดู และต่อคำเข้าประโยคเมื่อ backend ส่ง word มา (backend ตัดสินและกันคำซ้ำให้แล้ว)
   const onResult = useCallback(
     (r: SignResult) => {
       setNotice(r.notice ?? null);
-      if (!r.text) {
-        pending.current = { text: "", hits: 0 };
-        setResult(null);
-        return;
-      }
-      lastActive.current = performance.now();
-      setResult(r);
-      const p = pending.current;
-      p.hits = r.text === p.text ? p.hits + 1 : 1;
-      p.text = r.text;
-      if (r.confidence >= MIN_CONFIDENCE && p.hits === STABLE_HITS) {
-        const list = wordsRef.current;
-        if (list[list.length - 1] !== r.text) setWordList([...list, r.text].slice(-MAX_WORDS));
+      setResult(r.text ? r : null);
+      if (r.word) {
+        lastActive.current = performance.now();
+        setWordList([...wordsRef.current, r.word].slice(-MAX_WORDS));
       }
     },
     [setWordList],
   );
+
+  // ลบคำล่าสุดออกจากประโยค (กรณีระบบจับผิด)
+  const removeLast = useCallback(() => setWordList(wordsRef.current.slice(0, -1)), [setWordList]);
 
   // เปิด WebSocket และส่ง landmarks เป็นระยะ พร้อมเช็กว่าลดมือนานพอจะจบประโยคหรือยัง
   useEffect(() => {
@@ -93,10 +86,11 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
 
     let lastSent = -1;
     const timer = window.setInterval(() => {
+      const frame = frameRef.current;
+      if (hasHands(frame)) lastActive.current = performance.now();
       if (wordsRef.current.length && performance.now() - lastActive.current > SENTENCE_GAP_MS) {
         commit();
       }
-      const frame = frameRef.current;
       if (!frame || frameIdRef.current === lastSent) return;
       lastSent = frameIdRef.current;
       socket.send(frame, aspectRef.current);
@@ -113,8 +107,7 @@ export function useSignStream({ frameRef, frameIdRef, enabled, aspect, version =
     setWordList([]);
     setSentences([]);
     setResult(null);
-    pending.current = { text: "", hits: 0 };
   }, [setWordList]);
 
-  return { status, result, notice, words, sentences, commit, clear };
+  return { status, result, notice, words, sentences, commit, clear, removeLast };
 }

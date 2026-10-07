@@ -94,9 +94,9 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 |---|---|
 | 1. เตรียมชุด TSL | `python ml/src/import_tsl_storage.py` (ดึงจาก Storage) หรือ `python ml/src/import_tsl.py --frames ... --meta ...` (จากไฟล์ในเครื่อง) → ได้ `ml/data/processed/tsl_skeleton.npz` |
 | 2. คลังคำ | `python ml/src/build_vocabulary.py --tracker <Excel ของทีม> --merged <tsl_merged_dataset.zip>` (ทำครั้งเดียว/เมื่อ Excel เปลี่ยน) |
-| 3. เลือกคำที่จะเทรน | หน้าเว็บ **แอดมิน → คลังคำ & เวอร์ชัน** → ติ๊กคอลัมน์ "เทรน" |
+| 3. เลือกคำและชุดทดสอบ | หน้าเว็บ **แอดมิน → คลังคำศัพท์** → เปิดสวิตช์คอลัมน์ "เทรน" · **แอดมิน → โมเดล → ชุดทดสอบ** เลือกผู้แสดงที่กันไว้วัดผล (ไม่เลือก = สุ่ม 20%) หรือสลับรายคลิปในแผงของคำ |
 | 4. เทรน | `cd ml/src && python train.py` (~1 นาที) — ระหว่างเทรนดูความคืบหน้าได้ที่หน้าแอดมิน ผลที่ได้เป็นเวอร์ชัน **Draft** |
-| 5. ทดสอบและเผยแพร่ | หน้าแอดมิน → "ทดสอบ Draft" → ถ้าพอใจกด "เผยแพร่" ผู้ใช้ทั่วไปถึงจะได้ใช้ |
+| 5. ทดสอบและเผยแพร่ | หน้าแอดมิน → โมเดล → "ลองใช้ Draft" → ถ้าดีกว่าตัวเดิมกด "เผยแพร่" ผู้ใช้ทั่วไปถึงจะได้ใช้ |
 | 6. ท่าอวตาร | `python ml/src/build_motions.py` สร้างท่าของตัวละครจากคลิปจริง (ทำใหม่เมื่อมีคลิปเพิ่ม) |
 
 ข้อควรรู้
@@ -128,21 +128,24 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `app/db/session.py` | การเชื่อมต่อ database |
 | `app/db/schema.py` | เพิ่มคอลัมน์ที่โค้ดใหม่ต้องใช้ตอนเปิดเซิร์ฟเวอร์ (คู่กับ `backend/sql/`) |
 | `app/services/auth_service.py` | รหัสผ่าน (scrypt) session (JWT) OAuth |
-| `app/services/user_service.py` | จัดการผู้ใช้ |
-| `app/services/recognition_service.py` | ตัวแปลภาษามือ: เก็บ skeleton ย้อนหลัง ~2 วินาที แล้วให้โมเดลทาย |
+| `app/services/user_service.py` | จัดการผู้ใช้ + ตรวจรูปแบบเบอร์โทร/เลขบัตรคนพิการ |
+| `app/services/card_image.py` | รูปบัตรคนพิการ (Storage แบบ private ดูได้เฉพาะเจ้าของ/แอดมิน ผ่าน backend) |
+| `app/services/test_split.py` | ชุดทดสอบโมเดล: ผู้แสดงที่แอดมินเลือก (ตาราง `app_settings`) และรายคลิป (`samples.split`) |
+| `app/services/recognition_service.py` | ตัวแปลภาษามือ: ทายจากหลายความยาวหน้าต่าง (1.2/1.7/2.2 วิ) เฉลี่ยความมั่นใจ แล้วตัดสินว่า "ได้คำ" (ส่ง `word` ครั้งเดียวต่อคำ) |
 | `app/services/retrieval_service.py` | หาท่าของแต่ละคำ (ข้อความ → ภาษามือ) |
 | `app/services/motion_library.py` | อ่านท่าอวตารจากตาราง `motions` |
 | `app/services/dataset_service.py` | คลิปของล่าม: แปลง skeleton ↔ ไฟล์ .npz, สถิติ, คลังคำ |
 | `app/services/storage.py` | อัปโหลด/ดาวน์โหลดไฟล์ใน Supabase Storage |
 | `app/services/model_registry.py` | เวอร์ชันโมเดล (active / draft / archived) |
 | `app/services/emergency_service.py` | ปุ่ม AAC ในฐานข้อมูล |
-| `app/services/activity_log.py` | บันทึก/ค้น log การใช้งาน |
+| `app/services/activity_log.py` | บันทึก/ค้น log การใช้งาน (เก็บ IP/รหัสเครื่องไว้ตรวจความปลอดภัย แต่ไม่ส่งออกหน้าเว็บ/CSV) |
+| `app/api/routes/profile.py` | หน้าโปรไฟล์: แก้ข้อมูลตัวเอง รูปบัตร รหัสผ่าน เลิกเชื่อมบัญชี ลบบัญชี |
 | `app/ml/classifier.py`, `model_loader.py` | โหลดไฟล์โมเดล `.npz` และทายคำด้วย numpy (backend ไม่ต้องมี torch) |
 | `app/nlp/tokenizer.py` | ตัดคำภาษาไทยแบบหาคำที่ยาวที่สุดจากคลังคำ |
 | `app/scripts/set_role.py` | ตั้งบทบาทผู้ใช้จากอีเมล |
 | `app/scripts/export_registry.py` | ส่งออกรหัสคำ/ผู้แสดงเป็น CSV ให้โน้ตบุ๊ก |
 | `app/scripts/rename_samples.py` | ย้ายชื่อคลิปรูปแบบเก่าเป็น `W####_S###_C###` |
-| `sql/` | คำสั่ง SQL ที่เพิ่มคอลัมน์ (รันซ้ำได้) |
+| `sql/` | คำสั่ง SQL ที่เพิ่มคอลัมน์/ตาราง (รันซ้ำได้ backend รันให้เองตอนเปิด) |
 
 ### frontend/ (React + Vite + TypeScript + Tailwind)
 
@@ -154,8 +157,10 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `src/features/text-to-sign/` | หน้าข้อความ → ภาษามือ: ช่องพิมพ์/พูด, ตัวละคร 3D (`Avatar3D.tsx`) และแบบ 2D สำรอง |
 | `src/features/emergency-aac/` | หน้าปุ่มฉุกเฉิน |
 | `src/features/contributor/` | พื้นที่ล่าม: อัดคลิป (`RecorderPanel`), ช่องเลือกคำ (`WordCombobox`), อ่านไฟล์ .npy/.npz (`parseLandmarkFile`), คลังคำ |
-| `src/features/admin/` | หน้าแอดมิน: แดชบอร์ด ผู้ใช้ คลังคำ & เวอร์ชัน (`VersionsView`, `ModelPanel`) log |
+| `src/features/admin/` | หน้าแอดมิน: แดชบอร์ด · ผู้ใช้ (`UsersView`) · คลังคำศัพท์ (`VocabularyView`) · โมเดล + ชุดทดสอบ (`ModelsView`) · บันทึกการใช้งาน (`LogsView`) |
+| `src/features/profile/` | หน้าโปรไฟล์ของผู้ใช้ทุกบทบาท (`/profile`) |
 | `src/features/auth/` | หน้าล็อกอิน และสถานะผู้ใช้ |
+| `src/components/ui/` | ชิ้นส่วนหน้าจอที่ใช้ร่วมกัน (ปุ่ม การ์ด ช่องค้นหา สวิตช์ แผงด้านข้าง กล่องยืนยัน ฯลฯ) |
 | `src/lib/mediapipe/` | โหลด MediaPipe, ตรวจจับท่า (`holistic.ts`), วาด skeleton (`draw.ts`), ลดการสั่น (`smoothing.ts`) |
 | `src/lib/avatar3d/` | ขยับตัวละคร 3D: โหลดโมเดล (`loadModel.ts`), IK แขน/ข้อมือ/นิ้ว และกันแขนทะลุตัว (`rig.ts`) |
 | `src/lib/avatar/skeleton.ts` | ผสมท่าระหว่าง keyframe และตัวละคร 2D |
@@ -193,8 +198,10 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | POST | `/api/text-to-sign` · GET `/api/text-to-sign/words` | ทุกคน |
 | GET/POST/PATCH/DELETE | `/api/emergency-phrases` | ดู: ทุกคน · แก้: ผู้ที่ล็อกอิน |
 | GET/POST/DELETE | `/api/contributor/...` (words, vocabulary, samples, landmarks) | ล่าม/แอดมิน |
+| GET/PATCH/DELETE | `/api/profile` · PUT/GET/DELETE `/api/profile/card-image` · POST `/api/profile/password` · DELETE `/api/profile/identities/{provider}` | ผู้ที่ล็อกอิน (ของตัวเอง) |
 | GET | `/api/admin/users` | ล่าม (เห็นแค่ชื่อ) / แอดมิน (เต็ม) |
-| POST/PATCH/DELETE | `/api/admin/users` | แอดมิน |
+| POST/PATCH/DELETE | `/api/admin/users` · GET `/api/admin/users/{id}/card-image` | แอดมิน |
+| GET/PUT | `/api/admin/test-split` · PATCH `/api/admin/samples/{id}` (เทรน/ทดสอบ) | แอดมิน |
 | GET | `/api/admin/dashboard` · `/vocabulary` · `/models` · `/train/status` | แอดมิน |
 | PATCH | `/api/admin/vocabulary/{word}` (ติ๊กคำเทรน) | แอดมิน |
 | POST | `/api/admin/models/active` · `/api/admin/publish` | แอดมิน |

@@ -116,7 +116,7 @@ export default function DashboardView() {
           <Card
             title="โมเดลที่ใช้"
             action={
-              <Link to="/admin/versions" className="text-xs font-semibold text-brand hover:underline">
+              <Link to="/admin/models" className="text-xs font-semibold text-brand hover:underline">
                 จัดการ
               </Link>
             }

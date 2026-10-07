@@ -111,6 +111,7 @@ def _fetch_tsl_from_storage():
 
 
 # โหลดคลิปจากชุดข้อมูล TSL เฉพาะคำที่เลือก
+#   แต่ละคลิป = (ท่า, สัดส่วนภาพ, คำ, ผู้แสดง, แหล่ง, ใบหน้า, กันไว้ทดสอบรายคลิปไหม)
 def load_tsl(words: set[str], include_null: bool):
     if not TSL_PATH.is_file():
         # ไม่มีในเครื่อง: ลองดึงสำเนาที่เพื่อน/โน้ตบุ๊กอัปไว้ใน Storage (สร้างด้วย import_tsl_storage.py --upload)
@@ -128,7 +129,7 @@ def load_tsl(words: set[str], include_null: bool):
         label = str(label)
         if label in words or (include_null and label == NULL_LABEL):
             # ชุดข้อมูล TSL ไม่มีจุดใบหน้า (face = None)
-            out.append((pts[off[i] : off[i + 1]], float(aspects[i]), label, str(signers[i]), str(sources[i]), None))
+            out.append((pts[off[i] : off[i + 1]], float(aspects[i]), label, str(signers[i]), str(sources[i]), None, False))
     return out
 
 
@@ -137,7 +138,8 @@ def load_recorded(conn, min_clips: int):
     out = []
     skipped = []
     for c in db.recorded_samples(conn, min_clips, on_skip=lambda sid, why: skipped.append(f"{sid} ({why})")):
-        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"]))
+        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"],
+                    c["split"] == "test"))
     if out:
         log(f"คลิปที่ล่ามอัด {len(out)} คลิป")
     if skipped and skipped[0].startswith("ทั้งหมด "):
@@ -195,10 +197,11 @@ def augment(x: torch.Tensor) -> torch.Tensor:
     pos[:, :, F.LH] *= present[:, :, 0, None, None]
     pos[:, :, F.RH] *= present[:, :, 1, None, None]
     pos = pos.reshape(b, t, n2)
-    # ยืด/หดเวลา: ตัดหัวท้ายแบบสุ่มแล้วยืดกลับเป็น t เฟรม (ประมาณค่าเชิงเส้นทั้ง batch พร้อมกัน)
+    # ยืด/หดเวลา: ตัดหัวท้ายแบบสุ่ม (สูงสุด 1/4 ของคลิปต่อด้าน) แล้วยืดกลับเป็น t เฟรม (ประมาณค่าเชิงเส้นทั้ง batch พร้อมกัน)
+    #   ตัดได้มากให้โมเดลชินกับท่าที่เห็นไม่ครบ/ไม่พอดีหน้าต่าง แบบที่เจอตอนแปลสดจากกล้อง (จำลองแล้วจับคำถูกเพิ่มจาก ~73% เป็น ~76-81%)
     seq = torch.cat([pos, present, face, face_seen], 2)
-    a = torch.randint(0, t // 8 + 1, (b, 1)).float()
-    e = (t - 1) - torch.randint(0, t // 8 + 1, (b, 1)).float()
+    a = torch.randint(0, t // 4 + 1, (b, 1)).float()
+    e = (t - 1) - torch.randint(0, t // 4 + 1, (b, 1)).float()
     where = a + (e - a) * torch.linspace(0, 1, t)
     lo = where.floor().long().clamp(0, t - 1)
     hi = (lo + 1).clamp(max=t - 1)
@@ -272,9 +275,9 @@ def main():
     progress(stage="load")
 
     clips = load_tsl(words, cfg.get("include_null_class", True)) + load_recorded(conn, cfg.get("min_recorded_clips", 5))
-    feats, labels_raw, signers, sources = [], [], [], []
+    feats, labels_raw, signers, sources, clip_test = [], [], [], [], []
     n_face = 0
-    for seq, aspect, label, signer, source, face in clips:
+    for seq, aspect, label, signer, source, face, is_test in clips:
         f = F.clip_features(seq, aspect, face)
         n_face += face is not None and not np.isnan(face).all()
         if f is not None:
@@ -282,6 +285,7 @@ def main():
             labels_raw.append(label)
             signers.append(signer)
             sources.append(source)
+            clip_test.append(is_test)
     if not feats:
         raise SystemExit("ไม่มีข้อมูลสำหรับเทรน")
     labels = sorted(set(labels_raw))
@@ -293,15 +297,22 @@ def main():
     if missing:
         log(f"คำที่ไม่มีข้อมูล (ข้าม): {', '.join(missing)}")
 
-    # แบ่งชุดทดสอบตามผู้แสดง แยกทีละชุดข้อมูล (ทุกชุดมีคนทดสอบอย่างน้อย 1 คน)
-    # คลิปของล่ามยังมีน้อย จึงใช้เทรนทั้งหมด
-    rng = np.random.default_rng(SEED)
-    val_signers = set()
-    for src in sorted(set(sources) - {"ล่าม"}):
-        pool = sorted({s for s, x in zip(signers, sources) if x == src})
-        if len(pool) >= 2:
-            val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
-    is_val = np.array([s in val_signers for s in signers])
+    # ชุดทดสอบ: แอดมินเลือกผู้แสดง (และ/หรือ รายคลิปของล่าม) ไว้ในหน้าแอดมิน → ใช้ตามนั้น
+    #   ไม่ได้เลือกอะไรเลย → สุ่มผู้แสดงแยกทีละชุดข้อมูล (ทุกชุดมีคนทดสอบอย่างน้อย 1 คน, คลิปของล่ามใช้เทรนทั้งหมด)
+    val_signers = db.test_signers(conn) & set(signers)
+    if val_signers or any(clip_test):
+        log(f"ชุดทดสอบตามที่แอดมินเลือก: ผู้แสดง {len(val_signers)} คน + กำหนดรายคลิป {sum(clip_test)} คลิป")
+    else:
+        rng = np.random.default_rng(SEED)
+        for src in sorted(set(sources) - {"ล่าม"}):
+            pool = sorted({s for s, x in zip(signers, sources) if x == src})
+            if len(pool) >= 2:
+                val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
+        log("ชุดทดสอบ: สุ่มอัตโนมัติ (แอดมินยังไม่ได้เลือกผู้แสดง)")
+    is_val = np.array([s in val_signers or t for s, t in zip(signers, clip_test)])
+    no_train = sorted({l for l, v in zip(labels_raw, is_val) if v} - {l for l, v in zip(labels_raw, is_val) if not v})
+    if no_train:
+        log(f"คำเตือน: คำที่ทุกคลิปอยู่ในชุดทดสอบ (ไม่มีคลิปให้เทรนตอนวัดผล): {', '.join(no_train)}")
     metrics = {}
     if is_val.any() and (~is_val).any():
         mean, std = X[~is_val].reshape(-1, X.shape[2]).mean(0), X[~is_val].reshape(-1, X.shape[2]).std(0) + 1e-6

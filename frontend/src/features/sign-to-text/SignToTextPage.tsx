@@ -74,6 +74,10 @@ export default function SignToTextPage() {
           logEvent("อ่านออกเสียงประโยค");
           speak(t);
         }}
+        onRemoveLast={() => {
+          logEvent("ลบคำล่าสุด");
+          stream.removeLast();
+        }}
         onCommit={() => {
           logEvent("กดจบประโยค");
           stream.commit();

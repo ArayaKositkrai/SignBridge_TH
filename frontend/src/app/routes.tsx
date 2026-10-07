@@ -6,6 +6,7 @@ import AdminPage from "../features/admin/AdminPage";
 import ContributorPage from "../features/contributor/ContributorPage";
 import LoginPage from "../features/auth/LoginPage";
 import RequireRole from "../features/auth/RequireRole";
+import ProfilePage from "../features/profile/ProfilePage";
 
 // กำหนดเส้นทางของแต่ละหน้า
 export default function AppRoutes() {
@@ -15,6 +16,15 @@ export default function AppRoutes() {
       <Route path="/text-to-sign" element={<TextToSignPage />} />
       <Route path="/emergency" element={<EmergencyPage />} />
       <Route path="/login" element={<LoginPage />} />
+      {/* โปรไฟล์ของตัวเอง: ทุกบทบาทที่ล็อกอิน */}
+      <Route
+        path="/profile"
+        element={
+          <RequireRole roles={["admin", "contributor", "user"]}>
+            <ProfilePage />
+          </RequireRole>
+        }
+      />
       {/* พื้นที่ล่ามและแอดมินต้องล็อกอินก่อน */}
       <Route
         path="/contributor/*"

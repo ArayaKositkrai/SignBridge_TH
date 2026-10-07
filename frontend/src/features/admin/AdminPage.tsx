@@ -1,27 +1,32 @@
-import { NavLink, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import Icon, { type IconName } from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
 import DashboardView from "./DashboardView";
 import LogsView from "./LogsView";
+import ModelsView from "./ModelsView";
 import UsersView from "./UsersView";
-import VersionsView from "./VersionsView";
+import VocabularyView from "./VocabularyView";
 
 // แท็บของหน้าแอดมิน
 const TABS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: "/admin", label: "แดชบอร์ด", icon: "chart", end: true },
   { to: "/admin/users", label: "ผู้ใช้", icon: "users" },
-  { to: "/admin/versions", label: "คลังคำ & เวอร์ชัน", icon: "layers" },
-  { to: "/admin/logs", label: "Log", icon: "clock" },
+  { to: "/admin/vocabulary", label: "คลังคำศัพท์", icon: "book" },
+  { to: "/admin/models", label: "โมเดล", icon: "layers" },
+  { to: "/admin/logs", label: "บันทึกการใช้งาน", icon: "clock" },
 ];
 
-// พื้นที่แอดมิน: แถบเมนู แดชบอร์ด / ผู้ใช้ / คลังคำศัพท์และเวอร์ชันโมเดล / Log การใช้งาน
+// พื้นที่แอดมิน: แถบเมนู แดชบอร์ด / ผู้ใช้ / คลังคำศัพท์ / โมเดล / บันทึกการใช้งาน
 export default function AdminPage() {
   return (
     <Routes>
       <Route element={<AdminLayout />}>
         <Route index element={<DashboardView />} />
         <Route path="users" element={<UsersView />} />
-        <Route path="versions" element={<VersionsView />} />
+        <Route path="vocabulary" element={<VocabularyView />} />
+        <Route path="models" element={<ModelsView />} />
+        {/* ลิงก์เดิม (คลังคำ & เวอร์ชัน) พาไปหน้าโมเดล */}
+        <Route path="versions" element={<Navigate to="/admin/models" replace />} />
         <Route path="logs" element={<LogsView />} />
       </Route>
     </Routes>

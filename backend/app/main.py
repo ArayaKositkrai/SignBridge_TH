@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.deps import current_user
 from app.api.routes import emergency, sign_to_text, text_to_sign
-from app.api.routes import admin, auth, contributor, logs
+from app.api.routes import admin, auth, contributor, logs, profile
 from app.core.cors import ORIGIN_REGEX, ORIGINS
 from app.db.schema import ensure_schema
 from app.db.session import ping
@@ -31,6 +31,7 @@ app.include_router(emergency.router)
 app.include_router(contributor.router)
 app.include_router(admin.router)
 app.include_router(logs.router)
+app.include_router(profile.router)
 
 # เพิ่มคอลัมน์ที่โค้ดใหม่ต้องใช้ (ถ้ายังไม่มี) ตอนเริ่มเซิร์ฟเวอร์
 ensure_schema()

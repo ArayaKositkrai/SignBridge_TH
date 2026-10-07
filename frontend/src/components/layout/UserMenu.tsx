@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
-import { PROVIDER_NAMES, providerLinkUrl } from "../../features/auth/services/authApi";
 import Icon from "../ui/Icon";
 
 // ชื่อบทบาทภาษาไทย
@@ -9,7 +8,7 @@ const ROLE_LABEL = { admin: "แอดมิน", contributor: "ล่าม", u
 
 // ปุ่มผู้ใช้บน header: ยังไม่ล็อกอิน = ปุ่มเข้าสู่ระบบ / ล็อกอินแล้ว = ชื่อ + เมนูออกจากระบบ
 export default function UserMenu() {
-  const { user, loading, providers, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,24 +65,16 @@ export default function UserMenu() {
             {user.email && <p className="truncate text-xs text-ink/60">{user.email}</p>}
             <p className="mt-0.5 text-xs text-brand">{ROLE_LABEL[user.role]}</p>
           </div>
-          {/* ผูกบัญชีภายนอกที่เปิดใช้แต่ยังไม่ได้ผูก */}
-          {providers.map((p) =>
-            user.providers.includes(p) ? (
-              <p key={p} className="mt-1 flex items-center gap-1.5 px-2 py-1.5 text-xs text-ink/60">
-                <Icon name="check" size={14} className="text-emerald-600" />
-                ผูกบัญชี {PROVIDER_NAMES[p]} แล้ว
-              </p>
-            ) : (
-              <a
-                key={p}
-                role="menuitem"
-                href={providerLinkUrl(p, window.location.href)}
-                className="mt-1 block rounded-lg px-2 py-1.5 text-navy hover:bg-sky/40"
-              >
-                ผูกบัญชี {PROVIDER_NAMES[p]}
-              </a>
-            ),
-          )}
+          {/* โปรไฟล์: แก้ข้อมูลส่วนตัว รหัสผ่าน บัญชีที่เชื่อม (ย้ายการผูกบัญชีไปไว้ที่นั่น) */}
+          <Link
+            to="/profile"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="mt-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-navy hover:bg-sky/40"
+          >
+            <Icon name="settings" size={15} />
+            โปรไฟล์และการตั้งค่า
+          </Link>
           <button
             type="button"
             role="menuitem"

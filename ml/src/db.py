@@ -61,6 +61,16 @@ def train_words(conn) -> set[str]:
     return {r[0] for r in conn.execute("SELECT word FROM words WHERE in_train_set")}
 
 
+# ผู้แสดงที่แอดมินเลือกเป็นชุดทดสอบ (หน้าแอดมิน → โมเดล → ชุดทดสอบ) ว่าง/ยังไม่มีตาราง = สุ่มอัตโนมัติ
+def test_signers(conn) -> set[str]:
+    try:
+        with conn.transaction():
+            row = conn.execute("SELECT value FROM app_settings WHERE key = 'test_split'").fetchone()
+    except psycopg.errors.UndefinedTable:
+        return set()
+    return set((row[0] or {}).get("signers", [])) if row else set()
+
+
 # ดาวน์โหลดไฟล์จาก Storage
 def download(path: str) -> bytes:
     if not (SUPABASE_URL and SERVICE_KEY):
@@ -82,7 +92,7 @@ def download(path: str) -> bytes:
 def recorded_samples(conn, min_clips: int = 1, on_skip=None) -> list[dict]:
     rows = conn.execute(
         """
-        SELECT w.word, c.name, s.id, s.file_path, s.fps
+        SELECT w.word, c.name, s.id, s.file_path, s.fps, s.split
         FROM samples s
         JOIN words w ON w.id = s.word_id
         LEFT JOIN contributors c ON c.id = s.contributor_id
@@ -99,12 +109,12 @@ def recorded_samples(conn, min_clips: int = 1, on_skip=None) -> list[dict]:
     for word, *_ in rows:
         per_word[word] = per_word.get(word, 0) + 1
     out = []
-    for word, signer, sid, path, fps in rows:
+    for word, signer, sid, path, fps, split in rows:
         if per_word[word] < min_clips:
             continue
         try:
             with np.load(io.BytesIO(download(path)), allow_pickle=False) as d:
-                out.append({"word": word, "signer": signer, "id": sid, "points": d["points"],
+                out.append({"word": word, "signer": signer, "id": sid, "split": split, "points": d["points"],
                             "t_ms": d["t_ms"], "aspect": float(d["aspect"]), "fps": fps,
                             "z": d["z"] if "z" in d.files else None,
                             "face": d["face"] if "face" in d.files else None,

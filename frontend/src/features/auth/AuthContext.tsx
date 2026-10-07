@@ -11,6 +11,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  // อัปเดตข้อมูลผู้ใช้หลังแก้โปรไฟล์ (null = ลบบัญชีแล้ว)
+  setUser: (user: AuthUser | null) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, providers, login, register, logout }),
+    () => ({ user, loading, providers, login, register, logout, setUser }),
     [user, loading, providers, login, register, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

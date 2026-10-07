@@ -1,8 +1,10 @@
 import re
 from collections import Counter
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
@@ -11,10 +13,12 @@ from app.api.deps import require_admin, require_staff
 from app.core.config import MODELS_DIR
 from app.db.models import Model, Motion, TrainingRun, Word
 from app.db.session import SessionLocal
+from app.ml.classifier import features
 from app.ml.model_loader import clear_cache
 from app.services import dataset_service as ds
 from app.services import model_registry as mr
-from app.services import user_service
+from app.services import card_image, storage, test_split, user_service
+from app.services.user_service import InvalidField
 
 # กลุ่ม route ของแอดมิน: แดชบอร์ด ผู้ใช้ คลังคำศัพท์ และเวอร์ชันโมเดล
 # ทุก route ต้องเป็นแอดมิน ยกเว้นดูรายชื่อผู้ใช้ที่ล่ามใช้เลือกผู้แสดงด้วย
@@ -52,10 +56,24 @@ class UserIn(BaseModel):
         return v
 
 
-# ข้อมูลที่รับตอนแก้ไขผู้ใช้ (ส่งเฉพาะช่องที่จะเปลี่ยน)
+# ข้อมูลที่รับตอนแก้ไขผู้ใช้ (ส่งเฉพาะช่องที่จะเปลี่ยน; ค่าว่าง = ลบค่านั้น ยกเว้นชื่อ)
 class UserPatch(BaseModel):
     role: Role | None = None
     active: bool | None = None
+    first_name: str | None = Field(default=None, max_length=50)
+    last_name: str | None = Field(default=None, max_length=50)
+    phone: str | None = Field(default=None, max_length=20)
+    disability_card_number: str | None = Field(default=None, max_length=20)
+
+
+# ผู้แสดงที่เลือกเป็นชุดทดสอบ (รายการว่าง = สุ่มอัตโนมัติ)
+class TestSplitIn(BaseModel):
+    signers: list[str] = Field(default_factory=list, max_length=500)
+
+
+# ตั้งคลิปเป็นชุดเทรน/ทดสอบ
+class SampleSplitIn(BaseModel):
+    split: Literal["train", "test"]
 
 
 # ข้อมูลที่รับตอนเลือก/ไม่เลือกคำไว้เทรน
@@ -70,6 +88,23 @@ STAFF_USER_FIELDS = ("id", "name", "role", "active")
 # ข้อมูลที่รับตอนเลือกเวอร์ชันโมเดลที่จะใช้งาน
 class ActiveModelIn(BaseModel):
     version: str = Field(min_length=1, max_length=200)
+
+
+# ไฟล์โมเดลใช้กับโค้ดปัจจุบันได้ไหม: อ่าน feature_version จากตัวไฟล์ (ค่าในตาราง models อาจไม่ตรงกับไฟล์)
+#   cache ตามเวลาแก้ไขไฟล์ ไม่ต้องเปิดไฟล์ทุกครั้งที่โหลดหน้า
+@lru_cache(maxsize=64)
+def _file_compatible(path: str, mtime: float) -> bool:
+    try:
+        with np.load(path, allow_pickle=False) as d:
+            return int(d["feature_version"]) == features().FEATURE_VERSION
+    except (OSError, ValueError, KeyError):
+        return False
+
+
+# เช็กไฟล์โมเดลในโฟลเดอร์ ml/models (ไม่มีไฟล์ = None)
+def _compatible(file: str) -> bool | None:
+    path = MODELS_DIR / file
+    return _file_compatible(str(path), path.stat().st_mtime) if path.is_file() else None
 
 
 # สถานะของการเทรนหนึ่งครั้ง: running ที่ไม่ได้รายงานนานเกินกำหนด = stalled (ขาดการติดต่อ)
@@ -146,7 +181,10 @@ def update_user(user_id: str, body: UserPatch, me: dict = Depends(require_admin)
     # กันแอดมินลดสิทธิ์หรือปิดบัญชีตัวเองจนไม่มีใครเข้าหน้าแอดมินได้
     if user_id == me["id"] and (body.role not in (None, "admin") or body.active is False):
         raise HTTPException(status_code=400, detail="เปลี่ยนบทบาทหรือปิดบัญชีของตัวเองไม่ได้")
-    user = user_service.update_user(user_id, body.model_dump())
+    try:
+        user = user_service.update_user(user_id, body.model_dump(exclude_unset=True))
+    except InvalidField as e:
+        raise HTTPException(status_code=422, detail=str(e))
     if user is None:
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
     return user
@@ -156,10 +194,25 @@ def update_user(user_id: str, body: UserPatch, me: dict = Depends(require_admin)
 @router.delete("/users/{user_id}", status_code=204)
 def delete_user(user_id: str, me: dict = Depends(require_admin)):
     if user_id == me["id"]:
-        raise HTTPException(status_code=400, detail="ลบบัญชีของตัวเองไม่ได้")
-    if not user_service.delete_user(user_id):
+        raise HTTPException(status_code=400, detail="ลบบัญชีของตัวเองไม่ได้ (ลบได้ที่หน้าโปรไฟล์)")
+    image = user_service.delete_user(user_id)
+    if image is None:
         raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+    if image:
+        try:
+            storage.remove([image])
+        except HTTPException:
+            pass  # ลบผู้ใช้แล้ว รูปที่ลบไม่สำเร็จไม่ควรทำให้ทั้งคำขอล้ม
     return Response(status_code=204)
+
+
+# ดูรูปบัตรคนพิการของผู้ใช้ (แอดมินเท่านั้น ไว้ตรวจสอบสิทธิ์)
+@router.get("/users/{user_id}/card-image", dependencies=ADMIN)
+def user_card_image(user_id: str):
+    found, _ = user_service.card_image_path(user_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้")
+    return card_image.response(user_id)
 
 
 # ---------- คลังคำศัพท์และท่า ----------
@@ -207,6 +260,30 @@ def set_train_word(word: str, body: TrainWordIn):
     return {"word": ds.clean_word(word), "in_train_set": body.in_train_set}
 
 
+# ---------- ชุดทดสอบโมเดล ----------
+
+
+# ผู้แสดงทุกคน (TSL + ที่ล่ามอัด) พร้อมจำนวนคลิป และคนที่เลือกเป็นชุดทดสอบ
+@router.get("/test-split", dependencies=ADMIN)
+def get_test_split():
+    return test_split.overview()
+
+
+# เลือกผู้แสดงที่กันไว้ทดสอบ (มีผลในการเทรนครั้งถัดไป)
+@router.put("/test-split", dependencies=ADMIN)
+def put_test_split(body: TestSplitIn):
+    test_split.set_selected_signers(body.signers)
+    return test_split.overview()
+
+
+# ตั้งคลิปที่ล่ามอัดหนึ่งคลิปเป็นชุดเทรนหรือชุดทดสอบ
+@router.patch("/samples/{sample_id}", dependencies=ADMIN)
+def set_sample_split(sample_id: str, body: SampleSplitIn):
+    if not test_split.set_sample_split(sample_id, body.split):
+        raise HTTPException(status_code=404, detail="ไม่พบคลิปนี้")
+    return {"id": sample_id, "split": body.split}
+
+
 # ---------- เวอร์ชันโมเดล ----------
 
 
@@ -231,6 +308,8 @@ def list_models():
                 "active": m.status == "active",
                 "draft": m.status == "draft",
                 "file_missing": not row["exists"],
+                # เทรนด้วยรูปแบบ feature ปัจจุบันไหม (รูปแบบเก่าโหลดไม่ได้ ตั้งเป็นตัวที่ใช้ไม่ได้)
+                "compatible": _compatible(m.file) is not False,
             }
         )
     active = next((m["version"] for m in models if m["active"]), None)
@@ -247,6 +326,8 @@ def set_active_model(body: ActiveModelIn):
         raise HTTPException(status_code=404, detail="ไม่พบโมเดลเวอร์ชันนี้")
     if not (MODELS_DIR / model.file).is_file():
         raise HTTPException(status_code=409, detail=f"ไม่พบไฟล์โมเดล {model.file} ในเครื่องนี้")
+    if _compatible(model.file) is False:
+        raise HTTPException(status_code=409, detail=f"{model.version} เทรนด้วยรูปแบบข้อมูลเก่า ใช้กับระบบปัจจุบันไม่ได้ ต้องเทรนใหม่")
     mr.set_active(model.id)
     clear_cache()
     return {"message": f"ตั้ง {model.file} เป็นเวอร์ชันที่ใช้งานแล้ว", "active_version": model.file}

@@ -12,8 +12,8 @@ KINDS = ("ปุ่ม", "ฟังก์ชัน", "เปิดหน้า")
 # ผู้ทำ: ตามบทบาทของคนที่ล็อกอิน (ไม่ได้ล็อกอิน = ดูจากพื้นที่ที่ใช้งาน)
 ACTORS = ("แอดมิน", "ล่าม", "ผู้ใช้")
 ROLE_ACTORS = {"admin": "แอดมิน", "contributor": "ล่าม", "user": "ผู้ใช้"}
-# คอลัมน์ที่ส่งให้หน้าเว็บ / CSV
-COLUMNS = ("ts", "actor", "kind", "action", "detail", "page", "method", "path", "status", "device", "ip")
+# คอลัมน์ที่ส่งให้หน้าเว็บ / CSV (ไม่ส่ง IP และรหัสเครื่องออกไป: เก็บไว้ใน database เพื่อตรวจสอบความปลอดภัยเท่านั้น)
+COLUMNS = ("ts", "actor", "kind", "action", "detail", "page", "method", "path", "status")
 
 
 # หาผู้ทำ: ล็อกอินอยู่ = ตามบทบาท / ไม่ได้ล็อกอิน = ผู้ใช้ทั่วไป (path เก็บไว้ในพารามิเตอร์เพื่อให้เรียกแบบเดิมได้)
@@ -66,7 +66,7 @@ def _to_dict(log: ActivityLog, user_name: str | None) -> dict:
     # ส่งเป็นเวลาท้องถิ่นไม่มี timezone รูปแบบเดียวกับ log เดิม (หน้าเว็บตัดวันที่/เวลาจากข้อความ)
     data["ts"] = log.ts.astimezone().replace(tzinfo=None).isoformat(timespec="seconds")
     data["user_id"] = log.user_id
-    data["user_name"] = user_name
+    data["user_name"] = user_name or None
     return data
 
 
@@ -79,23 +79,27 @@ def _parse_ts(value: str | None) -> datetime | None:
 
 
 # ค้นหา log ตามตัวกรอง คืน (รายการเรียงจากใหม่ไปเก่า, จำนวนทั้งหมดที่ตรงตัวกรอง)
-def query(actor=None, kind=None, q=None, date_from=None, date_to=None, limit=50, offset=0):
+#   hide_pages = ไม่เอา log "เปิดหน้า" (มีเยอะมาก บังการกระทำที่สำคัญ) / failed = เฉพาะที่ไม่สำเร็จ
+def query(actor=None, kind=None, q=None, date_from=None, date_to=None, limit=50, offset=0, hide_pages=False, failed=False):
     where = []
     if actor:
         where.append(ActivityLog.actor == actor)
     if kind:
         where.append(ActivityLog.kind == kind)
+    elif hide_pages:
+        where.append(ActivityLog.kind != "เปิดหน้า")
+    if failed:
+        where.append(ActivityLog.status >= 400)
     if q:
         like = f"%{q}%"
-        cols = (ActivityLog.action, ActivityLog.detail, ActivityLog.page, ActivityLog.path,
-                ActivityLog.device, ActivityLog.ip, User.first_name, User.email)
+        cols = (ActivityLog.action, ActivityLog.detail, ActivityLog.page, User.first_name, User.last_name, User.email)
         where.append(or_(*(c.ilike(like) for c in cols)))
     if start := _parse_ts(date_from):
         where.append(ActivityLog.ts >= start)
     if end := _parse_ts(date_to):
         where.append(ActivityLog.ts < end)
 
-    base = select(ActivityLog, User.first_name).outerjoin(User, User.id == ActivityLog.user_id).where(*where)
+    base = select(ActivityLog, func.concat_ws(" ", User.first_name, User.last_name)).outerjoin(User, User.id == ActivityLog.user_id).where(*where)
     with SessionLocal() as db:
         total = db.scalar(select(func.count()).select_from(base.subquery()))
         rows = db.execute(

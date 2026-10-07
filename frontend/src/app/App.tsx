@@ -7,8 +7,10 @@ import AppRoutes from "./routes";
 // ชื่อหน้าภาษาไทยตามพาธ (ใช้บันทึก log การเปิดหน้า)
 const PAGE_NAMES: [string, string][] = [
   ["/admin/users", "แอดมิน › ผู้ใช้"],
-  ["/admin/versions", "แอดมิน › คลังคำ & เวอร์ชัน"],
-  ["/admin/logs", "แอดมิน › Log"],
+  ["/admin/vocabulary", "แอดมิน › คลังคำศัพท์"],
+  ["/admin/models", "แอดมิน › โมเดล"],
+  ["/admin/logs", "แอดมิน › บันทึกการใช้งาน"],
+  ["/profile", "โปรไฟล์"],
   ["/admin", "แอดมิน › แดชบอร์ด"],
   ["/contributor/library", "ล่าม › คลังคำศัพท์"],
   ["/contributor", "ล่าม › อัดคลิป"],

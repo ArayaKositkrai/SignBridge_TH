@@ -16,6 +16,8 @@ interface Props {
   onSpeak: (text: string) => void;
   onCommit: () => void;
   onClear: () => void;
+  // ลบคำล่าสุดออกจากประโยค (ระบบจับผิด)
+  onRemoveLast: () => void;
 }
 
 // ข้อความบอกสถานะการเชื่อมต่อ backend
@@ -62,7 +64,7 @@ function Gauge({ pct }: { pct: number }) {
 // แผงผลลัพธ์: คำที่กำลังแปล ความมั่นใจ ประโยค และปุ่มอ่านออกเสียง
 export default function ResultPanel(p: Props) {
   const pct = Math.round((p.result?.confidence ?? 0) * 100);
-  const current = p.words.join(" ");
+  const current = p.words.join("");
   const lastSentence = p.sentences[p.sentences.length - 1];
   const speakText = current || lastSentence || "";
 
@@ -78,9 +80,15 @@ export default function ResultPanel(p: Props) {
         <div className="flex items-center gap-4">
           <div className="min-h-[4.5rem] min-w-0 flex-1">
             {p.result ? (
-              <p key={p.result.text} className="text-gradient animate-fadeUp text-4xl font-bold leading-[1.25]">
-                {p.result.text}
-              </p>
+              <>
+                <p
+                  key={p.result.text}
+                  className={`animate-fadeUp text-4xl font-bold leading-[1.25] ${p.result.pending ? "text-navy/40" : "text-gradient"}`}
+                >
+                  {p.result.text}
+                </p>
+                {p.result.pending && <p className="text-xs text-ink/50">กำลังดูท่า… ทำท่าต่อให้จบ</p>}
+              </>
             ) : (
               <p className="flex h-[4.5rem] items-center text-lg text-ink/45">
                 {p.cameraOn ? "รอท่าภาษามือ…" : "เปิดกล้องเพื่อเริ่มแปล"}
@@ -126,14 +134,22 @@ export default function ResultPanel(p: Props) {
       >
         <div className="min-h-[4.5rem] rounded-xl bg-cream/80 p-3 ring-1 ring-sky/60">
           {p.words.length ? (
-            <p className="text-lg font-semibold leading-relaxed text-navy">
+            <div className="flex flex-wrap items-center gap-1.5">
               {p.words.map((w, i) => (
-                <span key={`${w}-${i}`} className="inline-block animate-fadeUp pr-1.5">
+                <span key={`${w}-${i}`} className="animate-fadeUp rounded-lg bg-white px-2 py-0.5 text-lg font-semibold text-navy ring-1 ring-sky">
                   {w}
                 </span>
               ))}
-              <span className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 animate-pulse bg-brand" />
-            </p>
+              <span className="inline-block h-5 w-0.5 animate-pulse bg-brand" />
+              <button
+                type="button"
+                onClick={p.onRemoveLast}
+                className="ml-auto rounded-lg px-2 py-1 text-xs font-semibold text-ink/55 hover:bg-sky/50 hover:text-navy"
+                title="ลบคำล่าสุด (ระบบจับผิด)"
+              >
+                ⌫ ลบคำล่าสุด
+              </button>
+            </div>
           ) : (
             <p className="text-sm text-ink/45">
               คำที่แปลได้จะต่อกันเป็นประโยคที่นี่ เมื่อลดมือลงประมาณ 2 วินาที ระบบจะจบประโยคให้อัตโนมัติ

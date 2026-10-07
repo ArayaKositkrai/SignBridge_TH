@@ -293,6 +293,8 @@ def _sample_dict(s: Sample, word: str, signer: str | None, has_video: bool = Fal
         "lh_present_rate": s.lh_present_rate,
         "rh_present_rate": s.rh_present_rate,
         "status": s.status,
+        # ชุดที่ใช้ตอนเทรน: train = เทรน, test = กันไว้ทดสอบ (แอดมินสลับได้)
+        "split": s.split,
         "created_at": s.created_at.astimezone().replace(tzinfo=None).isoformat(timespec="seconds"),
     }
 

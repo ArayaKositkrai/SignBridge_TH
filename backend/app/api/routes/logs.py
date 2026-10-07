@@ -36,6 +36,18 @@ ACTION_NAMES = {
     "DELETE /api/admin/users/{user_id}": "ลบผู้ใช้",
     "POST /api/admin/publish": "เผยแพร่โมเดล",
     "POST /api/admin/models/active": "เปลี่ยนเวอร์ชันโมเดลที่ใช้",
+    "PATCH /api/admin/vocabulary/{word}": "เลือกคำไว้เทรน",
+    "PUT /api/admin/test-split": "เลือกผู้แสดงชุดทดสอบ",
+    "PATCH /api/admin/samples/{sample_id}": "สลับคลิปเทรน/ทดสอบ",
+    "POST /api/auth/register": "สมัครสมาชิก",
+    "POST /api/auth/login": "เข้าสู่ระบบ",
+    "POST /api/auth/logout": "ออกจากระบบ",
+    "PATCH /api/profile": "แก้ไขโปรไฟล์",
+    "PUT /api/profile/card-image": "อัปโหลดรูปบัตรคนพิการ",
+    "DELETE /api/profile/card-image": "ลบรูปบัตรคนพิการ",
+    "POST /api/profile/password": "เปลี่ยนรหัสผ่าน",
+    "DELETE /api/profile/identities/{provider}": "เลิกเชื่อมบัญชี",
+    "DELETE /api/profile": "ลบบัญชีตัวเอง",
 }
 
 
@@ -85,19 +97,21 @@ def add_events(body: EventsIn, request: Request, user: dict | None = Depends(cur
 
 
 # ตัวกรองที่ใช้ร่วมกันระหว่างดูรายการและดาวน์โหลด
-def _filters(actor, kind, q, date_from, date_to) -> dict:
+def _filters(actor, kind, q, date_from, date_to, hide_pages=False, failed=False) -> dict:
     return {"actor": actor or None, "kind": kind or None, "q": (q or "").strip() or None,
-            "date_from": date_from or None, "date_to": date_to or None}
+            "date_from": date_from or None, "date_to": date_to or None, "hide_pages": hide_pages, "failed": failed}
 
 
 # รายการ log สำหรับแอดมิน (กรองตามผู้ทำ ประเภท คำค้น ช่วงวันที่ และแบ่งหน้า)
 @router.get("/api/admin/logs", dependencies=[Depends(require_admin)])
 def list_logs(
     actor: str | None = None, kind: str | None = None, q: str | None = None,
-    date_from: str | None = None, date_to: str | None = None,
+    date_from: str | None = None, date_to: str | None = None, hide_pages: bool = False, failed: bool = False,
     limit: int = Query(50, ge=1, le=MAX_PAGE), offset: int = Query(0, ge=0),
 ):
-    items, total = activity_log.query(**_filters(actor, kind, q, date_from, date_to), limit=limit, offset=offset)
+    items, total = activity_log.query(
+        **_filters(actor, kind, q, date_from, date_to, hide_pages, failed), limit=limit, offset=offset
+    )
     return {"items": items, "total": total, "today": activity_log.today_counts()}
 
 
@@ -105,16 +119,16 @@ def list_logs(
 @router.get("/api/admin/logs/export.csv", dependencies=[Depends(require_admin)])
 def export_logs(
     actor: str | None = None, kind: str | None = None, q: str | None = None,
-    date_from: str | None = None, date_to: str | None = None,
+    date_from: str | None = None, date_to: str | None = None, hide_pages: bool = False, failed: bool = False,
 ):
-    items, _ = activity_log.query(**_filters(actor, kind, q, date_from, date_to), limit=MAX_EXPORT)
+    items, _ = activity_log.query(**_filters(actor, kind, q, date_from, date_to, hide_pages, failed), limit=MAX_EXPORT)
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["วันที่เวลา", "ใคร", "ประเภท", "ทำอะไร", "รายละเอียด", "หน้า", "ฟังก์ชัน", "สถานะ", "เครื่อง", "IP"])
+    writer.writerow(["วันที่เวลา", "ผู้ใช้", "บทบาท", "ประเภท", "ทำอะไร", "รายละเอียด", "หน้า", "ผล"])
     for r in items:
-        func = f"{r['method']} {r['path']}" if r["method"] else ""
-        writer.writerow([r["ts"], r["actor"], r["kind"], r["action"], r["detail"] or "", r["page"] or "",
-                         func, r["status"] or "", r["device"] or "", r["ip"] or ""])
+        result = "" if r["status"] is None else ("สำเร็จ" if r["status"] < 400 else f"ไม่สำเร็จ ({r['status']})")
+        writer.writerow([r["ts"], r["user_name"] or "", r["actor"], r["kind"], r["action"], r["detail"] or "",
+                         r["page"] or "", result])
     return Response(
         "﻿" + buf.getvalue(),
         media_type="text/csv; charset=utf-8",
