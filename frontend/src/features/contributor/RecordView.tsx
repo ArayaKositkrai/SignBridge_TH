@@ -81,7 +81,6 @@ export default function RecordView() {
 
   const info = vocab.find((v) => v.word === current);
   const external = info ? Object.entries(info.external) : [];
-  const progress = Math.min(1, samples.length / TARGET_SAMPLES);
 
   return (
     <div className="grid gap-4 xl:h-[calc(100dvh-12.75rem)] xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-5">
@@ -136,14 +135,6 @@ export default function RecordView() {
                 {samples.length >= TARGET_SAMPLES ? "ครบตามที่แนะนำแล้ว อัดเพิ่มได้อีก" : `แนะนำอย่างน้อย ${TARGET_SAMPLES} คลิป`}
               </span>
               <span className="font-bold text-navy">{samples.length}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-sky/50">
-              <div
-                className={`h-full rounded-full transition-[width] duration-500 ${
-                  progress >= 1 ? "bg-emerald-500" : "bg-gradient-to-r from-brand to-royal"
-                }`}
-                style={{ width: `${progress * 100}%` }}
-              />
             </div>
           </div>
         )}

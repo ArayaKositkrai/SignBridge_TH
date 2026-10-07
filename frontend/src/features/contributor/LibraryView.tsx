@@ -160,7 +160,7 @@ export default function LibraryView() {
                 <th className="px-3 py-2 font-bold">คำ</th>
                 <th className="px-3 py-2 font-bold">หมวด</th>
                 <th className="px-3 py-2 font-bold">โมเดล</th>
-                <th className="px-3 py-2 font-bold">คลิปที่อัด</th>
+                <th className="px-3 py-2 text-right font-bold">คลิปที่อัด</th>
                 <th className="px-3 py-2 text-right font-bold">เฟรม</th>
                 <th className="px-3 py-2 text-right font-bold">ความยาว</th>
                 <th className="px-3 py-2 text-right font-bold">เห็นมือ</th>
@@ -172,7 +172,6 @@ export default function LibraryView() {
             <tbody className="divide-y divide-sky/60 bg-surface/70">
               {rows.map((v) => {
                 const d = v.data;
-                const ratio = Math.min(1, n(v) / TARGET_SAMPLES);
                 return (
                   <tr key={v.word} className="transition hover:bg-sky/20">
                     <td className="px-3 py-2">
@@ -186,17 +185,7 @@ export default function LibraryView() {
                     <td className="px-3 py-2">
                       <ModelBadge status={v.model} models={models} compact />
                     </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-sky/50">
-                          <div
-                            className={`h-full rounded-full ${ratio >= 1 ? "bg-emerald-500" : "bg-brand"}`}
-                            style={{ width: `${ratio * 100}%` }}
-                          />
-                        </div>
-                        <span className="tabular-nums">{n(v)}</span>
-                      </div>
-                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{n(v)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{d ? fmtNumber(d.frames) : "-"}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{d ? fmtDuration(d.duration_ms) : "-"}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${!d ? "" : d.hand_rate >= 0.6 ? "text-emerald-700" : "text-amber-700"}`}>

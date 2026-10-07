@@ -5,7 +5,6 @@ import PageTitle from "../../components/ui/PageTitle";
 import { fmtDuration, fmtNumber } from "../../lib/format";
 import { listSigners, type Split, type User } from "../admin/services/adminApi";
 import SplitNotice from "./components/SplitNotice";
-import { TARGET_SAMPLES } from "./constants";
 import type { ContributorContext } from "./context";
 import LibraryView from "./LibraryView";
 import RecordView from "./RecordView";
@@ -108,8 +107,6 @@ function ContributorLayout() {
     frames: words.reduce((n, w) => n + w.frames, 0),
     duration: words.reduce((n, w) => n + w.duration_ms, 0),
   };
-  const plan = vocab.filter((v) => v.to_record);
-  const planDone = plan.filter((v) => (v.data?.samples ?? 0) >= TARGET_SAMPLES).length;
 
   return (
     <>
@@ -196,25 +193,6 @@ function ContributorLayout() {
               ))}
             </dl>
           </div>
-
-          {/* ความคืบหน้าคำที่ทีมต้องอัดเอง */}
-          {plan.length > 0 && (
-            <Link to="/contributor/library" className="glass-card hidden transition hover:ring-2 hover:ring-brand/30 lg:block">
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-brand">คำที่ต้องอัด</h3>
-              <div className="mb-1 flex items-baseline justify-between text-sm">
-                <span className="text-ink/70">ครบ {TARGET_SAMPLES} คลิปแล้ว</span>
-                <b className="text-navy">
-                  {planDone}/{plan.length}
-                </b>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-sky/50">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-brand to-royal"
-                  style={{ width: `${(planDone / plan.length) * 100}%` }}
-                />
-              </div>
-            </Link>
-          )}
 
           {/* เคล็ดลับการอัด */}
           <div className="glass-card hidden lg:block">
