@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../components/ui/Card";
 import Icon, { type IconName } from "../../components/ui/Icon";
-import { fmtDate, fmtDuration, fmtNumber, fmtPct } from "../../lib/format";
+import { fmtNumber, fmtPct } from "../../lib/format";
 import { TARGET_SAMPLES } from "../contributor/constants";
 import PageHeader from "./components/PageHeader";
 import { getDashboard, versionLabel, type Dashboard } from "./services/adminApi";
@@ -52,7 +52,7 @@ function BarRow({ label, value, max, target }: { label: string; value: number; m
   );
 }
 
-// แดชบอร์ดแอดมิน: ตัวเลขรวม คลิปต่อคำ ผู้แสดง คุณภาพข้อมูล โมเดล และคลิปล่าสุด
+// แดชบอร์ดแอดมิน: ตัวเลขรวม คลิปต่อคำ ผู้แสดง คุณภาพข้อมูล และโมเดล
 export default function DashboardView() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +88,9 @@ export default function DashboardView() {
   return (
     <div className="flex flex-col gap-4">
       {header}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi icon="book" label="คำศัพท์" value={fmtNumber(t.words)} />
         <Kpi icon="camera" label="คลิป" value={fmtNumber(t.samples)} />
-        <Kpi icon="play" label="ความยาวรวม" value={fmtDuration(t.duration_ms)} />
-        <Kpi icon="hand" label="เฟรม skeleton" value={fmtNumber(t.frames)} />
         <Kpi icon="user" label="ผู้แสดง" value={fmtNumber(t.signers)} />
         <Kpi icon="users" label="ผู้ใช้" value={fmtNumber(t.users)} />
       </div>
@@ -154,53 +152,17 @@ export default function DashboardView() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="คลิปต่อผู้แสดง">
-          {data.signers.length ? (
-            <ul className="scrollbar-thin flex max-h-72 flex-col gap-2 overflow-y-auto pr-2">
-              {data.signers.map((s) => (
-                <BarRow key={s.name} label={s.name} value={s.samples} max={maxSigner} />
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-ink/60">ยังไม่มีข้อมูล</p>
-          )}
-        </Card>
-
-        <Card title="คลิปล่าสุด" className="lg:col-span-2">
-          {data.recent.length ? (
-            <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead className="text-left text-xs text-ink/60">
-                  <tr>
-                    <th className="py-1.5 pr-3 font-semibold">คำ</th>
-                    <th className="py-1.5 pr-3 font-semibold">ผู้แสดง</th>
-                    <th className="py-1.5 pr-3 font-semibold">ที่มา</th>
-                    <th className="py-1.5 pr-3 text-right font-semibold">เฟรม</th>
-                    <th className="py-1.5 font-semibold">เวลา</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-sky/60">
-                  {data.recent.map((s) => (
-                    <tr key={s.id}>
-                      <td className="py-1.5 pr-3 font-semibold text-navy">{s.word}</td>
-                      <td className="py-1.5 pr-3 text-ink/70">{s.signer ?? "-"}</td>
-                      <td className="py-1.5 pr-3 text-ink/70">{s.source === "record" ? "อัดกล้อง" : "อัปโหลด"}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">
-                        {s.frame_count}
-                        {s.fps ? <span className="text-ink/50"> @{s.fps}</span> : null}
-                      </td>
-                      <td className="py-1.5 text-xs text-ink/60">{fmtDate(s.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-ink/60">ยังไม่มีคลิป</p>
-          )}
-        </Card>
-      </div>
+      <Card title="คลิปต่อผู้แสดง">
+        {data.signers.length ? (
+          <ul className="scrollbar-thin flex max-h-72 flex-col gap-2 overflow-y-auto pr-2">
+            {data.signers.map((s) => (
+              <BarRow key={s.name} label={s.name} value={s.samples} max={maxSigner} />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink/60">ยังไม่มีข้อมูล</p>
+        )}
+      </Card>
     </div>
   );
 }

@@ -135,9 +135,7 @@ export default function RecordView() {
               <span className="text-ink/60">
                 {samples.length >= TARGET_SAMPLES ? "ครบตามที่แนะนำแล้ว อัดเพิ่มได้อีก" : `แนะนำอย่างน้อย ${TARGET_SAMPLES} คลิป`}
               </span>
-              <span className="font-bold text-navy">
-                {samples.length}/{TARGET_SAMPLES}
-              </span>
+              <span className="font-bold text-navy">{samples.length}</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-sky/50">
               <div

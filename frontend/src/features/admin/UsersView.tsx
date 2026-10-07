@@ -6,7 +6,6 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Dialog from "../../components/ui/Dialog";
 import Field from "../../components/ui/Field";
 import Icon from "../../components/ui/Icon";
-import Modal from "../../components/ui/Modal";
 import SearchInput from "../../components/ui/SearchInput";
 import Switch from "../../components/ui/Switch";
 import { fmtDate } from "../../lib/format";
@@ -71,7 +70,7 @@ function Avatar({ name, muted }: { name: string; muted?: boolean }) {
   );
 }
 
-// จัดการผู้ใช้: ตัวเลขสรุป (กดกรองได้) ค้นหา ตารางผู้ใช้ แก้ไขในหน้าต่างกลางจอ และเพิ่มผู้แสดง
+// จัดการผู้ใช้: ตัวเลขสรุป (กดกรองได้) ค้นหา ตารางผู้ใช้ แก้ไขและเพิ่มผู้แสดงในหน้าต่างกลางจอแบบเดียวกัน
 export default function UsersView() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -206,20 +205,14 @@ export default function UsersView() {
 
       <UserDialog
         user={selected}
-        isMe={selected?.id === me?.id}
-        onClose={() => setSelected(null)}
+        creating={adding}
+        isMe={!adding && selected?.id === me?.id}
+        onClose={() => (adding ? setAdding(false) : setSelected(null))}
+        onCreated={(u) => setUsers((prev) => [...prev, u])}
         onSaved={replace}
         onDeleted={(id) => {
           setUsers((prev) => prev.filter((x) => x.id !== id));
           setSelected(null);
-        }}
-      />
-      <AddPerformer
-        open={adding}
-        onClose={() => setAdding(false)}
-        onAdded={(u) => {
-          setUsers((prev) => [...prev, u]);
-          setAdding(false);
         }}
       />
     </>
@@ -261,18 +254,28 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 
 // หน้าต่างแก้ไขผู้ใช้ (กลางจอ): ซ้าย = บทบาท/สถานะ ขวา = ข้อมูลส่วนตัวเฉพาะที่บทบาทนั้นเก็บ
 function UserDialog({
-  user,
+  user: existing,
+  creating = false,
   isMe,
   onClose,
+  onCreated,
   onSaved,
   onDeleted,
 }: {
   user: User | null;
+  // true = โหมดเพิ่มผู้แสดงใหม่ (หน้าตาเหมือนตอนแก้ไข แต่เก็บค่าไว้ในฟอร์มจนกดบันทึก)
+  creating?: boolean;
   isMe: boolean;
   onClose: () => void;
+  onCreated: (u: User) => void;
   onSaved: (u: User) => void;
   onDeleted: (id: string) => void;
 }) {
+  // ค่าบทบาท/สถานะ/ชุดข้อมูลที่เลือกไว้ตอนเพิ่ม (ยังไม่ส่งไป backend)
+  const [draft, setDraft] = useState<{ role: Role; active: boolean; split: Split }>({ role: "contributor", active: true, split: "train" });
+  const user: User | null = creating
+    ? { id: "", name: "", first_name: "", last_name: null, email: null, role: draft.role, active: draft.active, can_login: true, split: draft.role === "user" ? null : draft.split, clips: 0 }
+    : existing;
   const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", disability_card_number: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -283,6 +286,7 @@ function UserDialog({
   // เปิดผู้ใช้คนใหม่: ใส่ค่าลงฟอร์ม ล้างข้อความ/รูปเดิม
   useEffect(() => {
     if (!user) return;
+    if (creating) setDraft({ role: "contributor", active: true, split: "train" });
     setForm({
       first_name: user.first_name ?? user.name,
       last_name: user.last_name ?? "",
@@ -296,11 +300,15 @@ function UserDialog({
       return null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, creating]);
 
   // บันทึกการเปลี่ยนแปลงแล้วแจ้งผล
   const save = async (changes: UserChanges, okText = "บันทึกแล้ว") => {
     if (!user) return;
+    if (creating) {
+      setDraft((d) => ({ ...d, role: changes.role ?? d.role, active: changes.active ?? d.active }));
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -316,6 +324,10 @@ function UserDialog({
   // เปลี่ยนชุดข้อมูลของคลิปทั้งหมดที่อัดในชื่อนี้
   const saveSplit = async (split: Split) => {
     if (!user || user.split === split) return;
+    if (creating) {
+      setDraft((d) => ({ ...d, split }));
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -334,9 +346,45 @@ function UserDialog({
   const leftoverCard = !!user && !fields.card && (!!user.disability_card_number || !!user.has_card_image);
 
   // ส่งฟอร์มข้อมูลส่วนตัว (ส่งเฉพาะช่องที่เปลี่ยน และเฉพาะช่องที่บทบาทนี้เก็บ)
+  const create = async () => {
+    setBusy(true);
+    setMsg(null);
+    let created: User;
+    try {
+      created = await addUser(form.first_name.trim(), draft.role);
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof Error ? err.message : "เพิ่มไม่สำเร็จ" });
+      setBusy(false);
+      return;
+    }
+    try {
+      // backend สร้างได้ด้วยชื่อเท่านั้น ที่เหลือตั้งต่อด้วย API เดียวกับตอนแก้ไข
+      const changes: UserChanges = {};
+      if (form.last_name.trim()) changes.last_name = form.last_name.trim();
+      if (form.phone.replace(/\D/g, "")) changes.phone = form.phone;
+      if (fields.card && form.disability_card_number.replace(/\D/g, "")) changes.disability_card_number = form.disability_card_number;
+      if (!draft.active) changes.active = false;
+      if (Object.keys(changes).length) created = await updateUser(created.id, changes);
+      if (draft.role !== "user" && draft.split === "test") created = { ...created, ...(await setUserSplit(created.id, "test")) };
+    } catch (err) {
+      // เพิ่มสำเร็จแล้วแต่ตั้งค่าต่อไม่ได้ ใส่เข้ารายการไว้ แล้วบอกให้ไปแก้ในหน้าแก้ไข
+      onCreated(created);
+      setMsg({ ok: false, text: `เพิ่มแล้ว แต่ตั้งค่าต่อไม่สำเร็จ (${err instanceof Error ? err.message : "ผิดพลาด"}) กรุณาแก้ในหน้าแก้ไข` });
+      setBusy(false);
+      return;
+    }
+    onCreated(created);
+    setBusy(false);
+    onClose();
+  };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!user || !form.first_name.trim()) return;
+    if (creating) {
+      void create();
+      return;
+    }
     const changes: UserChanges = {};
     if (form.first_name.trim() !== (user.first_name ?? user.name)) changes.first_name = form.first_name.trim();
     if (form.last_name.trim() !== (user.last_name ?? "")) changes.last_name = form.last_name.trim();
@@ -380,14 +428,18 @@ function UserDialog({
       <Dialog
         open={!!user}
         size="xl"
-        title={user ? `แก้ไขผู้ใช้ · ${user.name}` : ""}
-        subtitle={performer ? "ผู้แสดง (ไม่มีบัญชีเข้าสู่ระบบ)" : user?.email}
+        title={creating ? "เพิ่มผู้แสดง" : user ? `แก้ไขผู้ใช้ · ${user.name}` : ""}
+        subtitle={creating ? "ผู้แสดง (ยังไม่มีบัญชีเข้าสู่ระบบ)" : performer ? "ผู้แสดง (ไม่มีบัญชีเข้าสู่ระบบ)" : user?.email}
         onClose={onClose}
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button size="sm" variant="ghost" icon="trash" className="text-danger" disabled={busy || isMe} onClick={() => setConfirmDelete(true)}>
-              ลบผู้ใช้
-            </Button>
+            {creating ? (
+              <span />
+            ) : (
+              <Button size="sm" variant="ghost" icon="trash" className="text-danger" disabled={busy || isMe} onClick={() => setConfirmDelete(true)}>
+                ลบผู้ใช้
+              </Button>
+            )}
             <div className="flex flex-wrap items-center justify-end gap-2">
               {msg && <span className={`text-sm ${msg.ok ? "text-emerald-700" : "text-danger"}`}>{msg.text}</span>}
               <Button variant="ghost" onClick={onClose}>
@@ -477,8 +529,8 @@ function UserDialog({
                 </div>
               )}
               <dl className="grid grid-cols-2 gap-2">
-                <Fact label="สมัครเมื่อ">{fmtDate(user.created_at)}</Fact>
-                <Fact label="เข้าใช้ล่าสุด">{performer ? "–" : ago(user.last_login_at)}</Fact>
+                <Fact label="สมัครเมื่อ">{creating ? "–" : fmtDate(user.created_at)}</Fact>
+                <Fact label="เข้าใช้ล่าสุด">{performer || creating ? "–" : ago(user.last_login_at)}</Fact>
               </dl>
             </section>
 
@@ -554,48 +606,5 @@ function UserDialog({
         {!performer && <p className="mt-2 text-xs text-ink/60">ถ้าแค่ไม่ให้เข้าใช้ชั่วคราว ให้ปิดสวิตช์ "เปิดใช้งาน" แทน</p>}
       </ConfirmDialog>
     </>
-  );
-}
-
-// หน้าต่างเพิ่มผู้แสดง: ชื่อคนที่ทำท่าในคลิป (ไม่มีอีเมล ล็อกอินไม่ได้)
-function AddPerformer({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (u: User) => void }) {
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // เพิ่มผู้แสดงจากฟอร์ม
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      onAdded(await addUser(name.trim(), "contributor"));
-      setName("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "เพิ่มไม่สำเร็จ");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal open={open} title="เพิ่มผู้แสดง" onClose={onClose}>
-      <p className="mb-3 text-sm text-ink/70">
-        ใช้เป็นชื่อ "ผู้แสดง" ตอนล่ามอัดคลิป (คนที่ทำท่าในคลิป) ไม่มีบัญชีเข้าสู่ระบบ — ถ้าต้องการให้คนนั้นเข้าพื้นที่ล่ามเอง
-        ให้เขาสมัครสมาชิกแล้วเปลี่ยนบทบาทเป็นล่ามแทน
-      </p>
-      <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-3">
-        <Field label="ชื่อผู้แสดง" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="เช่น ล่ามสมศรี" error={error} autoFocus />
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" type="button" onClick={onClose}>
-            ยกเลิก
-          </Button>
-          <Button type="submit" icon="plus" disabled={busy || !name.trim()}>
-            เพิ่ม
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }

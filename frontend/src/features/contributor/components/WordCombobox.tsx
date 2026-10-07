@@ -162,7 +162,7 @@ export default function WordCombobox({ value, onChange, vocab, words, target }: 
                   }`}
                 >
                   {done && <Icon name="check" size={11} />}
-                  {o.samples}/{target}
+                  {o.samples}
                 </span>
               </li>
             );

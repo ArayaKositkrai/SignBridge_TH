@@ -194,9 +194,7 @@ export default function LibraryView() {
                             style={{ width: `${ratio * 100}%` }}
                           />
                         </div>
-                        <span className="tabular-nums">
-                          {n(v)}/{TARGET_SAMPLES}
-                        </span>
+                        <span className="tabular-nums">{n(v)}</span>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{d ? fmtNumber(d.frames) : "-"}</td>
