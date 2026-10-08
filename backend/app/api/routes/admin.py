@@ -81,6 +81,12 @@ class TrainWordIn(BaseModel):
     in_train_set: bool
 
 
+# ข้อมูลที่รับตอนเลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน
+class TrainWordsIn(BaseModel):
+    words: list[str] = Field(min_length=1, max_length=5000)
+    in_train_set: bool
+
+
 # คำใหม่ที่แอดมินเพิ่มเข้าคลัง (หมวด, ต้องให้ล่ามอัดไหม)
 class WordIn(BaseModel):
     word: str = Field(min_length=1, max_length=50)
@@ -281,6 +287,12 @@ def add_word(body: WordIn):
         db.add(Word(word=word, category=(body.category or "").strip() or None, to_record=body.to_record))
         db.commit()
     return {"word": word}
+
+
+# เลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน (ปุ่ม "เลือกเทรนทั้งหมด" ในหน้าคลังคำศัพท์)
+@router.post("/vocabulary/train-set", dependencies=ADMIN)
+def set_train_words(body: TrainWordsIn):
+    return {"updated": ds.set_in_train_set_many(body.words, body.in_train_set), "in_train_set": body.in_train_set}
 
 
 # เลือก/ไม่เลือกคำไว้เทรนโมเดล (คอลัมน์ "เทรน" ในหน้าคลังคำศัพท์) มีผลในการเทรนครั้งถัดไป

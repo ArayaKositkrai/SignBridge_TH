@@ -189,6 +189,13 @@ export const setTrainWord = (word: string, inTrainSet: boolean) =>
     json("PATCH", { in_train_set: inTrainSet }),
   );
 
+// เลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน
+export const setTrainWords = (words: string[], inTrainSet: boolean) =>
+  send<{ updated: number; in_train_set: boolean }>(
+    `${BASE}/vocabulary/train-set`,
+    json("POST", { words, in_train_set: inTrainSet }),
+  );
+
 // ดึงรายการไฟล์โมเดล
 export const listModels = () => send<{ models: ModelFile[] }>(`${BASE}/models`).then((r) => r.models);
 // เลือกเวอร์ชันโมเดลที่ระบบใช้

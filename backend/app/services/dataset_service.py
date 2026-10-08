@@ -5,7 +5,7 @@ from datetime import datetime
 
 import numpy as np
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Contributor, Sample, Word, WordExternalSource
@@ -382,6 +382,15 @@ def vocabulary_items() -> list[dict]:
 
 
 # เลือก/ไม่เลือกคำนี้ไว้เทรนโมเดล (words.in_train_set) คืน False ถ้าไม่พบคำ
+# เลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน คืนจำนวนคำที่พบและบันทึก
+def set_in_train_set_many(words: list[str], value: bool) -> int:
+    clean = {clean_word(w) for w in words}
+    with SessionLocal() as db:
+        result = db.execute(update(Word).where(Word.word.in_(clean)).values(in_train_set=value))
+        db.commit()
+    return result.rowcount
+
+
 def set_in_train_set(word: str, value: bool) -> bool:
     with SessionLocal() as db:
         row = db.scalar(select(Word).where(Word.word == clean_word(word)))

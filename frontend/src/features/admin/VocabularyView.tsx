@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Dialog from "../../components/ui/Dialog";
 import Field from "../../components/ui/Field";
 import Icon from "../../components/ui/Icon";
 import Modal from "../../components/ui/Modal";
 import SearchInput from "../../components/ui/SearchInput";
 import Switch from "../../components/ui/Switch";
+import { useToast } from "../../components/ui/Toast";
 import { HintIcon } from "../../components/ui/Tooltip";
 import { fmtDate } from "../../lib/format";
 import { listSamples, type ModelsBrief, type SampleMeta } from "../contributor/services/contributorApi";
@@ -14,7 +16,7 @@ import DataTable, { type Column } from "./components/DataTable";
 import PageHeader from "./components/PageHeader";
 import StatCards, { type Stat } from "./components/StatCards";
 import Toolbar, { FilterSelect } from "./components/Toolbar";
-import { addWord, getVocabulary, setSampleSplit, setTrainWord, type VocabItem } from "./services/adminApi";
+import { addWord, getVocabulary, setSampleSplit, setTrainWord, setTrainWords, type VocabItem } from "./services/adminApi";
 
 // จำนวนคลิปที่ล่ามอัดขั้นต่ำต่อคำ ที่ train.py นำไปเทรน (ตรงกับ min_recorded_clips ใน ml/configs/train_words.json)
 const MIN_RECORDED_CLIPS = 5;
@@ -59,6 +61,10 @@ export default function VocabularyView() {
   const [open, setOpen] = useState<VocabItem | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // งานเลือก/ยกเลิกเทรนหลายคำที่รอยืนยัน
+  const [bulk, setBulk] = useState<{ next: boolean; words: string[]; skipped: number } | null>(null);
+  const toast = useToast();
 
   // โหลดคลังคำ
   const refresh = useCallback(async () => {
@@ -85,7 +91,38 @@ export default function VocabularyView() {
       await setTrainWord(v.word, next);
     } catch (e) {
       setVocab((list) => list.map((x) => (x.word === v.word ? { ...x, in_train_set: !next } : x)));
-      setError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+      toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    }
+  };
+
+  // เลือก/ยกเลิกเทรนทุกคำที่แสดงอยู่ (ตามคำค้น หมวด และตัวกรอง) → เปิดกล่องยืนยันก่อน
+  //   ตอนเลือก: เอาเฉพาะคำที่มีข้อมูลพอเทรน (มีคลิป TSL หรือล่ามอัดครบ) คำที่ไม่มีข้อมูลเลือกไปก็ไม่ถูกเทรน
+  const askBulkTrain = (next: boolean) => {
+    const words = rows.filter((v) => v.in_train_set !== next && (!next || trainable(v))).map((v) => v.word);
+    const skipped = next ? rows.filter((v) => !v.in_train_set && !trainable(v)).length : 0;
+    if (!words.length) {
+      toast.info(next ? "คำที่แสดงอยู่ถูกเลือกไว้เทรนครบแล้ว (หรือยังไม่มีข้อมูลพอเทรน)" : "ไม่มีคำที่เลือกไว้เทรนในรายการนี้");
+      return;
+    }
+    setBulk({ next, words, skipped });
+  };
+
+  // บันทึกหลังกดยืนยัน (อัปเดตหน้าจอทันที ถ้าบันทึกไม่สำเร็จค่อยคืนค่าเดิม)
+  const runBulkTrain = async () => {
+    if (!bulk) return;
+    const { next, words } = bulk;
+    const set = new Set(words);
+    setBulkBusy(true);
+    setVocab((list) => list.map((x) => (set.has(x.word) ? { ...x, in_train_set: next } : x)));
+    try {
+      await setTrainWords(words, next);
+      toast.success(next ? `เลือก ${words.length} คำไว้เทรนแล้ว มีผลเมื่อเทรนครั้งถัดไป` : `ยกเลิกการเทรน ${words.length} คำแล้ว`);
+    } catch (e) {
+      setVocab((list) => list.map((x) => (set.has(x.word) ? { ...x, in_train_set: !next } : x)));
+      toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setBulkBusy(false);
+      setBulk(null);
     }
   };
 
@@ -182,6 +219,13 @@ export default function VocabularyView() {
       />
       <StatCards stats={stats} active={filter} onSelect={(f) => setFilter(f || "all")} />
       <Toolbar>
+        {/* เลือก/ยกเลิกเทรนทุกคำที่แสดงอยู่ (ใช้ร่วมกับคำค้น หมวด และตัวกรองข้างขวา) */}
+        <Button variant="soft" size="sm" icon="check" onClick={() => askBulkTrain(true)} disabled={loading || bulkBusy}>
+          เลือกเทรนทั้งหมด
+        </Button>
+        <Button variant="ghost" size="sm" icon="close" onClick={() => askBulkTrain(false)} disabled={loading || bulkBusy}>
+          ยกเลิกทั้งหมด
+        </Button>
         <SearchInput value={q} onChange={setQ} placeholder="ค้นหาคำ" className="min-w-[220px] flex-1" />
         <FilterSelect
           label="หมวด"
@@ -207,6 +251,26 @@ export default function VocabularyView() {
         empty="ไม่พบคำตามที่ค้นหา"
       />
 
+      <ConfirmDialog
+        open={!!bulk}
+        title={bulk?.next ? "เลือกคำไว้เทรน" : "ยกเลิกการเทรน"}
+        confirmLabel={bulk?.next ? `เลือก ${bulk.words.length} คำ` : `ยกเลิก ${bulk?.words.length ?? 0} คำ`}
+        danger={bulk ? !bulk.next : false}
+        busy={bulkBusy}
+        onConfirm={() => void runBulkTrain()}
+        onClose={() => setBulk(null)}
+      >
+        {bulk?.next ? (
+          <>
+            เลือกคำที่แสดงอยู่ <b>{bulk.words.length} คำ</b> ไว้เทรน มีผลเมื่อเทรนครั้งถัดไป
+            {bulk.skipped > 0 && <p className="mt-2 text-ink/60">ข้าม {bulk.skipped} คำที่ยังไม่มีข้อมูลพอเทรน</p>}
+          </>
+        ) : (
+          <>
+            เอาคำที่แสดงอยู่ <b>{bulk?.words.length ?? 0} คำ</b> ออกจากการเทรน มีผลเมื่อเทรนครั้งถัดไป
+          </>
+        )}
+      </ConfirmDialog>
       <WordDialog item={open} brief={brief} onClose={() => setOpen(null)} onChanged={() => void refresh()} />
       <AddWordDialog
         open={adding}
