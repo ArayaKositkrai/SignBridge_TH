@@ -98,6 +98,20 @@ def upload(path: str, data: bytes, content_type: str = "application/octet-stream
     res.raise_for_status()
 
 
+# รายชื่อไฟล์ในโฟลเดอร์ของ Storage (ไม่รวมโฟลเดอร์ย่อย) ตั้งค่า Storage ไม่ครบ = ว่าง
+def list_names(prefix: str) -> set[str]:
+    if not (SUPABASE_URL and SERVICE_KEY):
+        return set()
+    res = httpx.post(
+        f"{SUPABASE_URL}/storage/v1/object/list/{BUCKET}",
+        headers={"Authorization": f"Bearer {SERVICE_KEY}", "apikey": SERVICE_KEY},
+        json={"prefix": prefix, "limit": 1000},
+        timeout=60,
+    )
+    res.raise_for_status()
+    return {o["name"] for o in res.json() if o.get("id")}
+
+
 # ที่เก็บไฟล์โมเดลใน Storage (backend ทุกเครื่องดาวน์โหลดจากที่นี่เมื่อในเครื่องไม่มีไฟล์)
 def model_storage_path(file: str) -> str:
     return f"models/{file}"
@@ -156,6 +170,11 @@ def ensure_training_columns(conn) -> None:
             ADD COLUMN IF NOT EXISTS error text
         """
     )
+
+
+# คอลัมน์ตัวชี้วัดของโมเดล (เพิ่มเองถ้ายังไม่มี): ผลวัดตอนเทรน + ผล Run Test (ดู metrics.py)
+def ensure_model_columns(conn) -> None:
+    conn.execute("ALTER TABLE models ADD COLUMN IF NOT EXISTS metrics jsonb")
 
 
 # หา id ของคำ (สร้างใหม่ถ้ายังไม่มี)

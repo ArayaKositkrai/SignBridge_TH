@@ -159,6 +159,8 @@ class Model(Base):
     train_seconds: Mapped[float | None] = mapped_column(Float)
     sources: Mapped[dict | None] = mapped_column(JSONB)
     bytes: Mapped[int | None] = mapped_column(BigInteger)
+    # ตัวชี้วัด {"validation": ตอนเทรน, "test": Run Test} (train.py/evaluate.py เพิ่มคอลัมน์นี้เองถ้ายังไม่มี)
+    metrics: Mapped[dict | None] = mapped_column(JSONB)
 
 
 # ตั้งค่าของระบบแบบ key → JSON (เช่น test_split) ตารางสร้างโดย app/db/schema.py

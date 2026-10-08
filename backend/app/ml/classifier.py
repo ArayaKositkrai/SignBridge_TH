@@ -31,7 +31,9 @@ class SignModel:
         data = np.load(path, allow_pickle=False)
         self.path = path
         self.labels = [str(x) for x in data["labels"]]
-        self.weights = {k: data[k] for k in data.files if k not in ("labels", "feature_version")}
+        self.weights = {k: data[k] for k in data.files if k not in ("labels", "feature_version", "threshold")}
+        # เกณฑ์ความมั่นใจที่ train.py คำนวณจากชุดทดสอบ (โมเดลรุ่นเก่าไม่มี = None ใช้ค่าตั้งต้นของตัวแปล)
+        self.threshold = float(data["threshold"]) if "threshold" in data.files else None
         if int(data["feature_version"]) != features().FEATURE_VERSION:
             raise ValueError("feature version mismatch")
         self.uses_face = self._trained_with_face()

@@ -10,12 +10,15 @@ import Switch from "../../components/ui/Switch";
 import { logEvent } from "../../lib/activityLog";
 import { fmtBytes, fmtDate } from "../../lib/format";
 import DataTable, { type Column } from "./components/DataTable";
+import ModelMetrics from "./components/ModelMetrics";
 import PageHeader from "./components/PageHeader";
 import SubTabs from "./components/SubTabs";
 import Toolbar, { FilterSelect } from "./components/Toolbar";
 import {
   getTestSplit,
+  deleteModel,
   getTrainStatus,
+  runModelTest,
   startTraining,
   getVocabulary,
   listModels,
@@ -68,7 +71,9 @@ export default function ModelsView() {
   const [models, setModels] = useState<ModelFile[]>([]);
   const [status, setStatus] = useState<TrainStatus | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [confirm, setConfirm] = useState<{ kind: "publish" } | { kind: "activate"; model: ModelFile } | null>(null);
+  const [confirm, setConfirm] = useState<
+    { kind: "publish" } | { kind: "activate"; model: ModelFile } | { kind: "delete"; model: ModelFile } | null
+  >(null);
   const [busy, setBusy] = useState(false);
 
   // โหลดรายการโมเดล
@@ -89,16 +94,44 @@ export default function ModelsView() {
     }
   }, []);
 
-  // โหลดตอนเปิดหน้า แล้วถามสถานะทุก 3 วินาทีขณะเทรน (ไม่ได้เทรน 15 วินาที เผื่อมีคนเริ่มเทรนจากเครื่อง)
+  // โหลดตอนเปิดหน้า แล้วถามสถานะทุก 3 วินาทีขณะเทรน/วัดผล (ไม่ได้เทรน 15 วินาที เผื่อมีคนเริ่มเทรนจากเครื่อง)
   const running = status?.status === "running";
+  const evaluating = status?.evaluation?.status === "running";
   useEffect(() => {
     void refreshModels();
   }, [refreshModels]);
   useEffect(() => {
     void refreshStatus();
-    const id = window.setInterval(() => void refreshStatus(), running ? 3000 : 15000);
+    const id = window.setInterval(() => void refreshStatus(), running || evaluating ? 3000 : 15000);
     return () => window.clearInterval(id);
-  }, [running, refreshStatus]);
+  }, [running, evaluating, refreshStatus]);
+
+  // Run Test เสร็จ: โหลดรายการโมเดลใหม่ (ผล Run Test ในตาราง) และแจ้งผล
+  const toast = useToast();
+  const prevEval = useRef(status?.evaluation?.status);
+  useEffect(() => {
+    const now = status?.evaluation?.status;
+    if (prevEval.current === "running" && (now === "succeeded" || now === "failed")) {
+      void refreshModels();
+      if (now === "succeeded") toast.success("Run Test เสร็จแล้ว");
+      else toast.error("Run Test ไม่สำเร็จ: " + (status?.evaluation?.log.slice(-1)[0] ?? "ดู log"));
+    }
+    prevEval.current = now;
+  }, [status, refreshModels, toast]);
+
+  // สั่ง Run Test ทุกเวอร์ชัน
+  const [runBusy, setRunBusy] = useState(false);
+  const runTest = async () => {
+    setRunBusy(true);
+    try {
+      toast.info((await runModelTest()).message);
+      await refreshStatus();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "เริ่ม Run Test ไม่สำเร็จ");
+    } finally {
+      setRunBusy(false);
+    }
+  };
 
   // เทรนเสร็จแล้วโหลดรายการโมเดลใหม่ (จะได้เห็น Draft ตัวใหม่)
   const finishedRef = useRef<number | null>(null);
@@ -118,8 +151,13 @@ export default function ModelsView() {
     if (!confirm) return;
     setBusy(true);
     try {
-      const r = confirm.kind === "publish" ? await publishModel() : await setActiveModel(confirm.model.version);
-      setMessage({ ok: true, text: r.message });
+      if (confirm.kind === "delete") {
+        await deleteModel(confirm.model.version);
+        setMessage({ ok: true, text: `ลบโมเดล ${confirm.model.label} แล้ว` });
+      } else {
+        const r = confirm.kind === "publish" ? await publishModel() : await setActiveModel(confirm.model.version);
+        setMessage({ ok: true, text: r.message });
+      }
       await refreshModels();
       void refreshStatus();
     } catch (e) {
@@ -174,16 +212,28 @@ export default function ModelsView() {
         ]}
       />
 
-      {tab === "overview" && <Overview active={active} draft={draft} />}
+      {tab === "overview" && (
+        <>
+          <ModelMetrics models={models} status={status} onRunTest={() => void runTest()} runBusy={runBusy} />
+          <Overview active={active} draft={draft} />
+        </>
+      )}
       {tab === "train" && <Training status={status} onStarted={() => void refreshStatus()} />}
       {tab === "split" && <SplitTab />}
-      {tab === "history" && <History models={models} onActivate={(m) => setConfirm({ kind: "activate", model: m })} />}
+      {tab === "history" && (
+        <History
+          models={models}
+          onActivate={(m) => setConfirm({ kind: "activate", model: m })}
+          onDelete={(m) => setConfirm({ kind: "delete", model: m })}
+        />
+      )}
 
       <ConfirmDialog
         open={!!confirm}
-        title={confirm?.kind === "publish" ? "เผยแพร่โมเดล Draft" : "เปลี่ยนเวอร์ชันที่ใช้"}
+        title={confirm?.kind === "publish" ? "เผยแพร่โมเดล Draft" : confirm?.kind === "delete" ? "ลบโมเดล" : "เปลี่ยนเวอร์ชันที่ใช้"}
         busy={busy}
-        confirmLabel={confirm?.kind === "publish" ? "เผยแพร่" : "ใช้เวอร์ชันนี้"}
+        danger={confirm?.kind === "delete"}
+        confirmLabel={confirm?.kind === "publish" ? "เผยแพร่" : confirm?.kind === "delete" ? "ลบโมเดล" : "ใช้เวอร์ชันนี้"}
         onClose={() => setConfirm(null)}
         onConfirm={() => void doConfirm()}
       >
@@ -193,10 +243,20 @@ export default function ModelsView() {
             · ย้อนกลับได้ที่แท็บประวัติเวอร์ชัน
           </>
         ) : (
-          confirm?.kind === "activate" && (
+          confirm?.kind === "activate" ? (
             <>
               เปลี่ยนโมเดลที่ใช้แปลภาษามือเป็น <b>{confirm.model.label}</b> ใช่ไหม?
             </>
+          ) : (
+            confirm?.kind === "delete" && (
+              <>
+                ลบโมเดล <b>{confirm.model.label}</b>
+                {confirm.model.draft && " (Draft)"} ออกจากระบบ ใช่ไหม?
+                <p className="mt-2 text-ink/60">
+                  ข้อมูลโมเดลและผลรายคำจะหายจากหน้านี้ ไฟล์ใน Storage ถูกย้ายไปเก็บที่ models/deleted/ (กู้คืนได้โดยผู้ดูแล)
+                </p>
+              </>
+            )
           )
         )}
       </ConfirmDialog>
@@ -617,7 +677,15 @@ function SplitTab() {
 }
 
 // แท็บประวัติเวอร์ชัน: ทุกเวอร์ชันพร้อมปุ่มย้อนไปใช้เวอร์ชันเก่า (รูปแบบเก่า/ไม่มีไฟล์ = ใช้ไม่ได้)
-function History({ models, onActivate }: { models: ModelFile[]; onActivate: (m: ModelFile) => void }) {
+function History({
+  models,
+  onActivate,
+  onDelete,
+}: {
+  models: ModelFile[];
+  onActivate: (m: ModelFile) => void;
+  onDelete: (m: ModelFile) => void;
+}) {
   const columns: Column<ModelFile>[] = [
     {
       key: "label",
@@ -632,6 +700,29 @@ function History({ models, onActivate }: { models: ModelFile[]; onActivate: (m: 
       ),
     },
     { key: "acc", header: "ทายถูก", align: "right", sort: (m) => m.val_accuracy, cell: (m) => <span className="tabular-nums">{pct(m.val_accuracy)}</span> },
+    {
+      key: "f1",
+      header: "F1",
+      align: "right",
+      hideBelow: "sm",
+      sort: (m) => m.validation?.f1,
+      cell: (m) => <span className="tabular-nums text-ink/65">{pct(m.validation?.f1)}</span>,
+    },
+    {
+      key: "test",
+      header: "Run Test",
+      align: "right",
+      sort: (m) => m.test?.accuracy,
+      cell: (m) =>
+        m.test?.accuracy == null ? (
+          <span className="text-ink/30">–</span>
+        ) : (
+          <span className="inline-flex items-center gap-1 tabular-nums">
+            {pct(m.test.accuracy)}
+            {m.test.seen_test && <HintIcon text="เวอร์ชันนี้เคยเห็นชุดทดสอบตอนเทรน ผล Run Test สูงเกินจริง" />}
+          </span>
+        ),
+    },
     {
       key: "top3",
       header: "ติด 3 อันดับ",
@@ -657,23 +748,38 @@ function History({ models, onActivate }: { models: ModelFile[]; onActivate: (m: 
       key: "act",
       header: <span className="sr-only">ใช้งาน</span>,
       align: "right",
-      cell: (m) =>
-        m.active ? null : m.compatible === false || m.file_missing ? (
-          <span className="inline-flex items-center gap-1.5 text-xs text-ink/50">
-            {m.file_missing ? "ไม่มีไฟล์" : "รูปแบบเก่า"}
-            <HintIcon
-              text={
-                m.file_missing
-                  ? "ไม่พบไฟล์โมเดลนี้ในเครื่องเซิร์ฟเวอร์ จึงเปิดใช้ไม่ได้"
-                  : "โมเดลนี้เทรนด้วยรูปแบบข้อมูลเก่า ใช้กับตัวแปลปัจจุบันไม่ได้ ต้องเทรนใหม่"
-              }
-            />
-          </span>
-        ) : (
-          <Button size="sm" variant="ghost" onClick={() => onActivate(m)}>
-            ใช้เวอร์ชันนี้
-          </Button>
-        ),
+      cell: (m) => (
+        <span className="inline-flex items-center justify-end gap-1">
+          {m.active ? null : m.compatible === false || m.file_missing ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-ink/50">
+              {m.file_missing ? "ไม่มีไฟล์" : "รูปแบบเก่า"}
+              <HintIcon
+                text={
+                  m.file_missing
+                    ? "ไม่พบไฟล์โมเดลนี้ทั้งในเครื่องเซิร์ฟเวอร์และใน Storage จึงเปิดใช้ไม่ได้ (ให้คนที่เทรนรัน upload_models)"
+                    : "โมเดลนี้เทรนด้วยรูปแบบข้อมูลเก่า ใช้กับตัวแปลปัจจุบันไม่ได้ ต้องเทรนใหม่"
+                }
+              />
+            </span>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={() => onActivate(m)}>
+              ใช้เวอร์ชันนี้
+            </Button>
+          )}
+          {/* ลบได้ทุกเวอร์ชันยกเว้นตัวที่ใช้งานอยู่ */}
+          {!m.active && (
+            <button
+              type="button"
+              onClick={() => onDelete(m)}
+              className="grid h-8 w-8 place-items-center rounded-lg text-danger transition hover:bg-danger/10"
+              aria-label={`ลบโมเดล ${m.label}`}
+              title="ลบโมเดล"
+            >
+              <Icon name="trash" size={15} />
+            </button>
+          )}
+        </span>
+      ),
     },
   ];
   return <DataTable rows={models} columns={columns} rowKey={(m) => m.version} initialSort={{ key: "label", dir: "desc" }} empty="ยังไม่มีโมเดล" />;

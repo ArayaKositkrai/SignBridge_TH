@@ -118,3 +118,19 @@ def move(src: str, dst: str) -> bool:
     if res.status_code != 200:
         raise HTTPException(status_code=502, detail=f"ย้ายไฟล์ใน Storage ไม่สำเร็จ ({res.status_code})")
     return True
+
+
+# ย้าย/เปลี่ยนชื่อไฟล์ใน bucket คืน False ถ้าไม่พบไฟล์ต้นทาง
+def move(source: str, destination: str) -> bool:
+    _check()
+    res = httpx.post(
+        f"{SUPABASE_URL}/storage/v1/object/move",
+        headers=_headers(),
+        json={"bucketId": STORAGE_BUCKET, "sourceKey": source, "destinationKey": destination},
+        timeout=TIMEOUT,
+    )
+    if res.status_code in (400, 404):
+        return False
+    if res.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"ย้ายไฟล์ใน Storage ไม่สำเร็จ ({res.status_code})")
+    return True

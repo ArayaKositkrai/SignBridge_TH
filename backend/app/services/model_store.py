@@ -11,6 +11,8 @@ from app.services import storage
 # ไฟล์โมเดลเก็บไว้ที่ Supabase Storage (models/<ชื่อไฟล์>) ด้วย — train.py อัปขึ้นไปหลังเทรนเสร็จ
 # backend เครื่องไหนไม่มีไฟล์ในโฟลเดอร์ ml/models จะดาวน์โหลดมาเก็บไว้เอง (โหลดครั้งเดียว ครั้งต่อไปใช้ไฟล์ในเครื่อง)
 PREFIX = "models"
+# โมเดลที่ลบแล้ว (เก็บไว้กู้คืนได้ และกันการใช้ชื่อไฟล์ซ้ำ)
+DELETED_PREFIX = "models/deleted"
 # หาไฟล์ใน Storage ไม่เจอ/โหลดไม่สำเร็จ รอเท่านี้ก่อนลองใหม่ (กันยิง Storage ทุกเฟรมตอนแปลภาษามือ)
 RETRY_SECONDS = 60
 # จำรายชื่อไฟล์ใน Storage ไว้ช่วงสั้น ๆ (หน้ารายการโมเดลเรียกบ่อย)
@@ -84,6 +86,20 @@ def fetch_in_background(file: str) -> None:
                 _downloading.discard(file)
 
     threading.Thread(target=run, daemon=True, name=f"fetch-model-{file}").start()
+
+
+# ลบโมเดลออกจากที่ใช้งาน: ลบไฟล์ในเครื่องนี้ และย้ายไฟล์ใน Storage ไปไว้ที่ models/deleted/
+#   ไม่ลบทิ้งจริงใน Storage: เก็บไว้กู้คืนได้ และกันการใช้ชื่อไฟล์ซ้ำ (train.py ดูชื่อในนี้ตอนตั้งเลขเวอร์ชัน
+#   ถ้าใช้ชื่อเดิมซ้ำ CDN ของ Storage อาจส่งไฟล์ตัวเก่าที่ cache ไว้ให้เครื่องอื่นแทนตัวใหม่)
+def remove(file: str) -> None:
+    (MODELS_DIR / _check_name(file)).unlink(missing_ok=True)
+    try:
+        if not storage.move(storage_path(file), f"{DELETED_PREFIX}/{file}"):
+            storage.remove([storage_path(file)])  # ย้ายไม่ได้ (เช่นมีชื่อซ้ำในถังลบ) ก็ลบทิ้ง
+    except HTTPException as e:
+        if e.status_code != 503:  # ยังไม่ตั้งค่า Storage = มีแค่ไฟล์ในเครื่อง ไม่ต้องทำอะไรต่อ
+            raise
+    _list_cache["at"] = 0.0
 
 
 # อัปไฟล์โมเดลในเครื่องขึ้น Storage
