@@ -8,7 +8,6 @@
 ขั้นตอน: แปลงเป็น feature (features.py) → แบ่งชุดทดสอบตามผู้แสดง (คนที่ทดสอบไม่อยู่ในชุดเทรน)
 → เทรน CNN 1 มิติ วัดความแม่นยำ → เทรนใหม่ด้วยข้อมูลทั้งหมด → บันทึกน้ำหนักเป็น .npz (backend ใช้แค่ numpy)
 """
-import argparse
 import os
 import random
 import re
@@ -26,7 +25,6 @@ from torch import nn
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import db  # noqa: E402
 import features as F  # noqa: E402
-from run_tracker import RunTracker  # noqa: E402
 
 # โฟลเดอร์ ml (อ้างจากตำแหน่งไฟล์นี้)
 ML_DIR = Path(__file__).resolve().parents[1]
@@ -60,29 +58,9 @@ def next_version(conn) -> tuple[int, int, int]:
     return (major, minor, patch + 1)
 
 
-# ตัวบันทึกความคืบหน้าลงตาราง training_runs (หน้าแอดมินอ่าน) — None = ยังไม่ได้เริ่ม
-_run: RunTracker | None = None
-
-
-# พิมพ์ข้อความทันที และเก็บลง log ของการเทรนใน database ให้หน้าแอดมินเห็น
+# พิมพ์ข้อความทันที (backend อ่าน log ระหว่างเทรน)
 def log(msg: str):
     print(msg, flush=True)
-    if _run:
-        _run.log(msg)
-
-
-# รายงานความคืบหน้า (ขั้น/รอบ/ค่า loss/ความแม่นยำ) ให้หน้าแอดมิน
-def progress(**values):
-    if _run:
-        _run.progress(**values)
-
-
-# บันทึก npz ลงไฟล์ชั่วคราวก่อนแล้วค่อยเปลี่ยนชื่อ (หยุดกลางคันจะไม่เหลือไฟล์ครึ่ง ๆ ที่เปิดไม่ได้)
-def save_npz_atomic(path: Path, compressed: bool = False, **arrays) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    with open(tmp, "wb") as f:
-        (np.savez_compressed if compressed else np.savez)(f, **arrays)
-    os.replace(tmp, path)
 
 
 # ดึงชุด TSL ที่แบ่งเป็นไฟล์ย่อยใน Storage (datasets/tsl_skeleton/) มารวมเป็น tsl_skeleton.npz (สร้างด้วย import_tsl_storage.py --upload)
@@ -106,12 +84,11 @@ def _fetch_tsl_from_storage():
     merged = {k: np.concatenate([p[k] for p in parts]) for k in ("points", "label", "signer", "source", "sample_id", "aspect")}
     merged["offsets"] = np.concatenate(offs)
     TSL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    save_npz_atomic(TSL_PATH, compressed=True, **merged)
+    np.savez_compressed(TSL_PATH, **merged)
     log(f"ดาวน์โหลดชุด TSL จาก Storage แล้ว ({len(merged['label'])} คลิป จาก {len(parts)} ไฟล์ย่อย)")
 
 
 # โหลดคลิปจากชุดข้อมูล TSL เฉพาะคำที่เลือก
-#   แต่ละคลิป = (ท่า, สัดส่วนภาพ, คำ, ผู้แสดง, แหล่ง, ใบหน้า, กันไว้ทดสอบรายคลิปไหม)
 def load_tsl(words: set[str], include_null: bool):
     if not TSL_PATH.is_file():
         # ไม่มีในเครื่อง: ลองดึงสำเนาที่เพื่อน/โน้ตบุ๊กอัปไว้ใน Storage (สร้างด้วย import_tsl_storage.py --upload)
@@ -120,34 +97,24 @@ def load_tsl(words: set[str], include_null: bool):
         except Exception as e:
             log(f"ไม่พบ tsl_skeleton.npz ทั้งในเครื่องและใน Storage ({e}) (รัน import_tsl_storage.py หรือ import_tsl.py ก่อน) — ใช้เฉพาะคลิปที่ล่ามอัด")
             return []
-    # อ่านแต่ละอาร์เรย์ออกมาครั้งเดียว (อ่านจาก NpzFile ในลูปจะคลายไฟล์บีบอัดใหม่ทุกครั้ง ช้ามาก)
-    with np.load(TSL_PATH, allow_pickle=False) as d:
-        pts, off, labels = d["points"], d["offsets"], d["label"]
-        aspects, signers, sources = d["aspect"], d["signer"], d["source"]
+    d = np.load(TSL_PATH, allow_pickle=False)
+    pts, off = d["points"], d["offsets"]
     out = []
-    for i, label in enumerate(labels):
+    for i, label in enumerate(d["label"]):
         label = str(label)
         if label in words or (include_null and label == NULL_LABEL):
             # ชุดข้อมูล TSL ไม่มีจุดใบหน้า (face = None)
-            out.append((pts[off[i] : off[i + 1]], float(aspects[i]), label, str(signers[i]), str(sources[i]), None, False))
+            out.append((pts[off[i] : off[i + 1]], float(d["aspect"][i]), label, str(d["signer"][i]), str(d["source"][i]), None))
     return out
 
 
 # โหลดคลิปที่ล่ามอัดผ่านระบบจาก database + Storage (เฉพาะคำที่มีคลิปพอ)
 def load_recorded(conn, min_clips: int):
     out = []
-    skipped = []
-    for c in db.recorded_samples(conn, min_clips, on_skip=lambda sid, why: skipped.append(f"{sid} ({why})")):
-        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"],
-                    c["split"] == "test"))
+    for c in db.recorded_samples(conn, min_clips):
+        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"]))
     if out:
         log(f"คลิปที่ล่ามอัด {len(out)} คลิป")
-    if skipped and skipped[0].startswith("ทั้งหมด "):
-        # ไม่มี Storage key: ข้ามคลิปของล่ามทุกคลิป (on_skip ส่งมาครั้งเดียวในรูป "ทั้งหมด N คลิป (เหตุผล)")
-        log(f"ไม่ได้ใช้คลิปที่ล่ามอัด{skipped[0].removeprefix('ทั้งหมด')}")
-    elif skipped:
-        more = " …" if len(skipped) > 10 else ""
-        log(f"ข้ามคลิปที่อ่านไม่ได้ {len(skipped)} คลิป: {', '.join(skipped[:10])}{more}")
     return out
 
 
@@ -172,35 +139,8 @@ class SignCNN(nn.Module):
         return self.fc(self.drop(pooled))
 
 
-# จำลองการทำภาษามือเร็ว ๆ ต่อกันเป็นประโยค: ต่อท่อนท้ายของคลิปอื่นไว้หน้า และท่อนต้นของคลิปอื่นไว้หลัง
-#   (ครึ่งหนึ่งของ batch; อีกครึ่งค้างท่าแรก/ท้ายของตัวเองแทน) แล้วย่อกลับเป็น t เฟรม
-#   ให้โมเดลชินกับหน้าต่างที่มีท่าของคำข้างเคียงปนเข้ามา — จำลองแล้วคนทำเร็ว 2 เท่าจับคำถูกเพิ่มจาก ~51% เป็น ~62%
-def mix_neighbors(x: torch.Tensor) -> torch.Tensor:
-    b, t, d = x.shape
-    k1 = int(torch.randint(0, t // 3 + 1, (1,)))
-    k2 = int(torch.randint(0, t // 3 + 1, (1,)))
-    if k1 == 0 and k2 == 0:
-        return x
-    o1, o2 = x[torch.randperm(b)], x[torch.randperm(b)]
-    m = (torch.rand(b, 1, 1) < 0.5).float()
-    before = m * o1[:, t - k1 :] + (1 - m) * x[:, :1].expand(b, k1, d)
-    after = m * o2[:, :k2] + (1 - m) * x[:, -1:].expand(b, k2, d)
-    ext = torch.cat([before, x, after], 1)
-    n = ext.shape[1]
-    where = torch.linspace(0, n - 1, t)
-    lo = where.floor().long().clamp(0, n - 1)
-    hi = (lo + 1).clamp(max=n - 1)
-    w = (where - lo.float()).view(1, t, 1)
-    ext = ext[:, lo] * (1 - w) + ext[:, hi] * w
-    # ช่อง "เห็นมือ" ต้องเป็น 0/1 เหมือนข้อมูลจริง
-    n2 = F.N_POINTS * 2
-    ext[:, :, n2 : n2 + 2] = (ext[:, :, n2 : n2 + 2] > 0.5).float()
-    return ext
-
-
-# สุ่มแปลงท่า: ท่าคำข้างเคียงปน ยืดแกนนอน (ชดเชยสัดส่วนภาพที่ประมาณ) หมุน ย่อขยาย เลื่อน สั่น และยืด/หดเวลา แล้วคำนวณความเร็วใหม่
+# สุ่มแปลงท่า: ยืดแกนนอน (ชดเชยสัดส่วนภาพที่ประมาณ) หมุน ย่อขยาย เลื่อน สั่น และยืด/หดเวลา แล้วคำนวณความเร็วใหม่
 def augment(x: torch.Tensor) -> torch.Tensor:
-    x = mix_neighbors(x)
     b, t, _ = x.shape
     n2 = F.N_POINTS * 2
     pos = x[:, :, :n2].reshape(b, t, F.N_POINTS, 2)
@@ -224,11 +164,10 @@ def augment(x: torch.Tensor) -> torch.Tensor:
     pos[:, :, F.LH] *= present[:, :, 0, None, None]
     pos[:, :, F.RH] *= present[:, :, 1, None, None]
     pos = pos.reshape(b, t, n2)
-    # ยืด/หดเวลา: ตัดหัวท้ายแบบสุ่ม (สูงสุด 1/4 ของคลิปต่อด้าน) แล้วยืดกลับเป็น t เฟรม (ประมาณค่าเชิงเส้นทั้ง batch พร้อมกัน)
-    #   ตัดได้มากให้โมเดลชินกับท่าที่เห็นไม่ครบ/ไม่พอดีหน้าต่าง แบบที่เจอตอนแปลสดจากกล้อง (จำลองแล้วจับคำถูกเพิ่มจาก ~73% เป็น ~76-81%)
+    # ยืด/หดเวลา: ตัดหัวท้ายแบบสุ่มแล้วยืดกลับเป็น t เฟรม (ประมาณค่าเชิงเส้นทั้ง batch พร้อมกัน)
     seq = torch.cat([pos, present, face, face_seen], 2)
-    a = torch.randint(0, t // 4 + 1, (b, 1)).float()
-    e = (t - 1) - torch.randint(0, t // 4 + 1, (b, 1)).float()
+    a = torch.randint(0, t // 8 + 1, (b, 1)).float()
+    e = (t - 1) - torch.randint(0, t // 8 + 1, (b, 1)).float()
     where = a + (e - a) * torch.linspace(0, 1, t)
     lo = where.floor().long().clamp(0, t - 1)
     hi = (lo + 1).clamp(max=t - 1)
@@ -244,8 +183,7 @@ def augment(x: torch.Tensor) -> torch.Tensor:
 
 
 # เทรนโมเดลหนึ่งรอบ คืนโมเดลที่เทรนแล้ว
-#   stage = ชื่อขั้นที่รายงานให้หน้าแอดมิน (validate = เทรนเพื่อวัดผล, final = เทรนจริง)
-def fit(X, y, n_class, mean, std, epochs=EPOCHS, report=None, stage="final"):
+def fit(X, y, n_class, mean, std, epochs=EPOCHS, report=None):
     torch.manual_seed(SEED)
     random.seed(SEED)
     model = SignCNN(X.shape[2], n_class)
@@ -267,7 +205,6 @@ def fit(X, y, n_class, mean, std, epochs=EPOCHS, report=None, stage="final"):
             opt.step()
             sched.step()
             total += loss.item() * len(idx)
-        progress(stage=stage, epoch=ep + 1, epochs=epochs, loss=round(total / len(Xt), 4))
         if report and (ep + 1) % 10 == 0:
             report(ep + 1, total / len(Xt), model)
     return model
@@ -294,17 +231,16 @@ def export_weights(model, mean, std) -> dict:
 # เทรนทั้งหมด: โหลดข้อมูล → แบ่งตามผู้แสดง → เทรน/วัดผล → เทรนด้วยข้อมูลทั้งหมด → บันทึกเวอร์ชัน draft
 def main():
     t0 = time.time()
-    torch.set_num_threads(max(1, (os.cpu_count() or 2) - 1))
+    torch.set_num_threads(max(1, os.cpu_count() - 1))
     conn = db.connect()
     cfg = db.train_settings()
     words = db.train_words(conn)
     log("--- เริ่มเทรนโมเดลแปลภาษามือ ---")
-    progress(stage="load")
 
     clips = load_tsl(words, cfg.get("include_null_class", True)) + load_recorded(conn, cfg.get("min_recorded_clips", 5))
-    feats, labels_raw, signers, sources, clip_test = [], [], [], [], []
+    feats, labels_raw, signers, sources = [], [], [], []
     n_face = 0
-    for seq, aspect, label, signer, source, face, is_test in clips:
+    for seq, aspect, label, signer, source, face in clips:
         f = F.clip_features(seq, aspect, face)
         n_face += face is not None and not np.isnan(face).all()
         if f is not None:
@@ -312,7 +248,6 @@ def main():
             labels_raw.append(label)
             signers.append(signer)
             sources.append(source)
-            clip_test.append(is_test)
     if not feats:
         raise SystemExit("ไม่มีข้อมูลสำหรับเทรน")
     labels = sorted(set(labels_raw))
@@ -324,22 +259,15 @@ def main():
     if missing:
         log(f"คำที่ไม่มีข้อมูล (ข้าม): {', '.join(missing)}")
 
-    # ชุดทดสอบ: แอดมินเลือกผู้แสดง (และ/หรือ รายคลิปของล่าม) ไว้ในหน้าแอดมิน → ใช้ตามนั้น
-    #   ไม่ได้เลือกอะไรเลย → สุ่มผู้แสดงแยกทีละชุดข้อมูล (ทุกชุดมีคนทดสอบอย่างน้อย 1 คน, คลิปของล่ามใช้เทรนทั้งหมด)
-    val_signers = db.test_signers(conn) & set(signers)
-    if val_signers or any(clip_test):
-        log(f"ชุดทดสอบตามที่แอดมินเลือก: ผู้แสดง {len(val_signers)} คน + กำหนดรายคลิป {sum(clip_test)} คลิป")
-    else:
-        rng = np.random.default_rng(SEED)
-        for src in sorted(set(sources) - {"ล่าม"}):
-            pool = sorted({s for s, x in zip(signers, sources) if x == src})
-            if len(pool) >= 2:
-                val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
-        log("ชุดทดสอบ: สุ่มอัตโนมัติ (แอดมินยังไม่ได้เลือกผู้แสดง)")
-    is_val = np.array([s in val_signers or t for s, t in zip(signers, clip_test)])
-    no_train = sorted({l for l, v in zip(labels_raw, is_val) if v} - {l for l, v in zip(labels_raw, is_val) if not v})
-    if no_train:
-        log(f"คำเตือน: คำที่ทุกคลิปอยู่ในชุดทดสอบ (ไม่มีคลิปให้เทรนตอนวัดผล): {', '.join(no_train)}")
+    # แบ่งชุดทดสอบตามผู้แสดง แยกทีละชุดข้อมูล (ทุกชุดมีคนทดสอบอย่างน้อย 1 คน)
+    # คลิปของล่ามยังมีน้อย จึงใช้เทรนทั้งหมด
+    rng = np.random.default_rng(SEED)
+    val_signers = set()
+    for src in sorted(set(sources) - {"ล่าม"}):
+        pool = sorted({s for s, x in zip(signers, sources) if x == src})
+        if len(pool) >= 2:
+            val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
+    is_val = np.array([s in val_signers for s in signers])
     metrics = {}
     if is_val.any() and (~is_val).any():
         mean, std = X[~is_val].reshape(-1, X.shape[2]).mean(0), X[~is_val].reshape(-1, X.shape[2]).std(0) + 1e-6
@@ -349,9 +277,8 @@ def main():
         def report(ep, loss, model):
             acc, top3, _ = evaluate(model, X[is_val], y[is_val], mean, std, labels)
             log(f"  รอบ {ep:3d}  loss {loss:.3f}  ถูก {acc:.1%}  ติด 3 อันดับ {top3:.1%}")
-            progress(stage="validate", val_accuracy=round(acc, 4), val_top3=round(top3, 4))
 
-        model = fit(X[~is_val], y[~is_val], len(labels), mean, std, report=report, stage="validate")
+        model = fit(X[~is_val], y[~is_val], len(labels), mean, std, report=report)
         acc, top3, per = evaluate(model, X[is_val], y[is_val], mean, std, labels)
         metrics = {"val_accuracy": round(acc, 4), "val_top3": round(top3, 4), "val_per_word": per, "val_clips": int(is_val.sum())}
         log(f"ผลบนผู้แสดงใหม่: ถูก {acc:.1%} · ติด 3 อันดับ {top3:.1%}")
@@ -361,9 +288,8 @@ def main():
     # เทรนใหม่ด้วยข้อมูลทั้งหมดสำหรับใช้งานจริง
     log("เทรนรอบสุดท้ายด้วยข้อมูลทั้งหมด…")
     mean, std = X.reshape(-1, X.shape[2]).mean(0), X.reshape(-1, X.shape[2]).std(0) + 1e-6
-    model = fit(X, y, len(labels), mean, std, stage="final")
+    model = fit(X, y, len(labels), mean, std)
     weights = export_weights(model, mean, std)
-    progress(stage="save", val_accuracy=metrics.get("val_accuracy"), val_top3=metrics.get("val_top3"))
 
     # ตรวจว่าตัวคำนวณแบบ numpy ให้ผลเท่ากับ torch
     model.eval()
@@ -377,63 +303,35 @@ def main():
     version = next_version(conn)
     name = MODEL_NAME.format(*version)
     path = MODELS_PATH / name
-    save_npz_atomic(path, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION), **weights)
+    np.savez(path, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION), **weights)
     seconds = round(time.time() - t0, 1)
 
     # บันทึกเป็นเวอร์ชัน draft (draft เดิมกลายเป็น archived) พร้อมคำที่รู้จักและผลรายคำ
-    #   บันทึกลง database ไม่สำเร็จ = ลบไฟล์โมเดลทิ้ง ไม่ให้เหลือไฟล์ที่ไม่มีใครอ้างถึง
     per_word = metrics.get("val_per_word", {})
-    try:
-        with conn.transaction():
-            conn.execute("UPDATE models SET status = 'archived' WHERE status = 'draft'")
-            model_id = conn.execute(
-                """
-                INSERT INTO models (version, file, status, trained_at, samples, feature_version, val_accuracy,
-                                    val_top3, val_clips, train_seconds, sources, bytes)
-                VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-                """,
-                (
-                    "v{}.{}.{}".format(*version), name, datetime.now().astimezone(), int(len(X)), str(F.FEATURE_VERSION),
-                    metrics.get("val_accuracy"), metrics.get("val_top3"), metrics.get("val_clips"), seconds,
-                    Jsonb(dict(Counter(sources))), path.stat().st_size,
-                ),
-            ).fetchone()[0]
-            for label in labels:
-                if label == NULL_LABEL:
-                    continue  # คลาส "ไม่ทำท่า" ไม่ใช่คำ (อยู่ในไฟล์โมเดลอย่างเดียว)
-                conn.execute(
-                    "INSERT INTO model_words (model_id, word_id, train_clips, val_accuracy) VALUES (%s, %s, %s, %s)",
-                    (model_id, db.word_id(conn, label), counts[label], per_word.get(label)),
-                )
-    except Exception:
-        path.unlink(missing_ok=True)
-        raise
-    finally:
-        conn.close()
+    with conn.transaction():
+        conn.execute("UPDATE models SET status = 'archived' WHERE status = 'draft'")
+        model_id = conn.execute(
+            """
+            INSERT INTO models (version, file, status, trained_at, samples, feature_version, val_accuracy,
+                                val_top3, val_clips, train_seconds, sources, bytes)
+            VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """,
+            (
+                "v{}.{}.{}".format(*version), name, datetime.now().astimezone(), int(len(X)), str(F.FEATURE_VERSION),
+                metrics.get("val_accuracy"), metrics.get("val_top3"), metrics.get("val_clips"), seconds,
+                Jsonb(dict(Counter(sources))), path.stat().st_size,
+            ),
+        ).fetchone()[0]
+        for label in labels:
+            if label == NULL_LABEL:
+                continue  # คลาส "ไม่ทำท่า" ไม่ใช่คำ (อยู่ในไฟล์โมเดลอย่างเดียว)
+            conn.execute(
+                "INSERT INTO model_words (model_id, word_id, train_clips, val_accuracy) VALUES (%s, %s, %s, %s)",
+                (model_id, db.word_id(conn, label), counts[label], per_word.get(label)),
+            )
+    conn.close()
     log(f"--- เทรนเสร็จ: {name} ({seconds} วินาที) ---")
-    return model_id
-
-
-# เริ่มเทรนพร้อมบันทึกความคืบหน้า/ผลลงตาราง training_runs (หน้าแอดมินแสดงผลจากตารางนี้)
-def run():
-    global _run
-    parser = argparse.ArgumentParser(description="เทรนโมเดลแปลภาษามือ (ผลเป็นเวอร์ชัน draft ให้แอดมินเผยแพร่)")
-    parser.add_argument("--force", action="store_true", help="เทรนแม้มีการเทรนอื่นที่ยังรันอยู่")
-    args = parser.parse_args()
-    _run = RunTracker(force=args.force)
-    try:
-        model_id = main()
-    except KeyboardInterrupt:
-        _run.finish("failed", error="ถูกยกเลิก (Ctrl+C)")
-        raise
-    except SystemExit as e:
-        _run.finish("failed", error=str(e.code) if e.code not in (None, 0) else "หยุดก่อนเทรนเสร็จ")
-        raise
-    except Exception as e:
-        _run.finish("failed", error=f"{type(e).__name__}: {e}")
-        raise
-    _run.finish("succeeded", model_id=model_id)
 
 
 if __name__ == "__main__":
-    run()
+    main()

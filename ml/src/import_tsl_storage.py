@@ -52,7 +52,17 @@ def read_labels(raw: bytes) -> dict[str, dict]:
     rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))
     if not rows or any(c not in rows[0] for c in NEED_COLS):
         raise SystemExit(f"labels/web_clips.csv ต้องมีคอลัมน์ {NEED_COLS} — รันโน้ตบุ๊กฉบับล่าสุดส่วน 6.2 แล้วอัปใหม่")
-    return {r["sample_id"]: {"label": r["label"].strip(), "signer": r["signer_id"], "source": r["source"]} for r in rows}
+    return {r["sample_id"]: {"label": r["label"].strip(), "signer": r["signer_id"], "source": r["source"],
+                             "aspect": _aspect(r.get("aspect"), r["source"])} for r in rows}
+
+
+# สัดส่วนภาพ (กว้าง/สูง) ต่อคลิป: ใช้ค่าจริงถ้ามีในตาราง (ชุดที่สกัดเอง เช่น THSL) ไม่งั้นใช้ค่าประมาณตามชุดข้อมูล
+def _aspect(value, source: str) -> float:
+    try:
+        a = float(value)
+    except (TypeError, ValueError):
+        a = float("nan")
+    return a if 0.2 < a < 5 else ASPECT.get(source, 1.0)
 
 
 # แปลงตาราง parquet หนึ่งไฟล์เป็นคลิป (ทำเหมือน import_tsl.build) คืน list ของ (sample_id, points(T,48,2))
@@ -93,7 +103,7 @@ def build(version: str) -> dict:
                 continue  # ไม่มีป้ายชื่อ = ข้าม (ตรงกับ import_tsl ที่ข้ามคลิปที่ไม่มีใน meta)
             out["points"].append(clip); out["len"].append(len(clip))
             out["label"].append(m["label"]); out["signer"].append(m["signer"]); out["source"].append(m["source"])
-            out["sample_id"].append(sid); out["aspect"].append(ASPECT.get(m["source"], 1.0))
+            out["sample_id"].append(sid); out["aspect"].append(m["aspect"])
         print(f"  โหลด {p}  ({len(out['label'])} คลิปสะสม)")
     if not out["label"]:
         raise SystemExit("ไม่มีคลิปที่ตรงกับป้ายชื่อเลย — ตรวจคอลัมน์ sample_id ในโน้ตบุ๊กกับ frames")
