@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Icon from "../../components/ui/Icon";
 import { HintIcon } from "../../components/ui/Tooltip";
@@ -15,6 +16,7 @@ import Toolbar, { FilterSelect } from "./components/Toolbar";
 import {
   getTestSplit,
   getTrainStatus,
+  startTraining,
   getVocabulary,
   listModels,
   publishModel,
@@ -173,7 +175,7 @@ export default function ModelsView() {
       />
 
       {tab === "overview" && <Overview active={active} draft={draft} />}
-      {tab === "train" && <Training status={status} />}
+      {tab === "train" && <Training status={status} onStarted={() => void refreshStatus()} />}
       {tab === "split" && <SplitTab />}
       {tab === "history" && <History models={models} onActivate={(m) => setConfirm({ kind: "activate", model: m })} />}
 
@@ -352,9 +354,27 @@ function Overview({ active, draft }: { active: ModelFile | null; draft: ModelFil
   );
 }
 
-// แท็บการเทรน: ขั้นตอน คำสั่ง ความคืบหน้า และ log
-function Training({ status }: { status: TrainStatus | null }) {
+// แท็บการเทรน: ปุ่มเริ่มเทรน ขั้นตอน คำสั่ง ความคืบหน้า และ log
+function Training({ status, onStarted }: { status: TrainStatus | null; onStarted: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const toast = useToast();
+  const busyRun = status?.status === "running";
+  const canTrain = status?.can_train_here ?? false;
+
+  // สั่งเทรนจากหน้าเว็บ (รอเช็กว่าสคริปต์เริ่มได้ ~4 วินาที)
+  const start = async () => {
+    setStarting(true);
+    try {
+      const r = await startTraining();
+      toast.success(r.message);
+      onStarted();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "เริ่มเทรนไม่สำเร็จ");
+    } finally {
+      setStarting(false);
+    }
+  };
   const r = status?.run;
   const prog = r?.progress ?? {};
   const fraction = status?.status === "succeeded" ? 1 : overall(prog);
@@ -375,7 +395,7 @@ function Training({ status }: { status: TrainStatus | null }) {
   const steps = [
     { title: "เลือกคำ", text: 'เปิดสวิตช์ "เทรน" ของคำที่ต้องการในหน้าคลังคำศัพท์' },
     { title: "เลือกชุดทดสอบ", text: 'แท็บ "ชุดทดสอบ" (ไม่เลือก = สุ่มให้เอง)' },
-    { title: "รันคำสั่งเทรน", text: "บนเครื่องที่มี torch ที่รากโปรเจกต์ (~1 นาที)" },
+    { title: "เริ่มเทรน", text: 'กดปุ่ม "เริ่มเทรน" ด้านล่าง หรือรันคำสั่งบนเครื่องที่มี torch (~1 นาที)' },
     { title: "ลองใช้แล้วเผยแพร่", text: 'ได้ Draft แล้วกด "ลองใช้ Draft" ด้านบน ถ้าดีกว่าค่อยเผยแพร่' },
   ];
 
@@ -394,8 +414,16 @@ function Training({ status }: { status: TrainStatus | null }) {
             </li>
           ))}
         </ol>
+        <div className="mt-4">
+          <Button icon="play" className="w-full" onClick={() => void start()} disabled={!status || !canTrain || busyRun || starting}>
+            {starting ? "กำลังเริ่ม…" : busyRun ? "กำลังเทรนอยู่" : "เริ่มเทรน"}
+          </Button>
+          {status && !canTrain && (
+            <p className="mt-2 text-xs text-ink/60">เครื่องเซิร์ฟเวอร์ไม่มี torch จึงเทรนจากหน้าเว็บไม่ได้ ให้รันคำสั่งด้านล่างบนเครื่องที่มี torch แทน</p>
+          )}
+        </div>
         {status && (
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-lg bg-deep px-3 py-2 font-mono text-xs text-white">{status.command}</code>
             <Button size="sm" variant="ghost" icon={copied ? "check" : "text"} onClick={() => void copy()}>
               {copied ? "คัดลอกแล้ว" : "คัดลอก"}

@@ -130,6 +130,8 @@ export interface TrainRun {
 export interface TrainStatus {
   status: "idle" | "running" | "stalled" | "succeeded" | "failed";
   command: string;
+  // เครื่อง backend เทรนเองได้ไหม (มี torch) — ไม่ได้ = ต้องรันคำสั่งเทรนจากเครื่อง
+  can_train_here?: boolean;
   run: TrainRun | null;
   active_version: string | null;
   draft_version: string | null;
@@ -204,6 +206,8 @@ export const setActiveModel = (version: string) =>
 
 // ดูสถานะการเทรน
 export const getTrainStatus = () => send<TrainStatus>(`${BASE}/train/status`);
+// สั่งเทรนจากหน้าเว็บ (รัน train.py บนเครื่อง backend)
+export const startTraining = () => send<{ message: string }>(`${BASE}/train`, { method: "POST" });
 // เผยแพร่โมเดล draft ให้ผู้ใช้ทั่วไปใช้
 export const publishModel = () => send<{ message: string }>(`${BASE}/publish`, { method: "POST" });
 

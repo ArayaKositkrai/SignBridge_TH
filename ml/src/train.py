@@ -4,6 +4,7 @@
 - ml/data/processed/tsl_skeleton.npz  (นำเข้าด้วย import_tsl.py) เฉพาะคำที่ words.in_train_set ใน database
 - คลิปที่ล่ามอัดผ่านระบบ: ตาราง samples + ไฟล์ .npz ใน Supabase Storage (คำที่มีคลิปถึงจำนวนขั้นต่ำ)
 ผลลัพธ์: ไฟล์ ml/models/model_signBridge_vX.Y.Z.npz + แถวในตาราง models (status = draft) และ model_words
+        และอัปไฟล์โมเดลขึ้น Supabase Storage (models/) ให้ backend ทุกเครื่องดาวน์โหลดไปใช้ได้
 
 ขั้นตอน: แปลงเป็น feature (features.py) → แบ่งชุดทดสอบตามผู้แสดง (คนที่ทดสอบไม่อยู่ในชุดเทรน)
 → เทรน CNN 1 มิติ วัดความแม่นยำ → เทรนใหม่ด้วยข้อมูลทั้งหมด → บันทึกน้ำหนักเป็น .npz (backend ใช้แค่ numpy)
@@ -410,6 +411,14 @@ def main():
         raise
     finally:
         conn.close()
+
+    # อัปไฟล์โมเดลขึ้น Storage (ไม่สำเร็จไม่ถือว่าเทรนล้ม ไฟล์ยังอยู่ในเครื่อง อัปทีหลังด้วย upload_models ได้)
+    try:
+        db.upload(db.model_storage_path(name), path.read_bytes())
+        log(f"อัปไฟล์โมเดลขึ้น Storage แล้ว ({db.model_storage_path(name)})")
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        log(f"อัปไฟล์โมเดลขึ้น Storage ไม่สำเร็จ ({e}) — เครื่องอื่นจะยังใช้โมเดลนี้ไม่ได้ "
+            "จนกว่าจะรัน: cd backend && python -m app.scripts.upload_models")
     log(f"--- เทรนเสร็จ: {name} ({seconds} วินาที) ---")
     return model_id
 

@@ -4,6 +4,7 @@ train.py สร้างตัวนี้ตอนเริ่ม แล้ว�
 ใช้การเชื่อมต่อ database แยกจากงานหลัก (บันทึกทันที ไม่ปนกับ transaction ตอนบันทึกโมเดล)
 """
 import json
+import os
 import socket
 import time
 from collections import deque
@@ -44,10 +45,11 @@ class RunTracker:
         self.last_flush = 0.0
         self.run_id = self.conn.execute(
             """
-            INSERT INTO training_runs (status, host, log, progress, heartbeat_at)
-            VALUES ('running', %s, '', %s, now()) RETURNING id
+            INSERT INTO training_runs (status, host, log, progress, heartbeat_at, started_by)
+            VALUES ('running', %s, '', %s, now(), %s) RETURNING id
             """,
-            (socket.gethostname(), json.dumps(self.state)),
+            # TRAIN_STARTED_BY = ผู้ใช้ที่กดเทรนจากหน้าเว็บ (รันจากเครื่องเอง = ไม่ทราบ)
+            (socket.gethostname(), json.dumps(self.state), os.environ.get("TRAIN_STARTED_BY") or None),
         ).fetchone()[0]
 
     # เขียน log และความคืบหน้าลง database (force = เขียนทันทีไม่รอรอบ)

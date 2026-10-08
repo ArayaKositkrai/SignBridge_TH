@@ -84,6 +84,25 @@ def download(path: str) -> bytes:
     return res.content
 
 
+# อัปโหลดไฟล์ขึ้น Storage (ทับของเดิมได้)
+def upload(path: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+    if not (SUPABASE_URL and SERVICE_KEY):
+        raise SystemExit("ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY (ดู .env ที่รากโปรเจกต์)")
+    res = httpx.post(
+        f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/{path}",
+        headers={"Authorization": f"Bearer {SERVICE_KEY}", "apikey": SERVICE_KEY,
+                 "Content-Type": content_type, "x-upsert": "true"},
+        content=data,
+        timeout=120,
+    )
+    res.raise_for_status()
+
+
+# ที่เก็บไฟล์โมเดลใน Storage (backend ทุกเครื่องดาวน์โหลดจากที่นี่เมื่อในเครื่องไม่มีไฟล์)
+def model_storage_path(file: str) -> str:
+    return f"models/{file}"
+
+
 # คลิปที่ล่ามอัด (ไม่นับคลิปที่ถูกปฏิเสธ) พร้อม skeleton จาก Storage
 #   คืน dict: word, signer, id, points (T,48,2), t_ms (T,), aspect, fps
 #             face (T,47,2) และ face_idx (47,) ถ้าไฟล์เป็นรูปแบบเวอร์ชัน 2 ขึ้นไป (ไม่มี = None)

@@ -3,6 +3,7 @@ import re
 from sqlalchemy import func, select, update
 
 from app.core.config import MODELS_DIR
+from app.services import model_store
 from app.db.models import Model, ModelWord, Word
 from app.db.session import SessionLocal
 
@@ -77,10 +78,16 @@ def list_models() -> list[dict]:
                 .group_by(ModelWord.model_id)
             ).all()
         )
+    remote = model_store.remote_files()
     out = []
     for m in rows:
         path = MODELS_DIR / m.file
-        out.append({"model": m, "word_count": counts.get(m.id), "exists": path.is_file()})
+        out.append({
+            "model": m,
+            "word_count": counts.get(m.id),
+            # มีไฟล์ในเครื่องนี้ หรือใน Storage (ดาวน์โหลดมาใช้ได้)
+            "exists": path.is_file() or m.file in remote,
+        })
     return out
 
 
