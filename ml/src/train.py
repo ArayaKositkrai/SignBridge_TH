@@ -4,6 +4,7 @@
 - ml/data/processed/tsl_skeleton.npz  (นำเข้าด้วย import_tsl.py) เฉพาะคำที่ words.in_train_set ใน database
 - คลิปที่ล่ามอัดผ่านระบบ: ตาราง samples + ไฟล์ .npz ใน Supabase Storage (คำที่มีคลิปถึงจำนวนขั้นต่ำ)
 ผลลัพธ์: ไฟล์ ml/models/model_signBridge_vX.Y.Z.npz + แถวในตาราง models (status = draft) และ model_words
+        และอัปไฟล์โมเดลขึ้น Supabase Storage (models/) ให้ backend ทุกเครื่องดาวน์โหลดไปใช้ได้
 
 ขั้นตอน: แปลงเป็น feature (features.py) → แบ่งชุดทดสอบตามผู้แสดง (คนที่ทดสอบไม่อยู่ในชุดเทรน)
 → เทรน CNN 1 มิติ วัดความแม่นยำ → เทรนใหม่ด้วยข้อมูลทั้งหมด → บันทึกน้ำหนักเป็น .npz (backend ใช้แค่ numpy)
@@ -24,6 +25,7 @@ from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import db  # noqa: E402
+import metrics as M  # noqa: E402
 import features as F  # noqa: E402
 
 # โฟลเดอร์ ml (อ้างจากตำแหน่งไฟล์นี้)
@@ -49,8 +51,13 @@ SEED = 7
 
 # หาเลขเวอร์ชันถัดไป: ยังไม่มี = 0.0.0, มีแล้ว = เลขท้ายของเวอร์ชันล่าสุด + 1
 # (ดูทั้งในตาราง models และไฟล์ในเครื่อง กันชื่อซ้ำ)
+#   รวมไฟล์ใน Storage ทั้งที่ใช้อยู่และที่ลบแล้ว (models/deleted/) ไม่ให้ใช้เลขเวอร์ชันที่ลบไปซ้ำ
 def next_version(conn) -> tuple[int, int, int]:
     names = [r[0] for r in conn.execute("SELECT file FROM models")] + [p.name for p in MODELS_PATH.iterdir()]
+    try:
+        names += list(db.list_names("models")) + list(db.list_names("models/deleted"))
+    except Exception as e:  # noqa: BLE001 — อ่าน Storage ไม่ได้ ใช้แค่ข้อมูลในเครื่องและ database
+        log(f"อ่านรายชื่อโมเดลใน Storage ไม่ได้ ({e})")
     found = [tuple(int(x) for x in m.groups()) for n in names if (m := VERSION_RE.match(n))]
     if not found:
         return (0, 0, 0)
@@ -215,10 +222,45 @@ def evaluate(model, X, y, mean, std, labels):
     model.eval()
     with torch.no_grad():
         logits = model((torch.tensor(X) - torch.tensor(mean)) / torch.tensor(std))
-    top3 = logits.topk(3, 1).indices.numpy()
+    top3 = logits.topk(min(3, logits.shape[1]), 1).indices.numpy()  # คำน้อยกว่า 3 คำ = ใช้เท่าที่มี
     pred = top3[:, 0]
     per = {labels[c]: round(float((pred[y == c] == c).mean()), 3) for c in np.unique(y)}
     return float((pred == y).mean()), float((top3 == y[:, None]).any(1).mean()), per
+
+
+# ความน่าจะเป็นของทุกคลาส (N, C) เป็น numpy สำหรับคำนวณตัวชี้วัด
+def predict_probs(model, X, mean, std) -> np.ndarray:
+    model.eval()
+    with torch.no_grad():
+        logits = model((torch.tensor(X) - torch.tensor(mean)) / torch.tensor(std))
+    return torch.softmax(logits, 1).numpy()
+
+
+# รหัสของชุดทดสอบ (ผู้แสดงที่กันไว้ + จำนวนคลิป) ใช้บอกว่าผลของแต่ละเวอร์ชันวัดด้วยชุดเดียวกันไหม
+def test_set_id(val_signers: set[str], n_clips: int) -> str:
+    import hashlib
+    return hashlib.sha1(("|".join(sorted(val_signers)) + f"#{n_clips}").encode()).hexdigest()[:12]
+
+
+# เลือกชุดทดสอบ: แอดมินเลือกผู้แสดง (และ/หรือ รายคลิปของล่าม) ไว้ในหน้าแอดมิน → ใช้ตามนั้น
+#   ไม่ได้เลือกอะไรเลย → สุ่มผู้แสดงแยกทีละชุดข้อมูล (ทุกชุดมีคนทดสอบอย่างน้อย 1 คน, คลิปของล่ามใช้เทรนทั้งหมด)
+#   คืน (is_val ต่อคลิป, ผู้แสดงที่กันไว้, คำที่ทุกคลิปอยู่ในชุดทดสอบ) — ใช้ร่วมกับ evaluate.py
+def split_test(conn, signers, sources, clip_test, labels_raw, quiet: bool = False):
+    val_signers = db.test_signers(conn) & set(signers)
+    if val_signers or any(clip_test):
+        if not quiet:
+            log(f"ชุดทดสอบตามที่แอดมินเลือก: ผู้แสดง {len(val_signers)} คน + กำหนดรายคลิป {sum(clip_test)} คลิป")
+    else:
+        rng = np.random.default_rng(SEED)
+        for src in sorted(set(sources) - {"ล่าม"}):
+            pool = sorted({s for s, x in zip(signers, sources) if x == src})
+            if len(pool) >= 2:
+                val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
+        if not quiet:
+            log("ชุดทดสอบ: สุ่มอัตโนมัติ (แอดมินยังไม่ได้เลือกผู้แสดง)")
+    is_val = np.array([s in val_signers or t for s, t in zip(signers, clip_test)])
+    no_train = sorted({l for l, v in zip(labels_raw, is_val) if v} - {l for l, v in zip(labels_raw, is_val) if not v})
+    return is_val, val_signers, no_train
 
 
 # ดึงน้ำหนักจากโมเดล torch เป็น dict ของ numpy (ชื่อเดียวกับที่ features.predict_proba ใช้)
@@ -259,16 +301,11 @@ def main():
     if missing:
         log(f"คำที่ไม่มีข้อมูล (ข้าม): {', '.join(missing)}")
 
-    # แบ่งชุดทดสอบตามผู้แสดง แยกทีละชุดข้อมูล (ทุกชุดมีคนทดสอบอย่างน้อย 1 คน)
-    # คลิปของล่ามยังมีน้อย จึงใช้เทรนทั้งหมด
-    rng = np.random.default_rng(SEED)
-    val_signers = set()
-    for src in sorted(set(sources) - {"ล่าม"}):
-        pool = sorted({s for s, x in zip(signers, sources) if x == src})
-        if len(pool) >= 2:
-            val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
-    is_val = np.array([s in val_signers for s in signers])
+    is_val, val_signers, no_train = split_test(conn, signers, sources, clip_test, labels_raw)
+    if no_train:
+        log(f"คำเตือน: คำที่ทุกคลิปอยู่ในชุดทดสอบ (ไม่มีคลิปให้เทรนตอนวัดผล): {', '.join(no_train)}")
     metrics = {}
+    full_metrics: dict = {}
     if is_val.any() and (~is_val).any():
         mean, std = X[~is_val].reshape(-1, X.shape[2]).mean(0), X[~is_val].reshape(-1, X.shape[2]).std(0) + 1e-6
         log(f"ทดสอบกับผู้แสดงที่ไม่อยู่ในชุดเทรน {len(val_signers)} คน ({is_val.sum()} คลิป)")
@@ -282,13 +319,27 @@ def main():
         acc, top3, per = evaluate(model, X[is_val], y[is_val], mean, std, labels)
         metrics = {"val_accuracy": round(acc, 4), "val_top3": round(top3, 4), "val_per_word": per, "val_clips": int(is_val.sum())}
         log(f"ผลบนผู้แสดงใหม่: ถูก {acc:.1%} · ติด 3 อันดับ {top3:.1%}")
+        # ตัวชี้วัดละเอียด (precision/recall/F1 คำที่สับสนกัน เกณฑ์ความมั่นใจ พูดผิดตอนไม่ทำท่า) ดู metrics.py
+        full_metrics = M.compute(predict_probs(model, X[is_val], mean, std), y[is_val], labels)
+        full_metrics["test_set_id"] = test_set_id(val_signers, int(is_val.sum()))
+        full_metrics["no_train_words"] = no_train
+        fa = full_metrics["null_false_alarm"]
+        log(f"Precision {full_metrics['precision']:.1%} · Recall {full_metrics['recall']:.1%} · F1 {full_metrics['f1']:.1%}"
+            f" · เกณฑ์ความมั่นใจ {full_metrics['threshold']:.0%}"
+            + (f" · พูดผิดตอนไม่ทำท่า {fa:.1%}" if fa is not None else ""))
         worst = sorted(per.items(), key=lambda kv: kv[1])[:5]
         log("คำที่ทายพลาดบ่อย: " + ", ".join(f"{k} {v:.0%}" for k, v in worst))
 
-    # เทรนใหม่ด้วยข้อมูลทั้งหมดสำหรับใช้งานจริง
-    log("เทรนรอบสุดท้ายด้วยข้อมูลทั้งหมด…")
-    mean, std = X.reshape(-1, X.shape[2]).mean(0), X.reshape(-1, X.shape[2]).std(0) + 1e-6
-    model = fit(X, y, len(labels), mean, std)
+    # เทรนรอบสุดท้ายสำหรับใช้งานจริง: ไม่ใช้คลิปในชุดทดสอบ (held-out) ให้ Run Test วัดกับข้อมูลที่โมเดลไม่เคยเห็นจริง
+    #   ตั้ง "final_train_on_all": true ใน train_words.json = เทรนด้วยข้อมูลทั้งหมดแบบเดิม (ได้ข้อมูลเพิ่ม แต่ Run Test จะเชื่อไม่ได้)
+    final_all = bool(cfg.get("final_train_on_all", False)) or not is_val.any()
+    train_mask = np.ones(len(X), bool) if final_all else ~is_val
+    log("เทรนรอบสุดท้ายด้วยข้อมูลทั้งหมด…" if final_all else f"เทรนรอบสุดท้าย (ไม่รวมชุดทดสอบ {int(is_val.sum())} คลิป)…")
+    Xf, yf = X[train_mask], y[train_mask]
+    mean, std = Xf.reshape(-1, X.shape[2]).mean(0), Xf.reshape(-1, X.shape[2]).std(0) + 1e-6
+    model = fit(Xf, yf, len(labels), mean, std, stage="final")
+    if full_metrics:
+        full_metrics["final_excludes_test"] = not final_all
     weights = export_weights(model, mean, std)
 
     # ตรวจว่าตัวคำนวณแบบ numpy ให้ผลเท่ากับ torch
@@ -303,33 +354,50 @@ def main():
     version = next_version(conn)
     name = MODEL_NAME.format(*version)
     path = MODELS_PATH / name
-    np.savez(path, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION), **weights)
+    # threshold = เกณฑ์ความมั่นใจที่คำนวณจากชุดทดสอบ (ตัวแปลใช้ตัดสินว่าได้คำ) ไม่มีผลวัด = ค่าเริ่มต้น
+    save_npz_atomic(path, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION),
+                    threshold=np.array(full_metrics.get("threshold", M.DEFAULT_THRESHOLD), dtype=np.float32), **weights)
     seconds = round(time.time() - t0, 1)
 
     # บันทึกเป็นเวอร์ชัน draft (draft เดิมกลายเป็น archived) พร้อมคำที่รู้จักและผลรายคำ
     per_word = metrics.get("val_per_word", {})
-    with conn.transaction():
-        conn.execute("UPDATE models SET status = 'archived' WHERE status = 'draft'")
-        model_id = conn.execute(
-            """
-            INSERT INTO models (version, file, status, trained_at, samples, feature_version, val_accuracy,
-                                val_top3, val_clips, train_seconds, sources, bytes)
-            VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """,
-            (
-                "v{}.{}.{}".format(*version), name, datetime.now().astimezone(), int(len(X)), str(F.FEATURE_VERSION),
-                metrics.get("val_accuracy"), metrics.get("val_top3"), metrics.get("val_clips"), seconds,
-                Jsonb(dict(Counter(sources))), path.stat().st_size,
-            ),
-        ).fetchone()[0]
-        for label in labels:
-            if label == NULL_LABEL:
-                continue  # คลาส "ไม่ทำท่า" ไม่ใช่คำ (อยู่ในไฟล์โมเดลอย่างเดียว)
-            conn.execute(
-                "INSERT INTO model_words (model_id, word_id, train_clips, val_accuracy) VALUES (%s, %s, %s, %s)",
-                (model_id, db.word_id(conn, label), counts[label], per_word.get(label)),
-            )
-    conn.close()
+    try:
+        db.ensure_model_columns(conn)
+        with conn.transaction():
+            conn.execute("UPDATE models SET status = 'archived' WHERE status = 'draft'")
+            model_id = conn.execute(
+                """
+                INSERT INTO models (version, file, status, trained_at, samples, feature_version, val_accuracy,
+                                    val_top3, val_clips, train_seconds, sources, bytes, metrics)
+                VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+                """,
+                (
+                    "v{}.{}.{}".format(*version), name, datetime.now().astimezone(), int(len(X)), str(F.FEATURE_VERSION),
+                    metrics.get("val_accuracy"), metrics.get("val_top3"), metrics.get("val_clips"), seconds,
+                    Jsonb(dict(Counter(sources))), path.stat().st_size,
+                    Jsonb({"validation": full_metrics} if full_metrics else {}),
+                ),
+            ).fetchone()[0]
+            for label in labels:
+                if label == NULL_LABEL:
+                    continue  # คลาส "ไม่ทำท่า" ไม่ใช่คำ (อยู่ในไฟล์โมเดลอย่างเดียว)
+                conn.execute(
+                    "INSERT INTO model_words (model_id, word_id, train_clips, val_accuracy) VALUES (%s, %s, %s, %s)",
+                    (model_id, db.word_id(conn, label), counts[label], per_word.get(label)),
+                )
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    finally:
+        conn.close()
+
+    # อัปไฟล์โมเดลขึ้น Storage (ไม่สำเร็จไม่ถือว่าเทรนล้ม ไฟล์ยังอยู่ในเครื่อง อัปทีหลังด้วย upload_models ได้)
+    try:
+        db.upload(db.model_storage_path(name), path.read_bytes())
+        log(f"อัปไฟล์โมเดลขึ้น Storage แล้ว ({db.model_storage_path(name)})")
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        log(f"อัปไฟล์โมเดลขึ้น Storage ไม่สำเร็จ ({e}) — เครื่องอื่นจะยังใช้โมเดลนี้ไม่ได้ "
+            "จนกว่าจะรัน: cd backend && python -m app.scripts.upload_models")
     log(f"--- เทรนเสร็จ: {name} ({seconds} วินาที) ---")
 
 

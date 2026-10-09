@@ -7,6 +7,7 @@ import numpy as np
 
 from app.core.config import FEATURES_PATH
 from app.ml.model_loader import get_active_model_path
+from app.services import model_store
 
 # กันการโหลดโมเดลซ้อนกันจากหลายการเชื่อมต่อ
 _lock = threading.Lock()
@@ -30,7 +31,9 @@ class SignModel:
         data = np.load(path, allow_pickle=False)
         self.path = path
         self.labels = [str(x) for x in data["labels"]]
-        self.weights = {k: data[k] for k in data.files if k not in ("labels", "feature_version")}
+        self.weights = {k: data[k] for k in data.files if k not in ("labels", "feature_version", "threshold")}
+        # เกณฑ์ความมั่นใจที่ train.py คำนวณจากชุดทดสอบ (โมเดลรุ่นเก่าไม่มี = None ใช้ค่าตั้งต้นของตัวแปล)
+        self.threshold = float(data["threshold"]) if "threshold" in data.files else None
         if int(data["feature_version"]) != features().FEATURE_VERSION:
             raise ValueError("feature version mismatch")
         self.uses_face = self._trained_with_face()
@@ -69,7 +72,11 @@ class SignModel:
 # คืนโมเดลของเวอร์ชันที่ขอ (โหลดใหม่เมื่อไฟล์เปลี่ยน) หรือ None ถ้ายังไม่มีโมเดลที่ใช้ได้
 def get_model(version: str = "active") -> SignModel | None:
     path = get_active_model_path(version)
-    if path is None or path.suffix != ".npz" or not path.is_file():
+    if path is None or path.suffix != ".npz":
+        return None
+    if not path.is_file():
+        # ไม่มีไฟล์ในเครื่องนี้ (เทรนจากเครื่องอื่น): ดาวน์โหลดจาก Storage ในพื้นหลัง ระหว่างนี้ใช้ตัวนับนิ้วไปก่อน
+        model_store.fetch_in_background(path.name)
         return None
     mtime = path.stat().st_mtime
     with _lock:

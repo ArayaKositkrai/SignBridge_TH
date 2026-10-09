@@ -1,4 +1,9 @@
+import importlib.util
+import os
 import re
+import subprocess
+import sys
+import threading
 from collections import Counter
 from functools import lru_cache
 from datetime import datetime, timedelta, timezone
@@ -7,16 +12,17 @@ from typing import Literal
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import require_admin, require_staff
-from app.core.config import MODELS_DIR
+from app.core.config import MODELS_DIR, TRAIN_SCRIPT
 from app.db.models import Model, Motion, TrainingRun, Word
 from app.db.session import SessionLocal
 from app.ml.classifier import features
 from app.ml.model_loader import clear_cache
 from app.services import dataset_service as ds
 from app.services import model_registry as mr
+from app.services import model_store
 from app.services import card_image, storage, test_split, user_service
 from app.services.user_service import InvalidField
 
@@ -28,8 +34,19 @@ STAFF = [Depends(require_staff)]
 
 # รูปแบบเลขเวอร์ชัน เช่น v0.0.1
 VERSION_RE = re.compile(r"v(\d+)\.(\d+)\.(\d+)")
-# คำสั่งเทรนโมเดล (รันบนเครื่องที่มี torch: เทรนผ่านหน้าเว็บไม่ได้ เพราะ backend ไม่มี torch และเทรนนานแย่ง CPU เว็บ)
+# คำสั่งเทรนโมเดลจากเครื่อง (ใช้เมื่อเครื่องที่รัน backend ไม่มี torch หรือไม่อยากให้แย่ง CPU เว็บ)
 TRAIN_COMMAND = "cd ml/src && python train.py"
+# ไฟล์ที่เก็บ output ของการเทรนที่สั่งจากหน้าเว็บ (log หลักอยู่ในตาราง training_runs อยู่แล้ว)
+TRAIN_LOG = MODELS_DIR / "train.log"
+# รอดูว่าสคริปต์ล้มทันทีตอนเริ่มไหม (เช่นข้อมูลไม่พอ/มีการเทรนอื่นอยู่) จะได้แจ้งบนหน้าเว็บเลย
+TRAIN_STARTUP_WAIT = 4
+# สคริปต์วัดผลโมเดลด้วยชุดทดสอบปัจจุบัน (Run Test) และไฟล์ output
+EVALUATE_SCRIPT = TRAIN_SCRIPT.with_name("evaluate.py")
+EVALUATE_LOG = MODELS_DIR / "evaluate.log"
+_eval_proc: subprocess.Popen | None = None
+# การเทรนที่สั่งจากหน้าเว็บ (มีได้ทีละตัวต่อ backend)
+_train_lock = threading.Lock()
+_train_proc: subprocess.Popen | None = None
 # train.py รายงานความคืบหน้าทุกไม่กี่วินาที ถ้าเงียบนานกว่านี้ถือว่าขาดการติดต่อ (ปิดเครื่อง/หลุด)
 HEARTBEAT_TIMEOUT = timedelta(minutes=2)
 # จำนวนบรรทัด log ท้าย ๆ ที่ส่งให้หน้าเว็บ
@@ -78,6 +95,12 @@ class SampleSplitIn(BaseModel):
 
 # ข้อมูลที่รับตอนเลือก/ไม่เลือกคำไว้เทรน
 class TrainWordIn(BaseModel):
+    in_train_set: bool
+
+
+# ข้อมูลที่รับตอนเลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน
+class TrainWordsIn(BaseModel):
+    words: list[str] = Field(min_length=1, max_length=5000)
     in_train_set: bool
 
 
@@ -283,6 +306,12 @@ def add_word(body: WordIn):
     return {"word": word}
 
 
+# เลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน (ปุ่ม "เลือกเทรนทั้งหมด" ในหน้าคลังคำศัพท์)
+@router.post("/vocabulary/train-set", dependencies=ADMIN)
+def set_train_words(body: TrainWordsIn):
+    return {"updated": ds.set_in_train_set_many(body.words, body.in_train_set), "in_train_set": body.in_train_set}
+
+
 # เลือก/ไม่เลือกคำไว้เทรนโมเดล (คอลัมน์ "เทรน" ในหน้าคลังคำศัพท์) มีผลในการเทรนครั้งถัดไป
 @router.patch("/vocabulary/{word}", dependencies=ADMIN)
 def set_train_word(word: str, body: TrainWordIn):
@@ -341,11 +370,67 @@ def list_models():
                 "file_missing": not row["exists"],
                 # เทรนด้วยรูปแบบ feature ปัจจุบันไหม (รูปแบบเก่าโหลดไม่ได้ ตั้งเป็นตัวที่ใช้ไม่ได้)
                 "compatible": _compatible(m.file) is not False,
+                # สรุปตัวชี้วัด (ตอนเทรน / Run Test) รายละเอียดเต็มดูที่ /models/{file}/metrics
+                "validation": _metric_summary((m.metrics or {}).get("validation")),
+                "test": _metric_summary((m.metrics or {}).get("test")),
             }
         )
     active = next((m["version"] for m in models if m["active"]), None)
     draft = next((m["version"] for m in models if m["draft"]), None)
     return {"models": models, "active_version": active, "draft_version": draft}
+
+
+# ค่าหลักของตัวชี้วัดสำหรับตาราง (ไม่ส่งผลรายคำ/กราฟ ให้หน้ารายการโหลดเร็ว)
+METRIC_KEYS = ("clips", "accuracy", "top3", "precision", "recall", "f1", "threshold", "null_false_alarm",
+               "word_dropped", "test_set_id", "evaluated_at", "excluded_clips", "seen_test", "final_excludes_test")
+
+
+def _metric_summary(m: dict | None) -> dict | None:
+    return {k: m.get(k) for k in METRIC_KEYS if k in m} if m else None
+
+
+# ตัวชี้วัดเต็มของโมเดลหนึ่งเวอร์ชัน (ตอนเทรน + Run Test): ผลรายคำ คำที่สับสนกัน เส้นเกณฑ์ ฮิสโตแกรมความมั่นใจ
+@router.get("/models/{file}/metrics", dependencies=ADMIN)
+def model_metrics(file: str):
+    with SessionLocal() as db:
+        model = db.scalar(select(Model).where(Model.file == file))
+    if model is None:
+        raise HTTPException(status_code=404, detail="ไม่พบโมเดลเวอร์ชันนี้")
+    return {"version": model.version, "file": model.file, **(model.metrics or {})}
+
+
+# สั่งวัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน (Run Test) ในพื้นหลัง: รัน evaluate.py --all บนเครื่อง backend
+@router.post("/models/evaluate", status_code=202, dependencies=ADMIN)
+def evaluate_models():
+    global _eval_proc
+    if not _can_train_here() or not EVALUATE_SCRIPT.is_file():
+        raise HTTPException(status_code=409, detail="เครื่องเซิร์ฟเวอร์นี้ไม่มี torch วัดผลจากหน้าเว็บไม่ได้ ให้รัน: cd ml/src && python evaluate.py --all")
+    with _train_lock:
+        if _eval_proc is not None and _eval_proc.poll() is None:
+            raise HTTPException(status_code=409, detail="กำลังวัดผลอยู่แล้ว")
+        if _train_proc is not None and _train_proc.poll() is None:
+            raise HTTPException(status_code=409, detail="กำลังเทรนอยู่ รอให้เสร็จก่อน")
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(EVALUATE_LOG, "w", encoding="utf-8") as log:
+            _eval_proc = subprocess.Popen(
+                [sys.executable, str(EVALUATE_SCRIPT), "--all"],
+                cwd=EVALUATE_SCRIPT.parent,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                **_low_priority(),
+            )
+    return {"message": "เริ่มวัดผลทุกเวอร์ชันแล้ว (ใช้เวลาสักครู่)"}
+
+
+# สถานะการวัดผลล่าสุด (สั่งจากหน้าเว็บ): running / succeeded / failed / idle พร้อม log ท้าย ๆ
+def _eval_state() -> dict:
+    if _eval_proc is None:
+        return {"status": "idle", "log": []}
+    code = _eval_proc.poll()
+    status = "running" if code is None else ("succeeded" if code == 0 else "failed")
+    lines = EVALUATE_LOG.read_text(encoding="utf-8", errors="replace").splitlines() if EVALUATE_LOG.is_file() else []
+    return {"status": status, "log": lines[-LOG_TAIL_LINES:]}
 
 
 # เลือกเวอร์ชันโมเดลที่ระบบใช้ (ย้อนกลับไปเวอร์ชันเก่าได้)
@@ -355,8 +440,9 @@ def set_active_model(body: ActiveModelIn):
         model = db.scalar(select(Model).where(Model.file == body.version))
     if model is None:
         raise HTTPException(status_code=404, detail="ไม่พบโมเดลเวอร์ชันนี้")
-    if not (MODELS_DIR / model.file).is_file():
-        raise HTTPException(status_code=409, detail=f"ไม่พบไฟล์โมเดล {model.file} ในเครื่องนี้")
+    # ไม่มีไฟล์ในเครื่องนี้ = ลองดาวน์โหลดจาก Storage ก่อน
+    if not model_store.ensure_local(model.file):
+        raise HTTPException(status_code=409, detail=f"ไม่พบไฟล์โมเดล {model.file} ทั้งในเครื่องนี้และใน Storage (ให้คนที่เทรนรัน python -m app.scripts.upload_models)")
     if _compatible(model.file) is False:
         raise HTTPException(status_code=409, detail=f"{model.version} เทรนด้วยรูปแบบข้อมูลเก่า ใช้กับระบบปัจจุบันไม่ได้ ต้องเทรนใหม่")
     mr.set_active(model.id)
@@ -364,8 +450,87 @@ def set_active_model(body: ActiveModelIn):
     return {"message": f"ตั้ง {model.file} เป็นเวอร์ชันที่ใช้งานแล้ว", "active_version": model.file}
 
 
+# เครื่องที่รัน backend เทรนเองได้ไหม (ต้องมี torch และสคริปต์เทรน)
+@lru_cache(maxsize=1)
+def _can_train_here() -> bool:
+    return TRAIN_SCRIPT.is_file() and importlib.util.find_spec("torch") is not None
+
+
+# ให้ process เทรนมีลำดับความสำคัญต่ำกว่าเว็บ (เทรนแย่ง CPU แต่หน้าเว็บยังลื่น)
+def _low_priority() -> dict:
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.BELOW_NORMAL_PRIORITY_CLASS}
+    return {"preexec_fn": lambda: os.nice(10)}
+
+
+# สั่งเทรนจากหน้าเว็บ: รัน train.py บนเครื่องที่รัน backend (ความคืบหน้าดูได้จาก /train/status เหมือนเทรนจากเครื่อง)
+@router.post("/train", status_code=202)
+def start_training(user: dict = Depends(require_admin)):
+    global _train_proc
+    if not _can_train_here():
+        raise HTTPException(
+            status_code=409,
+            detail=f"เครื่องเซิร์ฟเวอร์นี้ไม่มี torch เทรนจากหน้าเว็บไม่ได้ ให้รันคำสั่งเทรนบนเครื่องที่มี torch แทน: {TRAIN_COMMAND}",
+        )
+    with _train_lock:
+        if _train_proc is not None and _train_proc.poll() is None:
+            raise HTTPException(status_code=409, detail="กำลังเทรนอยู่แล้ว")
+        if _eval_proc is not None and _eval_proc.poll() is None:
+            raise HTTPException(status_code=409, detail="กำลังวัดผล (Run Test) อยู่ รอให้เสร็จก่อน")
+        # กันเทรนซ้อนกับเครื่องอื่นที่กำลังเทรนอยู่ (ยังรายงานความคืบหน้าอยู่)
+        with SessionLocal() as db:
+            busy = db.scalar(
+                select(TrainingRun)
+                .where(
+                    TrainingRun.status == "running",
+                    func.coalesce(TrainingRun.heartbeat_at, TrainingRun.started_at) > datetime.now(timezone.utc) - HEARTBEAT_TIMEOUT,
+                )
+                .limit(1)
+            )
+        if busy:
+            raise HTTPException(status_code=409, detail=f"มีการเทรนกำลังรันอยู่ (เครื่อง {busy.host or 'ไม่ทราบ'}) รอให้เสร็จก่อน")
+
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(TRAIN_LOG, "w", encoding="utf-8") as log:
+            proc = subprocess.Popen(
+                [sys.executable, str(TRAIN_SCRIPT)],
+                cwd=TRAIN_SCRIPT.parent,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env={**os.environ, "PYTHONIOENCODING": "utf-8", "TRAIN_STARTED_BY": user["id"]},
+                **_low_priority(),
+            )
+        # ล้มทันทีตอนเริ่ม = แจ้งเหตุผลจากท้าย log (เช่น ไม่มีข้อมูลสำหรับเทรน)
+        try:
+            code = proc.wait(timeout=TRAIN_STARTUP_WAIT)
+        except subprocess.TimeoutExpired:
+            code = None
+        if code:
+            tail = [line for line in TRAIN_LOG.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+            raise HTTPException(status_code=400, detail="เทรนไม่สำเร็จ: " + (tail[-1] if tail else f"รหัส {code}"))
+        _train_proc = proc
+    return {"message": "เริ่มเทรนแล้ว ดูความคืบหน้าได้ที่แท็บการเทรน", "status": "running"}
+
+
+# ลบโมเดลหนึ่งเวอร์ชัน (ข้อมูลใน database + ไฟล์ในเครื่องนี้ + ย้ายไฟล์ใน Storage ไปถังลบ) ลบตัวที่ใช้งานอยู่ไม่ได้
+#   model_words ของเวอร์ชันนี้ถูกลบตาม ส่วนประวัติการเทรนยังอยู่แต่ไม่ผูกกับโมเดลแล้ว
+@router.delete("/models/{file}", status_code=204, dependencies=ADMIN)
+def delete_model(file: str):
+    with SessionLocal() as db:
+        model = db.scalar(select(Model).where(Model.file == file))
+        if model is None:
+            raise HTTPException(status_code=404, detail="ไม่พบโมเดลเวอร์ชันนี้")
+        if model.status == "active":
+            raise HTTPException(status_code=409, detail="ลบโมเดลที่ใช้งานอยู่ไม่ได้ เปลี่ยนไปใช้เวอร์ชันอื่นก่อน")
+        db.delete(model)
+        db.commit()
+    model_store.remove(file)
+    clear_cache()
+    return Response(status_code=204)
+
+
 # สถานะการเทรนล่าสุด (อ่านจากตาราง training_runs ที่ train.py เขียน) พร้อมความคืบหน้า log ท้าย ๆ และเวอร์ชัน draft
-#   การเทรนรันจากเครื่องด้วยคำสั่ง TRAIN_COMMAND ไม่ได้สั่งจากหน้าเว็บ
+#   การเทรนสั่งได้ทั้งจากหน้าเว็บ (POST /train) และจากเครื่องด้วยคำสั่ง TRAIN_COMMAND
 @router.get("/train/status", dependencies=ADMIN)
 def train_status():
     with SessionLocal() as db:
@@ -378,6 +543,10 @@ def train_status():
     return {
         "status": status,
         "command": TRAIN_COMMAND,
+        # ปุ่ม "เริ่มเทรน" บนหน้าเว็บใช้ได้ไหม (เครื่อง backend มี torch)
+        "can_train_here": _can_train_here(),
+        # Run Test ที่สั่งจากหน้าเว็บ
+        "evaluation": _eval_state(),
         "run": None if run is None else {
             "id": run.id,
             "host": run.host,
@@ -400,8 +569,9 @@ def publish_model():
     draft = mr.get_by_status("draft")
     if draft is None:
         raise HTTPException(status_code=400, detail="ไม่มีโมเดลเวอร์ชัน Draft ให้เผยแพร่")
-    if not (MODELS_DIR / draft.file).is_file():
-        raise HTTPException(status_code=409, detail=f"ไม่พบไฟล์โมเดล {draft.file} ในเครื่องเซิร์ฟเวอร์ (ต้องเทรนบนเครื่องเดียวกับ backend หรือคัดลอกไฟล์ไปไว้ที่ ml/models)")
+    # ไม่มีไฟล์ในเครื่องนี้ = ลองดาวน์โหลดจาก Storage ก่อน
+    if not model_store.ensure_local(draft.file):
+        raise HTTPException(status_code=409, detail=f"ไม่พบไฟล์โมเดล {draft.file} ทั้งในเครื่องนี้และใน Storage (ให้คนที่เทรนรัน python -m app.scripts.upload_models)")
     mr.set_active(draft.id)
     clear_cache()
     return {"message": f"เผยแพร่โมเดล {draft.file} สำเร็จ", "active_version": draft.file}

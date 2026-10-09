@@ -129,7 +129,9 @@ class Recognizer:
         # ยังไม่มั่นใจพอ / ไม่ได้ทำท่า: แสดงคำใกล้เคียงไว้ดู แต่ไม่นับเป็นคำ
         second = ranked[1][1] if len(ranked) > 1 else 0.0
         clear_lead = LOW_PROB is not None and avg[top] >= LOW_PROB and avg[top] >= MARGIN_RATIO * second
-        if top == null or (avg[top] < WORD_PROB and not clear_lead):
+        # เกณฑ์ "ได้คำ": ใช้ค่าที่คำนวณมากับโมเดล (จากชุดทดสอบตอนเทรน) ไม่มีค่อยใช้ค่าตั้งต้น
+        word_prob = model.threshold or WORD_PROB
+        if top == null or (avg[top] < word_prob and not clear_lead):
             self.candidate, self.hits = None, 0
             text, conf = (ranked[0] if ranked and ranked[0][1] >= SHOW_PROB else ("", 0.0))
             return {"text": text, "confidence": round(conf, 2), "candidates": candidates[1:4] if text else candidates[:3],
@@ -138,7 +140,7 @@ class Recognizer:
         self.hits = self.hits + 1 if self.candidate == top else 1
         self.candidate = top
         word = labels[top]
-        need = WORD_HOLD if avg[top] >= WORD_PROB else LEAD_HOLD
+        need = WORD_HOLD if avg[top] >= word_prob else LEAD_HOLD
         result = {"text": word, "confidence": round(float(avg[top]), 2), "candidates": candidates[1:4], "word": None,
                   "pending": self.hits < need}
         if self.hits < need:

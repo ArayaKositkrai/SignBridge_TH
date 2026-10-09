@@ -100,6 +100,50 @@ export interface ModelFile {
   compatible?: boolean;
   // ไม่มีไฟล์โมเดลในเครื่องเซิร์ฟเวอร์
   file_missing?: boolean;
+  // สรุปตัวชี้วัดตอนเทรน (ชุดทดสอบตอนนั้น) และ Run Test (ชุดทดสอบปัจจุบัน) — null = ยังไม่มีผล
+  validation?: MetricSummary | null;
+  test?: MetricSummary | null;
+}
+
+// ค่าหลักของตัวชี้วัด (ดู ml/src/metrics.py) ค่าเป็นสัดส่วน 0-1
+export interface MetricSummary {
+  clips?: number;
+  accuracy?: number;
+  top3?: number;
+  precision?: number;
+  recall?: number;
+  f1?: number;
+  // เกณฑ์ความมั่นใจที่ตัวแปลใช้ตัดสินว่า "ได้คำ"
+  threshold?: number;
+  // ตอนไม่ได้ทำท่า ระบบพูดเป็นคำกี่ % (null = ชุดทดสอบไม่มีคลิป "ไม่ทำท่า")
+  null_false_alarm?: number | null;
+  // ตอนทำท่าจริง ระบบไม่พูดอะไรกี่ %
+  word_dropped?: number | null;
+  test_set_id?: string;
+  evaluated_at?: string;
+  excluded_clips?: number;
+  // Run Test: โมเดลเคยเห็นชุดทดสอบนี้ตอนเทรน (ผลสูงเกินจริง)
+  seen_test?: boolean;
+  // ตอนเทรน: รอบสุดท้ายกันชุดทดสอบออก (Run Test เชื่อได้)
+  final_excludes_test?: boolean;
+}
+
+// ตัวชี้วัดเต็มของชุดหนึ่ง (ตอนเทรนหรือ Run Test)
+export interface MetricDetail extends MetricSummary {
+  per_word?: Record<string, { recall: number; precision: number; f1: number; clips: number }>;
+  confusions?: { true: string; pred: string; count: number; rate: number }[];
+  threshold_curve?: { threshold: number; precision: number; recall: number; f1: number; null_false_alarm: number | null }[];
+  confidence?: { bins: number[]; correct: number[]; wrong: number[] };
+  has_null_class?: boolean;
+  no_train_words?: string[];
+}
+
+// ตัวชี้วัดเต็มของโมเดลหนึ่งเวอร์ชัน
+export interface ModelMetrics {
+  version: string;
+  file: string;
+  validation?: MetricDetail;
+  test?: MetricDetail;
 }
 
 // สถานะการเทรนโมเดลและเวอร์ชันปัจจุบัน
@@ -130,6 +174,10 @@ export interface TrainRun {
 export interface TrainStatus {
   status: "idle" | "running" | "stalled" | "succeeded" | "failed";
   command: string;
+  // เครื่อง backend เทรนเองได้ไหม (มี torch) — ไม่ได้ = ต้องรันคำสั่งเทรนจากเครื่อง
+  can_train_here?: boolean;
+  // Run Test ที่สั่งจากหน้าเว็บ
+  evaluation?: { status: "idle" | "running" | "succeeded" | "failed"; log: string[] };
   run: TrainRun | null;
   active_version: string | null;
   draft_version: string | null;
@@ -189,6 +237,13 @@ export const setTrainWord = (word: string, inTrainSet: boolean) =>
     json("PATCH", { in_train_set: inTrainSet }),
   );
 
+// เลือก/ไม่เลือกหลายคำไว้เทรนพร้อมกัน
+export const setTrainWords = (words: string[], inTrainSet: boolean) =>
+  send<{ updated: number; in_train_set: boolean }>(
+    `${BASE}/vocabulary/train-set`,
+    json("POST", { words, in_train_set: inTrainSet }),
+  );
+
 // ดึงรายการไฟล์โมเดล
 export const listModels = () => send<{ models: ModelFile[] }>(`${BASE}/models`).then((r) => r.models);
 // เลือกเวอร์ชันโมเดลที่ระบบใช้
@@ -197,6 +252,17 @@ export const setActiveModel = (version: string) =>
 
 // ดูสถานะการเทรน
 export const getTrainStatus = () => send<TrainStatus>(`${BASE}/train/status`);
+// ตัวชี้วัดเต็มของโมเดลหนึ่งเวอร์ชัน (ผลรายคำ คำที่สับสน กราฟความมั่นใจ)
+export const getModelMetrics = (version: string) =>
+  send<ModelMetrics>(`${BASE}/models/${encodeURIComponent(version)}/metrics`);
+// วัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน (Run Test) ในพื้นหลัง
+export const runModelTest = () => send<{ message: string }>(`${BASE}/models/evaluate`, { method: "POST" });
+
+// ลบโมเดลหนึ่งเวอร์ชัน (ลบตัวที่ใช้งานอยู่ไม่ได้)
+export const deleteModel = (version: string) =>
+  send<void>(`${BASE}/models/${encodeURIComponent(version)}`, { method: "DELETE" });
+// สั่งเทรนจากหน้าเว็บ (รัน train.py บนเครื่อง backend)
+export const startTraining = () => send<{ message: string }>(`${BASE}/train`, { method: "POST" });
 // เผยแพร่โมเดล draft ให้ผู้ใช้ทั่วไปใช้
 export const publishModel = () => send<{ message: string }>(`${BASE}/publish`, { method: "POST" });
 
