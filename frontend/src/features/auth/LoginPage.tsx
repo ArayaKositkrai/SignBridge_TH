@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
+import Icon from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
 import { useAuth } from "./AuthContext";
 import { providerLoginUrl, type Provider } from "./services/authApi";
@@ -45,6 +46,8 @@ export default function LoginPage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // แสดงรหัสผ่านเป็นตัวอักษร (กดไอคอนตาเพื่อสลับ)
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   // ข้อผิดพลาดจากฟอร์ม หรือที่ backend ส่งกลับมาหลังล็อกอินด้วย Google/LINE ไม่สำเร็จ
   const [error, setError] = useState<string | null>(params.get("error"));
@@ -133,17 +136,30 @@ export default function LoginPage() {
             required
             className={INPUT}
           />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={mode === "register" ? "รหัสผ่าน (อย่างน้อย 8 ตัว)" : "รหัสผ่าน"}
-            autoComplete={mode === "register" ? "new-password" : "current-password"}
-            minLength={mode === "register" ? 8 : undefined}
-            maxLength={128}
-            required
-            className={INPUT}
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === "register" ? "รหัสผ่าน (อย่างน้อย 8 ตัว)" : "รหัสผ่าน"}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              minLength={mode === "register" ? 8 : undefined}
+              maxLength={128}
+              required
+              className={`${INPUT} pr-11`}
+            />
+            {/* ปุ่มเปิด/ปิดการแสดงรหัสผ่าน (type="button" กดแล้วไม่ส่งฟอร์ม) */}
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+              aria-pressed={showPassword}
+              title={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+              className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-ink/50 transition hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+            >
+              <Icon name={showPassword ? "eyeOff" : "eye"} size={18} />
+            </button>
+          </div>
           {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={busy}>
             {mode === "login" ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}

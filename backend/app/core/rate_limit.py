@@ -67,8 +67,6 @@ class RateLimiter:
 
 # ล็อกอิน/สมัครสมาชิก: ไม่เกิน 10 ครั้งต่อนาทีต่อ IP (แต่ละครั้งใช้ scrypt หนัก จึงต้องจำกัด)
 auth_limiter = RateLimiter(limit=10, window=60)
-# ล็อกอินผิด: ไม่เกิน 5 ครั้งต่อ 15 นาทีต่ออีเมล (กันการเดารหัสผ่าน)
-login_fail_limiter = RateLimiter(limit=5, window=15 * 60)
 # log จากหน้าเว็บ: ไม่เกิน 30 ครั้งต่อนาทีต่อ IP
 log_limiter = RateLimiter(limit=30, window=60)
 
