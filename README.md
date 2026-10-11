@@ -185,7 +185,7 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `data/processed/` | `tsl_skeleton.npz` |
 | `models/` | ไฟล์โมเดลที่เทรนแล้ว |
 
-ไฟล์ว่างที่ยังไม่ได้ใช้: `ml/src/evaluate.py`, `extract_landmarks.py`, `split.py`, `train_baseline.py`, `backend/app/core/logging.py`, `backend/app/ml/preprocessing.py`
+ไฟล์ว่างที่ยังไม่ได้ใช้: `backend/app/core/logging.py`, `backend/app/ml/preprocessing.py`
 
 ---
 

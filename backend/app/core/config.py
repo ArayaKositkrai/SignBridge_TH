@@ -11,8 +11,6 @@ load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 # โฟลเดอร์ ml ของโปรเจกต์ (ตั้งผ่าน env ML_DIR ได้ เช่นตอนรันใน Docker)
 ML_DIR = Path(os.getenv("ML_DIR", Path(__file__).resolve().parents[3] / "ml")).resolve()
 
-# ไฟล์ตั้งค่าเวอร์ชันโมเดล (active / draft)
-MODEL_CONFIG_PATH = ML_DIR / "configs" / "model_config.json"
 # โฟลเดอร์เก็บข้อมูลดิบ แยกโฟลเดอร์ย่อยตามคำศัพท์
 RAW_DATA_DIR = ML_DIR / "data" / "raw"
 # โฟลเดอร์เก็บไฟล์โมเดลที่เทรนแล้ว
@@ -25,6 +23,15 @@ FEATURES_PATH = ML_DIR / "src" / "features.py"
 # URL ของ database (อ่านจาก env DATABASE_URL ซึ่ง docker-compose โหลดมาจากไฟล์ .env)
 # รูปแบบ: postgresql+psycopg://user:password@host:port/dbname
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+
+# Supabase pooler แบบ session (port 5432) รับได้แค่ 15 การเชื่อมต่อรวมทั้งทีม ทุกเครื่องเปิด backend/เทรนพร้อมกันแล้วเต็มง่าย
+#   → ใช้แบบ transaction (port 6543) แทนอัตโนมัติ รับได้หลายร้อย (ต้องปิด prepared statement: ดู session.py)
+#   ตั้ง DB_POOL_MODE=session ถ้าต้องการใช้ port เดิม
+def pooled_database_url(url: str) -> str:
+    if os.getenv("DB_POOL_MODE", "transaction") != "session" and "pooler.supabase.com:5432" in url:
+        return url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
+    return url
 
 # ---------- ระบบล็อกอิน ----------
 # กุญแจลับสำหรับเซ็น session (ต้องตั้งเอง ห้ามใช้ค่าเดียวกับเครื่องอื่น)

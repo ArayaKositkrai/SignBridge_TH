@@ -17,6 +17,9 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+// รอผลเช็ก session ตอนเปิดเว็บนานสุดเท่านี้
+const ME_TIMEOUT_MS = 8000;
+
 // ครอบแอปเพื่อให้ทุกหน้ารู้ว่าใครล็อกอินอยู่ (session เก็บใน cookie ฝั่ง backend)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -35,8 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.alert(error ?? `ผูกบัญชี ${api.PROVIDER_NAMES[linked!] ?? linked} แล้ว ครั้งหน้าล็อกอินด้วยบัญชีนี้ได้เลย`);
     }
 
-    api
-      .getMe()
+    // backend ไม่ตอบภายใน ME_TIMEOUT_MS ถือว่ายังไม่ล็อกอิน (ไม่ให้ปุ่มเข้าสู่ระบบหายไปตลอดระหว่างรอ)
+    const timeout = new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), ME_TIMEOUT_MS));
+    Promise.race([api.getMe(), timeout])
       .then((r) => {
         setUser(r.user);
         setProviders(r.providers);

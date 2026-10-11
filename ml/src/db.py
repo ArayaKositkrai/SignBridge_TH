@@ -45,7 +45,13 @@ BUCKET = os.getenv("STORAGE_BUCKET", "signbridge-datasets")
 def connect() -> psycopg.Connection:
     if not DATABASE_URL:
         raise SystemExit("ยังไม่ได้ตั้งค่า DATABASE_URL (ดู .env ที่รากโปรเจกต์)")
-    return psycopg.connect(DATABASE_URL.replace("postgresql+psycopg://", "postgresql://", 1), autocommit=True)
+    url = DATABASE_URL.replace("postgresql+psycopg://", "postgresql://", 1)
+    # Supabase pooler แบบ session (5432) รับได้แค่ 15 การเชื่อมต่อทั้งทีม → ใช้แบบ transaction (6543) เหมือน backend
+    #   (DB_POOL_MODE=session = ใช้ port เดิม) และปิด prepared statement ที่แบบ transaction ไม่รองรับ
+    if os.getenv("DB_POOL_MODE", "transaction") != "session":
+        url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
+    return psycopg.connect(url, autocommit=True, prepare_threshold=None, connect_timeout=10,
+                           keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3)
 
 
 # ตั้งค่าการเทรน
