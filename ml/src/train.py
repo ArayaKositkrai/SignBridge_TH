@@ -111,7 +111,7 @@ def load_tsl(words: set[str], include_null: bool):
         label = str(label)
         if label in words or (include_null and label == NULL_LABEL):
             # ชุดข้อมูล TSL ไม่มีจุดใบหน้า (face = None)
-            out.append((pts[off[i] : off[i + 1]], float(d["aspect"][i]), label, str(d["signer"][i]), str(d["source"][i]), None))
+            out.append((pts[off[i] : off[i + 1]], float(d["aspect"][i]), label, str(d["signer"][i]), str(d["source"][i]), None, False))
     return out
 
 
@@ -119,7 +119,7 @@ def load_tsl(words: set[str], include_null: bool):
 def load_recorded(conn, min_clips: int):
     out = []
     for c in db.recorded_samples(conn, min_clips):
-        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"]))
+        out.append((c["points"], c["aspect"], c["word"], "ล่าม:" + (c["signer"] or "ไม่ระบุ"), "ล่าม", c["face"], c.get("split") == "test"))
     if out:
         log(f"คลิปที่ล่ามอัด {len(out)} คลิป")
     return out
@@ -190,7 +190,7 @@ def augment(x: torch.Tensor) -> torch.Tensor:
 
 
 # เทรนโมเดลหนึ่งรอบ คืนโมเดลที่เทรนแล้ว
-def fit(X, y, n_class, mean, std, epochs=EPOCHS, report=None):
+def fit(X, y, n_class, mean, std, epochs=EPOCHS, report=None, stage=None):
     torch.manual_seed(SEED)
     random.seed(SEED)
     model = SignCNN(X.shape[2], n_class)
@@ -271,6 +271,15 @@ def export_weights(model, mean, std) -> dict:
 
 
 # เทรนทั้งหมด: โหลดข้อมูล → แบ่งตามผู้แสดง → เทรน/วัดผล → เทรนด้วยข้อมูลทั้งหมด → บันทึกเวอร์ชัน draft
+# บันทึก .npz แบบอะตอมิก: เขียนไฟล์ชั่วคราวก่อนแล้วค่อยเปลี่ยนชื่อ กันไฟล์โมเดลเสียถ้าโปรแกรมหยุดกลางคัน
+def save_npz_atomic(path, **arrays):
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "wb") as f:
+        np.savez(f, **arrays)
+    os.replace(tmp, path)
+
+
 def main():
     t0 = time.time()
     torch.set_num_threads(max(1, os.cpu_count() - 1))
@@ -280,9 +289,9 @@ def main():
     log("--- เริ่มเทรนโมเดลแปลภาษามือ ---")
 
     clips = load_tsl(words, cfg.get("include_null_class", True)) + load_recorded(conn, cfg.get("min_recorded_clips", 5))
-    feats, labels_raw, signers, sources = [], [], [], []
+    feats, labels_raw, signers, sources, clip_test = [], [], [], [], []
     n_face = 0
-    for seq, aspect, label, signer, source, face in clips:
+    for seq, aspect, label, signer, source, face, is_test in clips:
         f = F.clip_features(seq, aspect, face)
         n_face += face is not None and not np.isnan(face).all()
         if f is not None:
@@ -290,6 +299,7 @@ def main():
             labels_raw.append(label)
             signers.append(signer)
             sources.append(source)
+            clip_test.append(bool(is_test))
     if not feats:
         raise SystemExit("ไม่มีข้อมูลสำหรับเทรน")
     labels = sorted(set(labels_raw))
