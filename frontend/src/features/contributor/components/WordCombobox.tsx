@@ -8,7 +8,6 @@ interface Props {
   onChange: (word: string) => void;
   vocab: VocabEntry[];
   words: WordStats[];
-  target: number;
 }
 
 // คำแนะนำหนึ่งรายการในรายการเลื่อนลง
@@ -27,7 +26,7 @@ const PRIORITY_RANK: Record<string, number> = { สูง: 0, กลาง: 1, �
 
 // ช่องพิมพ์คำศัพท์พร้อมคำแนะนำ (autocomplete): พิมพ์แล้วเห็นคำในคลังที่ใกล้เคียง เลือกด้วยเมาส์หรือลูกศร + Enter
 //   ไม่บังคับให้เลือกจากรายการ พิมพ์คำใหม่ที่ไม่มีในคลังได้ (มีป้าย "คำใหม่")
-export default function WordCombobox({ value, onChange, vocab, words, target }: Props) {
+export default function WordCombobox({ value, onChange, vocab, words }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -52,17 +51,17 @@ export default function WordCombobox({ value, onChange, vocab, words, target }: 
     return [...out.values()];
   }, [vocab, words]);
 
-  // คำแนะนำตามที่พิมพ์: ขึ้นต้นด้วยข้อความก่อน แล้วคำที่มีข้อความนั้น; ยังไม่พิมพ์ = คำที่ต้องอัดและยังไม่ครบ
+  // คำแนะนำตามที่พิมพ์: ขึ้นต้นด้วยข้อความก่อน แล้วคำที่มีข้อความนั้น; ยังไม่พิมพ์ = คำที่ต้องอัด (คลิปน้อยขึ้นก่อน)
+  //   ไม่มีเป้าจำนวนคลิป อัดได้ไม่จำกัด
   const options = useMemo(() => {
     const q = value.trim();
-    const rank = (o: Option) =>
-      Number(!o.toRecord) * 10 + Number(o.samples >= target) * 5 + (PRIORITY_RANK[o.priority ?? ""] ?? 3);
+    const rank = (o: Option) => Number(!o.toRecord) * 10 + (PRIORITY_RANK[o.priority ?? ""] ?? 3) + Math.min(o.samples, 99) / 100;
     const pool = q
       ? all.filter((o) => o.word.includes(q) && o.word !== q)
-      : all.filter((o) => o.toRecord && o.samples < target);
+      : all.filter((o) => o.toRecord);
     const later = (o: Option) => Number(!o.word.startsWith(q));
     return pool.sort((a, b) => later(a) - later(b) || rank(a) - rank(b) || a.word.length - b.word.length).slice(0, MAX_OPTIONS);
-  }, [all, value, target]);
+  }, [all, value]);
 
   const exact = all.find((o) => o.word === value.trim());
   const isNewWord = !!value.trim() && !exact;
@@ -138,9 +137,8 @@ export default function WordCombobox({ value, onChange, vocab, words, target }: 
           role="listbox"
           className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl bg-surface py-1 shadow-lg ring-1 ring-sky"
         >
-          {!value.trim() && <li className="px-3 pb-1 pt-0.5 text-xs text-ink/50">คำที่ต้องอัดและยังไม่ครบ</li>}
+          {!value.trim() && <li className="px-3 pb-1 pt-0.5 text-xs text-ink/50">คำที่ต้องอัด</li>}
           {options.map((o, i) => {
-            const done = o.samples >= target;
             return (
               <li
                 key={o.word}
@@ -153,16 +151,12 @@ export default function WordCombobox({ value, onChange, vocab, words, target }: 
                 onPointerEnter={() => setActive(i)}
                 className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${i === active ? "bg-sky/60" : ""}`}
               >
-                {o.priority === "สูง" && !done && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" title="ความสำคัญสูง" />}
+                {o.priority === "สูง" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" title="ความสำคัญสูง" />}
                 <span className="truncate font-semibold text-navy">{o.word}</span>
                 {o.category && <span className="truncate text-xs text-ink/50">{o.category}</span>}
-                <span
-                  className={`ml-auto flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-xs ${
-                    done ? "bg-emerald-500 text-white" : "bg-sky/50 text-ink/70"
-                  }`}
-                >
-                  {done && <Icon name="check" size={11} />}
-                  {o.samples}
+                {/* จำนวนคลิปที่อัดแล้ว (ไม่มีเป้า) */}
+                <span className="ml-auto shrink-0 rounded-full bg-sky/50 px-1.5 text-xs text-ink/70" title="คลิปที่อัดแล้ว">
+                  {o.samples} คลิป
                 </span>
               </li>
             );

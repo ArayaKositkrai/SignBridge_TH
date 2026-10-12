@@ -4,6 +4,7 @@ import Button from "../../../components/ui/Button";
 import Icon from "../../../components/ui/Icon";
 import { HintIcon } from "../../../components/ui/Tooltip";
 import { fmtDate } from "../../../lib/format";
+import { HINTS, LABELS, TECH } from "./metricInfo";
 import { getModelMetrics, type MetricDetail, type ModelFile, type ModelMetrics as Metrics, type TrainStatus } from "../services/adminApi";
 
 // ชุดทดสอบที่มีคลิปน้อยกว่านี้ ผลยังเชื่อถือไม่ได้
@@ -14,13 +15,15 @@ const TOP_CONFUSIONS = 10;
 // แสดงเปอร์เซ็นต์ (ไม่มีค่า = ขีด)
 const pct = (v: number | null | undefined, digits = 0) => (v == null ? "–" : `${(v * 100).toFixed(digits)}%`);
 
-// การ์ดตัวเลขหนึ่งใบ (hint = คำอธิบายสั้น ๆ ว่าวัดอะไร)
-function MetricCard({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: "good" | "bad" }) {
+// การ์ดตัวเลขหนึ่งใบ (hint = คำอธิบายว่าวัดอะไร แสดงใน tooltip ของไอคอน ?)
+//   tech = ชื่อทางเทคนิคตัวเล็ก (ไว้อ้างอิงในรายงาน)
+function MetricCard({ label, tech, value, hint, tone }: { label: string; tech?: string; value: string; hint: string; tone?: "good" | "bad" }) {
   return (
     <div className="rounded-xl bg-surface px-4 py-3 ring-1 ring-sky">
       <p className="flex items-center gap-1 text-xs text-ink/60">
         {label}
-        <HintIcon text={hint} />
+        <HintIcon text={hint} icon="help" tone="info" wide />
+        {tech && <span className="ml-auto text-[10px] text-ink/35">{tech}</span>}
       </p>
       <p className={`mt-1 text-xl font-bold tabular-nums ${tone === "bad" ? "text-danger" : "text-navy"}`}>{value}</p>
     </div>
@@ -44,14 +47,17 @@ const BAR_WRONG = "bg-[#d62839] dark:bg-[#e5484d]";
 const HATCH = { backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,.45) 0 2px, transparent 2px 6px)" };
 
 // ฮิสโตแกรมความมั่นใจของคำอันดับ 1: แท่งคู่ (ทายถูก / ทายผิด) ต่อช่วง 10% พร้อมเส้นเกณฑ์ความมั่นใจ
-function ConfidenceChart({ data, threshold }: { data: NonNullable<MetricDetail["confidence"]>; threshold?: number }) {
+export function ConfidenceChart({ data, threshold }: { data: NonNullable<MetricDetail["confidence"]>; threshold?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...data.correct, ...data.wrong);
   const step = data.bins.length ? 1 / data.bins.length : 0.1;
   return (
     <figure>
       <figcaption className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink/70">
-        <span className="font-semibold text-navy">ความมั่นใจของคำที่ทาย</span>
+        <span className="inline-flex items-center gap-1 font-semibold text-navy">
+          ระบบมั่นใจแค่ไหนตอนทายถูก/ผิด
+          <HintIcon text={HINTS.chart} icon="help" tone="info" wide />
+        </span>
         <span className="inline-flex items-center gap-1.5">
           <span className={`h-3 w-3 rounded-sm ${BAR_CORRECT}`} /> ทายถูก
         </span>
@@ -60,7 +66,7 @@ function ConfidenceChart({ data, threshold }: { data: NonNullable<MetricDetail["
         </span>
         {threshold != null && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 border-l-2 border-dashed border-navy" /> เกณฑ์ {pct(threshold)}
+            <span className="h-3 border-l-2 border-dashed border-navy" /> ขั้นต่ำที่ขึ้นคำ {pct(threshold)}
           </span>
         )}
       </figcaption>
@@ -192,6 +198,7 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
             </button>
           ))}
         </div>
+        <HintIcon text={HINTS.source} icon="help" tone="info" wide />
         <Button size="sm" variant="soft" icon="refresh" onClick={onRunTest} disabled={runBusy || evaluating || !status?.can_train_here}>
           {evaluating ? "กำลังวัดผล…" : "Run Test ทุกเวอร์ชัน"}
         </Button>
@@ -210,7 +217,7 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-xs text-ink/60">
-            {source === "validation" ? "วัดตอนเทรนด้วยผู้แสดงที่กันไว้" : `Run Test เมื่อ ${m.evaluated_at ? fmtDate(m.evaluated_at) : "–"}`} ·{" "}
+            {source === "validation" ? "คะแนนตอนเทรน: ให้โมเดลทายคลิปของคนที่ไม่เคยเห็น" : `Run Test เมื่อ ${m.evaluated_at ? fmtDate(m.evaluated_at) : "–"}: ให้โมเดลทายคลิปของคนที่ไม่เคยเห็น`}{" "}
             {m.clips.toLocaleString("th-TH")} คลิป
             {m.excluded_clips ? ` (ไม่นับ ${m.excluded_clips} คลิปของคำที่เวอร์ชันนี้ไม่รู้จัก)` : ""}
             {m.test_set_id && <span className="ml-1 font-mono text-ink/40">ชุด {m.test_set_id}</span>}
@@ -220,7 +227,7 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
           {source === "test" && m.seen_test && (
             <Warning>โมเดลนี้เคยเห็นคลิปในชุดทดสอบตอนเทรน ผลจึงสูงเกินจริง เทียบกับเวอร์ชันอื่นไม่ได้ (เวอร์ชันที่เทรนหลังจากนี้จะกันชุดทดสอบออกให้เอง)</Warning>
           )}
-          {m.clips < SMALL_TEST_SET && <Warning>ชุดทดสอบมีแค่ {m.clips} คลิป ผลยังแกว่งมาก ควรเลือกผู้แสดงในชุดทดสอบให้มากขึ้น (แท็บชุดทดสอบ)</Warning>}
+          {m.clips < SMALL_TEST_SET && <Warning>ชุดทดสอบมีแค่ {m.clips} คลิป ผลยังแกว่งมาก ควรเลือกล่ามในชุดทดสอบให้มากขึ้น (แท็บชุดทดสอบ)</Warning>}
           {m.no_train_words && m.no_train_words.length > 0 && (
             <Warning>
               คำที่ทุกคลิปอยู่ในชุดทดสอบ โมเดลไม่ได้เรียนคำนี้เลย จึงทายผิดแน่นอน: {m.no_train_words.join(", ")}
@@ -231,28 +238,32 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
           )}
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricCard label="ทายถูก" value={pct(m.accuracy, 1)} hint="คำอันดับ 1 ตรงกับคำจริงกี่ %" />
-            <MetricCard label="ติด 3 อันดับ" value={pct(m.top3, 1)} hint="คำจริงอยู่ใน 3 คำแรกที่ทายกี่ %" />
-            <MetricCard label="Precision" value={pct(m.precision, 1)} hint="ทายว่าเป็นคำไหน แล้วถูกจริงกี่ % (เฉลี่ยทุกคำเท่ากัน)" />
-            <MetricCard label="Recall" value={pct(m.recall, 1)} hint="คลิปของแต่ละคำ ทายถูกกี่ % (เฉลี่ยทุกคำเท่ากัน)" />
-            <MetricCard label="F1" value={pct(m.f1, 1)} hint="ค่าเฉลี่ยของ Precision กับ Recall ตัวเลขเดียวที่ใช้เทียบเวอร์ชัน" />
+            <MetricCard label={LABELS.accuracy} tech={TECH.accuracy} value={pct(m.accuracy, 1)} hint={HINTS.accuracy} />
+            <MetricCard label={LABELS.top3} tech={TECH.top3} value={pct(m.top3, 1)} hint={HINTS.top3} />
+            <MetricCard label={LABELS.precision} tech={TECH.precision} value={pct(m.precision, 1)} hint={HINTS.precision} />
+            <MetricCard label={LABELS.recall} tech={TECH.recall} value={pct(m.recall, 1)} hint={HINTS.recall} />
+            <MetricCard label={LABELS.f1} tech={TECH.f1} value={pct(m.f1, 1)} hint={HINTS.f1} />
             <MetricCard
-              label="พูดผิดตอนไม่ทำท่า"
+              label={LABELS.falseAlarm}
               value={m.null_false_alarm == null ? "ไม่มีข้อมูล" : pct(m.null_false_alarm, 1)}
               tone={m.null_false_alarm != null && m.null_false_alarm > 0.1 ? "bad" : undefined}
-              hint="ตอนนั่งเฉย ๆ ไม่ได้ทำท่า ระบบพูดเป็นคำกี่ % (ยิ่งน้อยยิ่งดี) ต้องมีคลาส ไม่ทำท่า ในชุดทดสอบ"
+              hint={HINTS.falseAlarm}
             />
-            <MetricCard label="ไม่พูดตอนทำท่า" value={pct(m.word_dropped, 1)} hint="ทำท่าจริงแต่ระบบไม่พูดอะไรเลยกี่ % (มั่นใจไม่ถึงเกณฑ์)" />
+            <MetricCard label={LABELS.dropped} value={pct(m.word_dropped, 1)} hint={HINTS.dropped} />
             <MetricCard
-              label="เกณฑ์ความมั่นใจ"
+              label={LABELS.threshold}
+              tech={TECH.threshold}
               value={pct(m.threshold)}
-              hint="ระบบพูดคำเมื่อมั่นใจถึงค่านี้ คำนวณจากชุดทดสอบให้ได้ F1 สูงสุด (ตัวแปลใช้ค่านี้กับโมเดลเวอร์ชันนี้)"
+              hint={HINTS.threshold}
             />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-navy">คำที่ทายสลับกันบ่อย</h3>
+              <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold text-navy">
+                คำที่ระบบมักจำสลับกัน
+                <HintIcon text={HINTS.confusions} icon="help" tone="info" wide />
+              </h3>
               {m.confusions && m.confusions.length > 0 ? (
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-ink/55">
@@ -260,7 +271,7 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
                       <th className="py-1 font-semibold">คำจริง</th>
                       <th className="py-1 font-semibold">ทายเป็น</th>
                       <th className="py-1 text-right font-semibold">ครั้ง</th>
-                      <th className="py-1 text-right font-semibold">ของคำนี้</th>
+                      <th className="py-1 text-right font-semibold">% ของคำนี้</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-sky/60">
@@ -277,13 +288,13 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
                   </tbody>
                 </table>
               ) : (
-                <p className="text-sm text-ink/50">ไม่มีคู่คำที่ทายสลับกันซ้ำ ๆ</p>
+                <p className="text-sm text-ink/50">ไม่มีคำที่ระบบจำสลับกันซ้ำ ๆ</p>
               )}
             </div>
             {m.confidence && <ConfidenceChart data={m.confidence} threshold={m.threshold} />}
           </div>
           {model?.active && source === "validation" && m.threshold != null && (
-            <p className="text-xs text-ink/55">ตัวแปลภาษามือใช้เกณฑ์ {pct(m.threshold)} กับเวอร์ชันนี้</p>
+            <p className="text-xs text-ink/55">ตอนใช้งานจริง ระบบจะขึ้นคำเมื่อมั่นใจอย่างน้อย {pct(m.threshold)}</p>
           )}
         </div>
       )}

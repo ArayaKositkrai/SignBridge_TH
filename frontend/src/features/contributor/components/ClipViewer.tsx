@@ -142,7 +142,7 @@ export default function ClipViewer({ samples, index, onIndex, onClose, onDelete 
 
       {/* แถบล่าง: ข้อมูลคลิป */}
       <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4 py-3 text-sm text-white/80">
-        <span>ผู้แสดง: {s.signer ?? "ไม่ระบุ"}</span>
+        <span>ล่าม: {s.signer ?? "ไม่ระบุ"}</span>
         <span>{s.source === "record" ? "อัดจากกล้อง" : "อัปโหลด"}</span>
         {s.duration_ms != null && <span>{fmtDuration(s.duration_ms)}</span>}
         <span>

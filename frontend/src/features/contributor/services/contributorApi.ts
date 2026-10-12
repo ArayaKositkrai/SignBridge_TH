@@ -34,10 +34,12 @@ export interface SampleMeta {
   status?: "pending" | "approved" | "rejected";
   // ชุดที่ใช้ตอนเทรน (แอดมินสลับได้ในหน้าคลังคำศัพท์)
   split?: "train" | "test";
+  // true = เป็นชุดทดสอบเพราะล่ามคนนี้ถูกตั้งเป็นชุดทดสอบ (เปลี่ยนรายคลิปไม่ได้ ต้องเปลี่ยนที่หน้าผู้ใช้)
+  split_by_signer?: boolean;
   created_at: string;
 }
 
-// สถิติของคำหนึ่งคำ: คลิป เฟรม ความยาวรวม ผู้แสดง และความครบของมือ
+// สถิติของคำหนึ่งคำ: คลิป เฟรม ความยาวรวม ล่าม และความครบของมือ
 export interface WordStats {
   word: string;
   samples: number;
@@ -80,7 +82,10 @@ export interface ModelsBrief {
 // คำหนึ่งคำในคลังคำศัพท์: หมวด ความสำคัญ ต้องอัดเองไหม คลิปในชุดข้อมูล TSL และคลิปที่อัดแล้ว
 export interface VocabEntry {
   word: string;
+  // หมวดล้วน ๆ (ไม่มีชื่อแหล่งข้อมูลปน)
   category: string | null;
+  // แหล่งที่มา: ชุดข้อมูลที่คำนี้มีคลิป (TSL-51, TSL-ONE-S) และ "ล่าม" ถ้าล่ามอัดไว้แล้ว
+  sources?: string[];
   priority: "สูง" | "กลาง" | "ต่ำ" | null;
   assigned?: string | null;
   note?: string | null;

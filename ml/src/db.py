@@ -67,7 +67,7 @@ def train_words(conn) -> set[str]:
     return {r[0] for r in conn.execute("SELECT word FROM words WHERE in_train_set")}
 
 
-# ผู้แสดงที่แอดมินเลือกเป็นชุดทดสอบ (หน้าแอดมิน → โมเดล → ชุดทดสอบ) ว่าง/ยังไม่มีตาราง = สุ่มอัตโนมัติ
+# ผู้แสดงที่อัดผ่านระบบซึ่งแอดมินตั้งเป็นชุดทดสอบ (หน้าแอดมิน › ผู้ใช้) ว่าง/ยังไม่มีตาราง = ไม่มี
 def test_signers(conn) -> set[str]:
     try:
         with conn.transaction():

@@ -4,6 +4,7 @@ import Card from "../../components/ui/Card";
 import Icon, { type IconName } from "../../components/ui/Icon";
 import { fmtNumber, fmtPct } from "../../lib/format";
 import { TARGET_SAMPLES } from "../contributor/constants";
+import ModelHealth from "./components/ModelHealth";
 import PageHeader from "./components/PageHeader";
 import { getDashboard, versionLabel, type Dashboard } from "./services/adminApi";
 
@@ -56,7 +57,7 @@ function BarRow({ label, value, max, target }: { label: string; value: number; m
   );
 }
 
-// แดชบอร์ดแอดมิน: ตัวเลขรวม คลิปต่อคำ ผู้แสดง คุณภาพข้อมูล และโมเดล
+// แดชบอร์ดแอดมิน: ตัวเลขรวม คลิปต่อคำ ล่าม คุณภาพข้อมูล และโมเดล
 export default function DashboardView() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export default function DashboardView() {
       .catch((e) => setError(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ"));
   }, []);
 
-  const header = <PageHeader title="ภาพรวม" description="จำนวนคำ คลิป ผู้แสดง คุณภาพข้อมูล และโมเดลที่ใช้อยู่" />;
+  const header = <PageHeader title="ภาพรวม" description="จำนวนคำ คลิป ล่าม คุณภาพข้อมูล และโมเดลที่ใช้อยู่" />;
   if (error)
     return (
       <>
@@ -95,9 +96,11 @@ export default function DashboardView() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi icon="book" label="คำศัพท์" value={fmtNumber(t.words)} to="/admin/vocabulary" go="คลังคำศัพท์" />
         <Kpi icon="camera" label="คลิป" value={fmtNumber(t.samples)} to="/admin/vocabulary" go="คลังคำศัพท์" />
-        <Kpi icon="user" label="ผู้แสดง" value={fmtNumber(t.signers)} to="/admin/users?tab=contributor" go="ผู้ใช้ (ล่าม)" />
+        <Kpi icon="user" label="ล่าม" value={fmtNumber(t.signers)} to="/admin/users?tab=contributor" go="ผู้ใช้ (ล่าม)" />
         <Kpi icon="users" label="ผู้ใช้" value={fmtNumber(t.users)} to="/admin/users" go="ผู้ใช้" />
       </div>
+
+      <ModelHealth />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title={`คลิปต่อคำ (เส้นตั้ง = เป้า ${TARGET_SAMPLES} คลิป)`} className="lg:col-span-2">
@@ -156,7 +159,7 @@ export default function DashboardView() {
         </div>
       </div>
 
-      <Card title="คลิปต่อผู้แสดง">
+      <Card title="คลิปต่อล่าม">
         {data.signers.length ? (
           <ul className="scrollbar-thin flex max-h-72 flex-col gap-2 overflow-y-auto pr-2">
             {data.signers.map((s) => (

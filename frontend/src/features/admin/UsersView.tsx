@@ -37,12 +37,12 @@ const ROLE_OF = Object.fromEntries(ROLES.map((r) => [r.value, r])) as Record<Rol
 
 // ตัวกรองผู้ใช้ (จากการ์ดตัวเลขด้านบน)
 type Tab = "all" | Role | "performer" | "inactive";
-// เงื่อนไขของแต่ละตัวกรอง (ล่าม/แอดมิน/ผู้ใช้ นับเฉพาะคนที่มีบัญชีเข้าสู่ระบบ)
+// เงื่อนไขของแต่ละตัวกรอง (นับตามบทบาท รวมคนที่ยังไม่มีบัญชีเข้าสู่ระบบ ให้ตรงกับตัวเลขในแดชบอร์ด)
 const TAB_TEST: Record<Tab, (u: User) => boolean> = {
   all: () => true,
-  admin: (u) => u.role === "admin" && u.can_login !== false,
-  contributor: (u) => u.role === "contributor" && u.can_login !== false,
-  user: (u) => u.role === "user" && u.can_login !== false,
+  admin: (u) => u.role === "admin",
+  contributor: (u) => u.role === "contributor",
+  user: (u) => u.role === "user",
   performer: (u) => u.can_login === false,
   inactive: (u) => !u.active,
 };
@@ -71,7 +71,7 @@ function Avatar({ name, muted }: { name: string; muted?: boolean }) {
   );
 }
 
-// จัดการผู้ใช้: ตัวเลขสรุป (กดกรองได้) ค้นหา ตารางผู้ใช้ แก้ไขและเพิ่มผู้แสดงในหน้าต่างกลางจอแบบเดียวกัน
+// จัดการผู้ใช้: ตัวเลขสรุป (กดกรองได้) ค้นหา ตารางผู้ใช้ แก้ไขและเพิ่มล่ามในหน้าต่างกลางจอแบบเดียวกัน
 export default function UsersView() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -116,7 +116,7 @@ export default function UsersView() {
   const stats: Stat[] = [
     { label: "ผู้ใช้ทั้งหมด", value: users.length, filter: "all" },
     { label: "แอดมิน", value: count("admin"), filter: "admin" },
-    { label: "ล่าม", value: count("contributor"), filter: "contributor", hint: count("performer") ? `+ ผู้แสดงไม่มีบัญชี ${count("performer")}` : undefined },
+    { label: "ล่าม", value: count("contributor"), filter: "contributor", hint: count("performer") ? `ยังไม่มีบัญชีเข้าสู่ระบบ ${count("performer")} คน` : undefined },
     { label: "ผู้ใช้ทั่วไป", value: count("user"), filter: "user" },
     { label: "ปิดใช้งาน", value: count("inactive"), filter: "inactive", tone: count("inactive") ? "warning" : "default" },
   ];
@@ -134,7 +134,7 @@ export default function UsersView() {
               {u.name}
               {u.id === me?.id && <span className="ml-1.5 text-xs font-normal text-ink/45">(คุณ)</span>}
             </p>
-            <p className="truncate text-xs text-ink/55">{u.can_login === false ? "ผู้แสดง · ไม่มีบัญชีเข้าสู่ระบบ" : u.email}</p>
+            <p className="truncate text-xs text-ink/55">{u.can_login === false ? `${u.email ?? "ไม่มีอีเมล"} · ยังไม่มีบัญชีเข้าสู่ระบบ` : u.email}</p>
           </div>
         </div>
       ),
@@ -190,7 +190,7 @@ export default function UsersView() {
         description="เปลี่ยนบทบาท เปิด/ปิดการใช้งาน และดูข้อมูลส่วนตัวของผู้ใช้ (คลิกแถวเพื่อแก้ไข)"
         actions={
           <Button icon="plus" onClick={() => setAdding(true)}>
-            เพิ่มผู้แสดง
+            เพิ่มล่าม
           </Button>
         }
       />
@@ -231,7 +231,7 @@ const SPLITS: { value: Split; label: string; hint: string }[] = [
   { value: "test", label: "ทดสอบ", hint: "กันไว้วัดความแม่นยำ โมเดลไม่เคยเห็นคนนี้" },
 ];
 
-// ป้ายชุดข้อมูลของคลิปที่ผู้แสดงคนนี้อัด พร้อมจำนวนคลิป
+// ป้ายชุดข้อมูลของคลิปที่ล่ามคนนี้อัด พร้อมจำนวนคลิป
 function SplitBadge({ split, clips }: { split: Split; clips: number }) {
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -243,8 +243,8 @@ function SplitBadge({ split, clips }: { split: Split; clips: number }) {
 
 // ช่องข้อมูลที่เก็บของแต่ละบทบาท (ตรงกับ CARD_ROLES ใน backend: บัตรคนพิการเก็บเฉพาะผู้ใช้ทั่วไป)
 const ROLE_FIELDS: Record<Role, { card: boolean; note: string }> = {
-  admin: { card: false, note: "แอดมินเก็บเฉพาะชื่อและเบอร์ติดต่อ" },
-  contributor: { card: false, note: "ล่ามเก็บเฉพาะชื่อและเบอร์ติดต่อ" },
+  admin: { card: false, note: "แอดมินเก็บชื่อ อีเมล และเบอร์ติดต่อ" },
+  contributor: { card: false, note: "ล่ามเก็บชื่อ อีเมล และเบอร์ติดต่อ" },
   user: { card: true, note: "ผู้ใช้ทั่วไปเก็บเบอร์โทรและข้อมูลบัตรคนพิการ (เห็นได้เฉพาะเจ้าของและแอดมิน)" },
 };
 
@@ -269,7 +269,7 @@ function UserDialog({
   onDeleted,
 }: {
   user: User | null;
-  // true = โหมดเพิ่มผู้แสดงใหม่ (หน้าตาเหมือนตอนแก้ไข แต่เก็บค่าไว้ในฟอร์มจนกดบันทึก)
+  // true = โหมดเพิ่มล่ามใหม่ (หน้าตาเหมือนตอนแก้ไข แต่เก็บค่าไว้ในฟอร์มจนกดบันทึก)
   creating?: boolean;
   isMe: boolean;
   onClose: () => void;
@@ -282,7 +282,7 @@ function UserDialog({
   const user: User | null = creating
     ? { id: "", name: "", first_name: "", last_name: null, email: null, role: draft.role, active: draft.active, can_login: true, split: draft.role === "user" ? null : draft.split, clips: 0 }
     : existing;
-  const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", disability_card_number: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", phone: "", disability_card_number: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -296,6 +296,7 @@ function UserDialog({
     setForm({
       first_name: user.first_name ?? user.name,
       last_name: user.last_name ?? "",
+      email: user.email ?? "",
       phone: user.phone ?? "",
       disability_card_number: user.disability_card_number ?? "",
     });
@@ -367,6 +368,7 @@ function UserDialog({
       // backend สร้างได้ด้วยชื่อเท่านั้น ที่เหลือตั้งต่อด้วย API เดียวกับตอนแก้ไข
       const changes: UserChanges = {};
       if (form.last_name.trim()) changes.last_name = form.last_name.trim();
+      if (form.email.trim()) changes.email = form.email.trim();
       if (form.phone.replace(/\D/g, "")) changes.phone = form.phone;
       if (fields.card && form.disability_card_number.replace(/\D/g, "")) changes.disability_card_number = form.disability_card_number;
       if (!draft.active) changes.active = false;
@@ -394,7 +396,8 @@ function UserDialog({
     const changes: UserChanges = {};
     if (form.first_name.trim() !== (user.first_name ?? user.name)) changes.first_name = form.first_name.trim();
     if (form.last_name.trim() !== (user.last_name ?? "")) changes.last_name = form.last_name.trim();
-    if (!performer && form.phone.replace(/\D/g, "") !== (user.phone ?? "")) changes.phone = form.phone;
+    if (performer && form.email.trim().toLowerCase() !== (user.email ?? "")) changes.email = form.email.trim();
+    if (form.phone.replace(/\D/g, "") !== (user.phone ?? "")) changes.phone = form.phone;
     if (!performer && fields.card && form.disability_card_number.replace(/\D/g, "") !== (user.disability_card_number ?? "").replace(/\D/g, ""))
       changes.disability_card_number = form.disability_card_number;
     if (Object.keys(changes).length) void save(changes);
@@ -434,8 +437,8 @@ function UserDialog({
       <Dialog
         open={!!user}
         size="xl"
-        title={creating ? "เพิ่มผู้แสดง" : user ? `แก้ไขผู้ใช้ · ${user.name}` : ""}
-        subtitle={creating ? "ผู้แสดง (ยังไม่มีบัญชีเข้าสู่ระบบ)" : performer ? "ผู้แสดง (ไม่มีบัญชีเข้าสู่ระบบ)" : user?.email}
+        title={creating ? "เพิ่มล่าม" : user ? `แก้ไขผู้ใช้ · ${user.name}` : ""}
+        subtitle={creating ? "ล่าม (ยังไม่มีบัญชีเข้าสู่ระบบ)" : performer ? "ล่าม (ไม่มีบัญชีเข้าสู่ระบบ)" : user?.email}
         onClose={onClose}
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -465,7 +468,8 @@ function UserDialog({
               <h3 className="text-sm font-bold text-navy">บัญชี</h3>
               {performer ? (
                 <p className="rounded-xl bg-panel px-3 py-2 text-sm text-ink/70 ring-1 ring-sky">
-                  ผู้แสดงเป็นชื่อคนทำท่าในคลิปเท่านั้น ไม่มีบัญชีเข้าสู่ระบบ จึงเก็บแค่ชื่อ
+                  คนนี้ยังไม่มีบัญชีเข้าสู่ระบบ ใส่อีเมล Google ของเขาไว้ได้ เมื่อเขากด "เข้าสู่ระบบด้วย Google" ด้วยอีเมลนี้
+                  จะเข้าบัญชีนี้เลย คลิปที่อัดไว้และการตั้งชุดเทรน/ทดสอบอยู่บัญชีเดียวกัน
                 </p>
               ) : (
                 <div role="radiogroup" aria-label="บทบาท" className="grid gap-2">
@@ -549,12 +553,20 @@ function UserDialog({
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="ชื่อ" value={form.first_name} onChange={set("first_name")} maxLength={50} required />
                 <Field label="นามสกุล" value={form.last_name} onChange={set("last_name")} maxLength={50} />
-                {!performer && (
-                  <>
-                    <Field label="อีเมล" value={user.email ?? "-"} disabled hint="เปลี่ยนไม่ได้" />
-                    <Field label="เบอร์โทร" value={form.phone} onChange={set("phone")} inputMode="tel" maxLength={14} placeholder="08xxxxxxxx" />
-                  </>
+                {performer || creating ? (
+                  <Field
+                    label="อีเมล (ไม่ใส่ก็ได้)"
+                    type="email"
+                    value={form.email}
+                    onChange={set("email")}
+                    maxLength={120}
+                    placeholder="name@gmail.com"
+                    hint="ใช้ล็อกอินด้วย Google ภายหลัง"
+                  />
+                ) : (
+                  <Field label="อีเมล" value={user.email ?? "-"} disabled hint="ใช้เข้าสู่ระบบ เปลี่ยนไม่ได้" />
                 )}
+                <Field label="เบอร์โทร" value={form.phone} onChange={set("phone")} inputMode="tel" maxLength={14} placeholder="08xxxxxxxx" />
               </div>
               {!performer && fields.card && (
                 <fieldset className="mt-1 flex flex-col gap-3 rounded-2xl bg-panel p-3 ring-1 ring-sky">

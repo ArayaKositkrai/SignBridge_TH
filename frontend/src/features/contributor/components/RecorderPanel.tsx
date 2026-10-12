@@ -11,12 +11,11 @@ import { uploadSample, type SampleMeta } from "../services/contributorApi";
 import { SKELETON_FPS } from "../services/extractLandmarks";
 import ReviewPlayer from "./ReviewPlayer";
 
-// ค่าที่แผงอัดคลิปรับ: คำศัพท์ ผู้แสดง จำนวนคลิปที่เก็บแล้ว เป้าหมาย และฟังก์ชันเรียกเมื่อบันทึกสำเร็จ
+// ค่าที่แผงอัดคลิปรับ: คำศัพท์ ล่าม จำนวนคลิปที่เก็บแล้ว และฟังก์ชันเรียกเมื่อบันทึกสำเร็จ
 interface Props {
   word: string;
   signer: string | null;
   savedCount: number;
-  target: number;
   onSaved: (sample: SampleMeta) => void;
 }
 
@@ -131,7 +130,7 @@ function RecordButton(p: { state: string; progress: number; disabled: boolean; o
 }
 
 // แผงอัดคลิปแบบแอปกล้อง: ภาพสด + skeleton ปุ่มอัดกลางจอ ตรวจดูคลิป แล้วอัดใหม่หรือเก็บ
-export default function RecorderPanel({ word, signer, savedCount, target, onSaved }: Props) {
+export default function RecorderPanel({ word, signer, savedCount, onSaved }: Props) {
   // ขอกล้อง 50 fps เท่าคลิปอ้างอิง (กล้องที่ทำไม่ได้จะให้ค่าสูงสุดที่ทำได้)
   const cam = useCamera({ frameRate: SKELETON_FPS });
   const on = cam.status === "on";
@@ -147,8 +146,15 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // อัปโหลดหลายไฟล์: ไฟล์ที่รอตรวจ/เก็บต่อ, จำนวนไฟล์ทั้งชุด, ไฟล์ที่กำลังเปิดอยู่ และไฟล์ที่อ่านไม่ได้ (ข้ามไป)
+  const [queue, setQueue] = useState<File[]>([]);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [current, setCurrent] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState<string[]>([]);
 
-  const hasWord = word.trim().length > 0;
+  // ต้องมีทั้งคำศัพท์และล่ามที่เลือก ถึงจะอัด/อัปโหลดได้
+  const hasSigner = !!signer;
+  const hasWord = word.trim().length > 0 && hasSigner;
   const take = rec.take;
   const capturing = rec.state === "countdown" || rec.state === "recording";
   const canRecord = on && hasWord;
@@ -156,6 +162,55 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
 
   // ตรวจคลิปหรือสกัดไฟล์อยู่ = หยุดตรวจจับจากกล้อง
   useEffect(() => setPaused(rec.state === "review" || rec.state === "processing"), [rec.state]);
+
+  // เปิดไฟล์ถัดไปในคิว (หมดคิว = จบชุด)
+  const loadNext = (rest: File[] = queue) => {
+    const [next, ...more] = rest;
+    setQueue(more);
+    if (!next) {
+      setCurrent(null);
+      setBatchTotal(0);
+      return;
+    }
+    setCurrent(next.name);
+    rec.loadFile(next, { flip: flipUpload });
+  };
+
+  // เลือกไฟล์ (เลือกได้หลายไฟล์): เริ่มชุดใหม่ ทุกไฟล์เก็บเป็นคำที่เลือกอยู่
+  const pickFiles = (files: File[]) => {
+    if (!files.length) return;
+    setSkipped([]);
+    setBatchTotal(files.length);
+    if (files.length > 1) logEvent("อัปโหลดหลายไฟล์", `${files.length} ไฟล์`);
+    loadNext(files);
+  };
+
+  // ไฟล์ในชุดอ่านไม่ได้ (นามสกุลผิด ใหญ่เกิน อ่าน skeleton ไม่ได้) → จดไว้แล้วข้ามไปไฟล์ถัดไป
+  useEffect(() => {
+    if (!rec.error || !current || rec.state !== "idle" || batchTotal < 2) return;
+    setSkipped((s) => [...s, `${current}: ${rec.error}`]);
+    loadNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rec.error, rec.state, current]);
+
+  // ทิ้งคลิปนี้ (ถ้าเป็นไฟล์ในชุด เปิดไฟล์ถัดไปต่อ)
+  const discard = () => {
+    const fromBatch = take?.source === "upload" && queue.length > 0;
+    rec.discard();
+    if (fromBatch) loadNext();
+    else if (take?.source === "upload") {
+      setCurrent(null);
+      setBatchTotal(0);
+    }
+  };
+
+  // หยุดชุดไฟล์ที่เหลือ
+  const stopBatch = () => {
+    setQueue([]);
+    setBatchTotal(0);
+    setCurrent(null);
+    rec.discard();
+  };
 
   // ซ่อนข้อความ "เก็บแล้ว" อัตโนมัติ
   useEffect(() => {
@@ -196,6 +251,8 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
       rec.reset();
       setToast(`เก็บแล้ว · คลิปที่ ${savedCount + 1} ของ "${sample.word}"`);
       onSaved(sample);
+      // อัปโหลดหลายไฟล์: เปิดไฟล์ถัดไปให้ตรวจต่อ
+      if (take.source === "upload") loadNext();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "บันทึกคลิปไม่สำเร็จ");
     } finally {
@@ -210,8 +267,8 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
   };
 
   // คีย์ลัด: Space = อัด/หยุด, Enter = เก็บ, R = อัดใหม่, Esc = ยกเลิก/ทิ้ง (ไม่ทำงานตอนพิมพ์หรือเปิดหน้าต่างดูคลิป)
-  const keysRef = useRef({ primary, save, retake });
-  keysRef.current = { primary, save, retake };
+  const keysRef = useRef({ primary, save, retake, discard });
+  keysRef.current = { primary, save, retake, discard };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
@@ -221,7 +278,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
       if (e.code === "Space" && rec.state !== "review" && rec.state !== "processing") k.primary();
       else if (e.key === "Enter" && rec.state === "review") void k.save();
       else if (e.key.toLowerCase() === "r" && rec.state === "review" && on) k.retake();
-      else if (e.key === "Escape" && rec.state !== "idle") rec.state === "review" ? rec.discard() : rec.cancel();
+      else if (e.key === "Escape" && rec.state !== "idle") rec.state === "review" ? k.discard() : rec.cancel();
       else return;
       e.preventDefault();
     };
@@ -321,7 +378,6 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
                 <span className="font-bold">{word.trim()}</span>
                 <span className="text-white/70">
                   · คลิปที่ {savedCount + 1}
-                  {savedCount < target && ` / ${target}`}
                 </span>
               </Pill>
             )}
@@ -367,7 +423,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-4 pt-10">
             {!hasWord && (
               <p className="mb-3 text-center text-sm font-medium text-amber-200">
-                พิมพ์คำศัพท์ด้านบนก่อนเริ่มอัด
+                {hasSigner ? "พิมพ์คำศัพท์ด้านบนก่อนเริ่มอัด" : "เลือกล่ามด้านซ้ายก่อนเริ่มอัด"}
               </p>
             )}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -443,7 +499,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
                   อัปโหลดไฟล์
                 </Button>
               </div>
-              {!hasWord && <p className="text-xs text-amber-200">พิมพ์คำศัพท์ด้านบนก่อน</p>}
+              {!hasWord && <p className="text-xs text-amber-200">{hasSigner ? "พิมพ์คำศัพท์ด้านบนก่อน" : "เลือกล่ามก่อน"}</p>}
             </div>
           </div>
         )}
@@ -470,14 +526,39 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
       <input
         ref={fileRef}
         type="file"
+        multiple
         accept={`video/*,${UPLOAD_EXTS.join(",")}`}
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) rec.loadFile(file, { flip: flipUpload });
+          pickFiles(Array.from(e.target.files ?? []));
           e.target.value = "";
         }}
       />
+
+      {/* อัปโหลดหลายไฟล์: บอกว่าถึงไฟล์ไหนแล้ว */}
+      {batchTotal > 1 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-brand/10 px-3 py-2 text-sm text-navy ring-1 ring-brand/30">
+          <Icon name="upload" size={16} className="shrink-0" />
+          <span>
+            ไฟล์ที่ <b>{batchTotal - queue.length}</b> จาก {batchTotal}
+            {current && <span className="ml-1 text-ink/60">· {current}</span>}
+          </span>
+          <span className="text-xs text-ink/55">เก็บหรือทิ้งแล้ว ไฟล์ถัดไปจะเปิดให้เอง (Enter = เก็บ, Esc = ทิ้ง)</span>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={stopBatch} disabled={saving}>
+            หยุด ไม่เอาไฟล์ที่เหลือ
+          </Button>
+        </div>
+      )}
+      {skipped.length > 0 && (
+        <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-300">
+          <b>ข้าม {skipped.length} ไฟล์ที่อ่านไม่ได้:</b>
+          <ul className="mt-1 list-disc pl-4">
+            {skipped.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* แถบตัดสินใจหลังอัด: ดูคุณภาพ แล้วเก็บ / อัดใหม่ / ทิ้ง */}
       {take && quality && (
@@ -503,7 +584,7 @@ export default function RecorderPanel({ word, signer, savedCount, target, onSave
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" icon="trash" onClick={rec.discard} disabled={saving} aria-label="ทิ้งคลิป">
+            <Button variant="ghost" icon="trash" onClick={discard} disabled={saving} aria-label="ทิ้งคลิป">
               <span className="hidden sm:inline">ทิ้ง</span>
             </Button>
             <Button

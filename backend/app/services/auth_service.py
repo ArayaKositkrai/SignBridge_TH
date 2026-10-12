@@ -314,10 +314,24 @@ def oauth_login(provider: str, code: str) -> str:
                 UserIdentity.provider == provider, UserIdentity.provider_user_id == profile["sub"]
             )
         )
+        # ล่ามที่แอดมินเพิ่มเองและใส่อีเมลไว้ (ไม่มีรหัสผ่าน ยังไม่ผูกบัญชีใด) + Google/LINE ยืนยันอีเมลนั้นแล้ว
+        #   = เจ้าของตัวจริง ผูกเข้าบัญชีเดิม (คลิปและการตั้งค่าชุดทดสอบของล่ามคนนั้นอยู่บัญชีเดียวกัน)
+        existing = None if identity or not verified_email else _find_by_email(db, verified_email)
+        claimable = (
+            existing is not None
+            and not existing.password_hash
+            and not db.scalar(select(UserIdentity.id).where(UserIdentity.user_id == existing.id).limit(1))
+        )
         if identity:
             user = db.get(User, identity.user_id)
+        elif claimable:
+            user = existing
+            identity = UserIdentity(
+                user_id=user.id, provider=provider, provider_user_id=profile["sub"], provider_email=email
+            )
+            db.add(identity)
         else:
-            if verified_email and _find_by_email(db, verified_email):
+            if verified_email and existing:
                 raise AuthError("อีเมลนี้มีบัญชีอยู่แล้ว ให้ล็อกอินด้วยรหัสผ่าน แล้วกด \"ผูกบัญชี Google\" ที่เมนูผู้ใช้", 409)
             user = User(
                 first_name=profile["first_name"][:50],

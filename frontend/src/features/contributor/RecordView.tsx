@@ -7,7 +7,6 @@ import SplitNotice from "./components/SplitNotice";
 import RecorderPanel from "./components/RecorderPanel";
 import SampleList from "./components/SampleList";
 import WordCombobox from "./components/WordCombobox";
-import { TARGET_SAMPLES } from "./constants";
 import { logEvent } from "../../lib/activityLog";
 import { useContributor } from "./context";
 import { deleteSample, listSamples, type SampleMeta } from "./services/contributorApi";
@@ -88,7 +87,7 @@ export default function RecordView() {
         {/* เลือกคำ + อัดคลิปในการ์ดเดียว ให้เห็นส่วนอัดทันทีไม่ต้องเลื่อน */}
         <Card className="shrink-0">
           <div className="mb-3">
-            <WordCombobox value={word} onChange={changeWord} vocab={vocab} words={words} target={TARGET_SAMPLES} />
+            <WordCombobox value={word} onChange={changeWord} vocab={vocab} words={words} />
             {/* ข้อมูลย่อของคำที่เลือกจากคลังคำศัพท์ (บรรทัดเดียว) */}
             {info && (
               <p className="mt-1.5 flex items-center gap-x-3 overflow-hidden whitespace-nowrap text-xs text-ink/70">
@@ -117,7 +116,6 @@ export default function RecordView() {
             word={word}
             signer={signer}
             savedCount={samples.length}
-            target={TARGET_SAMPLES}
             onSaved={handleSaved}
           />
         </Card>
@@ -128,16 +126,6 @@ export default function RecordView() {
         title={current ? `คลิปของ "${current}" (${samples.length})` : "คลิปที่เก็บแล้ว"}
         className="flex min-h-0 min-w-0 flex-col"
       >
-        {current && (
-          <div className="mb-3 shrink-0">
-            <div className="mb-1 flex items-baseline justify-between text-xs">
-              <span className="text-ink/60">
-                {samples.length >= TARGET_SAMPLES ? "ครบตามที่แนะนำแล้ว อัดเพิ่มได้อีก" : `แนะนำอย่างน้อย ${TARGET_SAMPLES} คลิป`}
-              </span>
-              <span className="font-bold text-navy">{samples.length}</span>
-            </div>
-          </div>
-        )}
         <div className="h-80 min-h-0 xl:h-auto xl:flex-1">
           <SampleList
             word={current}

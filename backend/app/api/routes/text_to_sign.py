@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.nlp.tokenizer import tokenize
+from app.nlp.tokenizer import analyze
 from app.services.retrieval_service import find_clips, list_sign_words
 
 # กลุ่ม route ของฟีเจอร์ข้อความ -> ภาษามือ
@@ -14,10 +14,11 @@ class TextToSignRequest(BaseModel):
 
 
 # แปลข้อความเป็นรายการคำและท่าทางภาษามือ
+#   แก้คำพิมพ์ผิด/คำเรียกอื่นให้ (fixes) บอกคำที่ยังไม่มีท่า (no_sign) และส่วนที่อ่านไม่ออกพร้อมคำแนะนำ (unknown)
 @router.post("/text-to-sign")
 def text_to_sign(req: TextToSignRequest):
-    tokens = tokenize(req.text)
-    return {"tokens": tokens, "clips": find_clips(tokens)}
+    result = analyze(req.text)
+    return {**result, "clips": find_clips(result["tokens"])}
 
 
 # รายการคำที่อวตารทำท่าได้ (จากฐานข้อมูล) ไว้ให้ผู้ใช้กดเลือก

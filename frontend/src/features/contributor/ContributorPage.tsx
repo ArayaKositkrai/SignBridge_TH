@@ -10,7 +10,7 @@ import LibraryView from "./LibraryView";
 import RecordView from "./RecordView";
 import { listVocabulary, listWords, type ModelsBrief, type VocabEntry, type WordStats } from "./services/contributorApi";
 
-// key ที่จำผู้แสดงที่เลือกไว้ในเบราว์เซอร์
+// key ที่จำล่ามที่เลือกไว้ในเบราว์เซอร์
 const SIGNER_KEY = "signbridge.signer";
 
 // อ่านค่าที่จำไว้ (เบราว์เซอร์บางโหมดใช้ localStorage ไม่ได้)
@@ -22,7 +22,7 @@ function readSigner(): string | null {
   }
 }
 
-// จำผู้แสดงที่เลือกไว้ (ว่าง = ลบ)
+// จำล่ามที่เลือกไว้ (ว่าง = ลบ)
 function writeSigner(name: string | null) {
   try {
     if (name) localStorage.setItem(SIGNER_KEY, name);
@@ -46,7 +46,7 @@ const MENU: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: "/contributor/library", label: "คลังคำศัพท์", icon: "book" },
 ];
 
-// พื้นที่ล่าม: sidebar (ผู้แสดง เมนู สรุปข้อมูล) + หน้าอัดคลิป / คลังคำศัพท์
+// พื้นที่ล่าม: sidebar (ล่าม เมนู สรุปข้อมูล) + หน้าอัดคลิป / คลังคำศัพท์
 export default function ContributorPage() {
   return (
     <Routes>
@@ -80,7 +80,7 @@ function ContributorLayout() {
     }
   }, []);
 
-  // โหลดคำศัพท์และรายชื่อผู้แสดงตอนเปิดหน้า
+  // โหลดคำศัพท์และรายชื่อล่ามตอนเปิดหน้า
   useEffect(() => {
     void refresh();
     listSigners()
@@ -91,7 +91,7 @@ function ContributorLayout() {
       .catch(() => setUsers([]));
   }, [refresh]);
 
-  // เลือกผู้แสดงแล้วจำไว้
+  // เลือกล่ามแล้วจำไว้
   const chooseSigner = (name: string) => {
     const value = name || null;
     setSigner(value);
@@ -99,11 +99,17 @@ function ContributorLayout() {
   };
 
   const signers = users.filter((u) => u.active && u.role !== "user");
-  // ชุดข้อมูลของผู้แสดงที่เลือก (ไม่ระบุ/ไม่พบชื่อ = ตามค่าของ "ไม่ระบุ")
+  // ชุดข้อมูลของล่ามที่เลือก (ไม่ระบุ/ไม่พบชื่อ = ตามค่าของ "ไม่ระบุ")
   const signerSplit: Split = (signer ? users.find((u) => u.name === signer)?.split : null) ?? unknownSplit;
+  // คลิปที่อัดผ่านระบบ และคลิปชุด TSL (ไฟล์ที่ใช้เทรน) ของทุกคำในคลัง
+  const recorded = words.reduce((n, w) => n + w.samples, 0);
+  const tsl = vocab.reduce((n, v) => n + Object.values(v.external ?? {}).reduce((m, e) => m + e.clips, 0), 0);
   const total = {
-    words: words.filter((w) => w.samples).length,
-    samples: words.reduce((n, w) => n + w.samples, 0),
+    // จำนวนคำทั้งหมดในคลังคำศัพท์
+    words: vocab.length,
+    samples: recorded + tsl,
+    recorded,
+    tsl,
     frames: words.reduce((n, w) => n + w.frames, 0),
     duration: words.reduce((n, w) => n + w.duration_ms, 0),
   };
@@ -124,18 +130,18 @@ function ContributorLayout() {
 
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
         <aside className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
-          {/* ผู้แสดง */}
+          {/* ล่าม */}
           <div className="glass-card">
             <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand">
               <Icon name="user" size={14} />
-              ผู้แสดง (ล่าม)
+              ล่าม
             </label>
             <select
               value={signer ?? ""}
               onChange={(e) => chooseSigner(e.target.value)}
               className="h-10 w-full rounded-xl border border-sky bg-surface px-2 text-sm outline-none focus:ring-2 focus:ring-brand/30"
             >
-              <option value="">ไม่ระบุ</option>
+              <option value="">---เลือกล่าม---</option>
               {signers.map((u) => (
                 <option key={u.id} value={u.name}>
                   {u.name}
@@ -192,6 +198,9 @@ function ContributorLayout() {
                 </div>
               ))}
             </dl>
+            <p className="mt-2 text-center text-[11px] text-ink/55">
+              คลิป: อัดผ่านระบบ {fmtNumber(total.recorded)} · ชุด TSL {fmtNumber(total.tsl)}
+            </p>
           </div>
 
           {/* เคล็ดลับการอัด */}

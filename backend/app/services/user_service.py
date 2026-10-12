@@ -1,12 +1,15 @@
 import re
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
-from app.db.models import User
+from app.db.models import User, UserIdentity
 from app.db.session import SessionLocal
 
 # บทบาทที่ใช้ได้: แอดมิน ล่าม (อัดคลิป) ผู้ใช้ทั่วไป
 ROLES = ("admin", "contributor", "user")
+# รูปแบบอีเมลแบบหยาบ (มี @ และโดเมนมีจุด)
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # เบอร์โทรไทย: 9-10 หลัก ขึ้นต้นด้วย 0 (บ้าน 02xxxxxxx / มือถือ 08xxxxxxxx)
 PHONE_RE = re.compile(r"^0\d{8,9}$")
 # ไฟล์รูปบัตรคนพิการของผู้ใช้แต่ละคนใน Storage (ชื่อไฟล์ใหม่ทุกครั้งที่อัป เพราะ Storage cache ไฟล์ชื่อเดิมไว้สักพัก
@@ -77,8 +80,27 @@ def format_card(number: str | None) -> str | None:
     return f"{number[0]}-{number[1:5]}-{number[5:10]}-{number[10:12]}-{number[12]}"
 
 
+# ตรวจและทำความสะอาดอีเมล (ว่าง = None)
+def clean_email(value: str | None) -> str | None:
+    text = (value or "").strip().lower()
+    if not text:
+        return None
+    if len(text) > 120 or not EMAIL_RE.match(text):
+        raise InvalidField("รูปแบบอีเมลไม่ถูกต้อง")
+    return text
+
+
+# ผู้ใช้ที่ผูกบัญชี Google/LINE แล้ว (ไว้บอกว่าเข้าสู่ระบบได้ไหม)
+def _with_identity(db, user_ids: list[str] | None = None) -> set[str]:
+    q = select(UserIdentity.user_id).distinct()
+    if user_ids is not None:
+        q = q.where(UserIdentity.user_id.in_(user_ids))
+    return set(db.scalars(q).all())
+
+
 # แปลงแถวในตาราง users เป็น dict สำหรับหน้าแอดมิน (แอดมินเห็นข้อมูลบัตรเต็ม)
-def _to_dict(user: User) -> dict:
+#   has_identity = ผูกบัญชี Google/LINE แล้ว
+def _to_dict(user: User, has_identity: bool = False) -> dict:
     return {
         "id": user.id,
         # ช่อง name ไว้แสดงผล ส่วนแก้ไขใช้ first_name/last_name
@@ -91,8 +113,9 @@ def _to_dict(user: User) -> dict:
         "phone": user.phone,
         "disability_card_number": format_card(user.disability_card_number),
         "has_card_image": bool(user.disability_card_image),
-        # ไม่มีอีเมล = เพิ่มจากหน้าแอดมินเป็นชื่อผู้แสดงอย่างเดียว ล็อกอินไม่ได้
-        "can_login": bool(user.email),
+        # เข้าสู่ระบบได้ = มีรหัสผ่าน หรือผูกบัญชี Google/LINE แล้ว
+        #   (ล่ามที่แอดมินเพิ่มเองยังเข้าไม่ได้ ใส่อีเมลไว้ได้ แล้วล็อกอินด้วย Google อีเมลนั้นจะเข้าบัญชีนี้เลย)
+        "can_login": bool(user.password_hash) or has_identity,
         "created_at": user.created_at.isoformat(timespec="seconds"),
         "last_login_at": user.last_login_at.isoformat(timespec="seconds") if user.last_login_at else None,
     }
@@ -102,7 +125,8 @@ def _to_dict(user: User) -> dict:
 def list_users() -> list[dict]:
     with SessionLocal() as db:
         users = db.scalars(select(User).order_by(User.created_at)).all()
-        return [_to_dict(u) for u in users]
+        linked = _with_identity(db)
+        return [_to_dict(u, u.id in linked) for u in users]
 
 
 # เพิ่มผู้ใช้ใหม่ (ชื่อห้ามซ้ำ ไม่สนตัวพิมพ์เล็กใหญ่)
@@ -137,14 +161,26 @@ def apply_changes(user: User, changes: dict) -> None:
 
 
 # แก้ไขผู้ใช้ (แอดมิน) คืน None ถ้าไม่พบ; รูปแบบผิด = InvalidField
+#   อีเมล: แก้ได้เฉพาะคนที่ยังไม่มีบัญชีเข้าสู่ระบบ (บัญชีที่ล็อกอินได้ใช้อีเมลเป็นตัวตน เปลี่ยนไม่ได้)
 def update_user(user_id: str, changes: dict) -> dict | None:
     with SessionLocal() as db:
         user = db.get(User, user_id)
         if user is None:
             return None
+        linked = user_id in _with_identity(db, [user_id])
+        if "email" in changes:
+            email = clean_email(changes["email"])
+            if email != user.email:
+                if user.password_hash or linked:
+                    raise InvalidField("บัญชีนี้เข้าสู่ระบบด้วยอีเมลเดิมอยู่ เปลี่ยนอีเมลไม่ได้")
+                user.email = email
         apply_changes(user, changes)
-        db.commit()
-        return _to_dict(user)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise InvalidField("อีเมลนี้มีผู้ใช้คนอื่นใช้แล้ว")
+        return _to_dict(user, linked)
 
 
 # path รูปบัตรคนพิการของผู้ใช้ใน Storage (None = ยังไม่ได้อัป) คืน (พบผู้ใช้ไหม, path)

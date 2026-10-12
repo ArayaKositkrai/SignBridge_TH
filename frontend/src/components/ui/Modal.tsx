@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Icon from "./Icon";
 
 // ค่าที่หน้าต่างป๊อปอัปรับ
@@ -20,7 +21,8 @@ export default function Modal({ open, title, onClose, children }: Props) {
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  // วางบน body เสมอ: ถ้าอยู่ในการ์ดที่มี backdrop-blur หน้าต่างจะถูกขังในการ์ดและโดนการ์ดอื่นทับ
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-[2px] dark:bg-black/70 sm:items-center sm:p-4"
       onClick={onClose}
@@ -44,6 +46,7 @@ export default function Modal({ open, title, onClose, children }: Props) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

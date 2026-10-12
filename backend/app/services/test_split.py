@@ -1,3 +1,4 @@
+import json
 import threading
 from collections import defaultdict
 
@@ -8,20 +9,45 @@ from app.core.config import ML_DIR
 from app.db.models import AppSetting, Contributor, Sample, Word
 from app.db.session import SessionLocal
 
-# ชุดทดสอบโมเดล: แอดมินเลือก "ผู้แสดง" ที่กันไว้ทดสอบ (เก็บในตาราง app_settings key = test_split)
-#   และเลือกรายคลิปของคลิปที่ล่ามอัดได้ด้วย (คอลัมน์ samples.split) — train.py อ่านทั้งสองอย่าง
-#   ไม่เลือกผู้แสดงเลย = train.py สุ่ม 20% ของผู้แสดงในแต่ละชุดข้อมูลแบบเดิม
+# ชุดทดสอบของคลิปที่อัดผ่านระบบ: แอดมินตั้งทีละคนที่หน้าผู้ใช้ (ล่ามตัวจริง = ทดสอบ, คนในทีม = เทรน)
+#   เก็บรายชื่อคนที่เป็นชุดทดสอบในตาราง app_settings key = test_split และเลือกรายคลิปได้ (คอลัมน์ samples.split)
+#   ชุด TSL ไม่ใช้ค่านี้ — train.py สุ่มผู้แสดง 20% ของแต่ละชุดเอง
 SETTING_KEY = "test_split"
-# ชุดข้อมูล TSL ที่นำเข้าแล้ว (อ่านแค่ชื่อผู้แสดง/คำ ไม่โหลดท่า)
-TSL_PATH = ML_DIR / "data" / "processed" / "tsl_skeleton.npz"
-# ชื่อแหล่งของคลิปที่ล่ามอัด และรูปแบบรหัสผู้แสดง (ต้องตรงกับ train.py load_recorded)
-RECORDED_SOURCE = "ล่าม"
+# รูปแบบรหัสผู้แสดงของคลิปที่อัดผ่านระบบ (ต้องตรงกับ train.py load_recorded)
 RECORDED_PREFIX = "ล่าม:"
 UNKNOWN_SIGNER = "ไม่ระบุ"
+RECORDED_SOURCE = "ล่าม"
 
-# cache ผู้แสดงในชุด TSL: (เวลาแก้ไขไฟล์, [(ผู้แสดง, แหล่ง, คำ), ...])
+# ค่าที่ต้องตรงกับ ml/src/train.py (split_test, load_tsl, load_recorded) เพื่อให้หน้าเว็บแสดงชุดทดสอบตรงกับตอนเทรน
+TSL_PATH = ML_DIR / "data" / "processed" / "tsl_skeleton.npz"
+TRAIN_SETTINGS_PATH = ML_DIR / "configs" / "train_words.json"
+NULL_LABEL = "ไม่ทำท่า"
+SEED = 7
+VAL_SIGNER_RATIO = 0.2
+
+# cache แถวของชุด TSL: (เวลาแก้ไขไฟล์, [(ผู้แสดง, แหล่ง, คำ), ...])
 _tsl_cache: tuple[float, list[tuple[str, str, str]]] | None = None
 _lock = threading.Lock()
+
+
+# ผู้แสดงที่แอดมินเลือกไว้เป็นชุดทดสอบ
+def selected_signers() -> list[str]:
+    with SessionLocal() as db:
+        row = db.get(AppSetting, SETTING_KEY)
+    return list((row.value or {}).get("signers", [])) if row else []
+
+
+# บันทึกผู้แสดงที่เลือกเป็นชุดทดสอบ
+def set_selected_signers(signers: list[str]) -> list[str]:
+    clean = sorted({s.strip() for s in signers if s and s.strip()})
+    with SessionLocal() as db:
+        row = db.get(AppSetting, SETTING_KEY)
+        if row is None:
+            db.add(AppSetting(key=SETTING_KEY, value={"signers": clean}))
+        else:
+            row.value = {"signers": clean}
+        db.commit()
+    return clean
 
 
 # รายการ (ผู้แสดง, แหล่ง, คำ) ของทุกคลิปในชุด TSL (ไม่มีไฟล์ = ว่าง)
@@ -38,77 +64,93 @@ def _tsl_rows() -> list[tuple[str, str, str]]:
         return _tsl_cache[1]
 
 
-# ผู้แสดงที่แอดมินเลือกไว้เป็นชุดทดสอบ
-def selected_signers() -> list[str]:
-    with SessionLocal() as db:
-        row = db.get(AppSetting, SETTING_KEY)
-    return list((row.value or {}).get("signers", [])) if row else []
+# ตั้งค่าการเทรน (include_null_class, min_recorded_clips) ไม่มีไฟล์ = ค่าเริ่มต้น
+def _train_settings() -> dict:
+    try:
+        return json.loads(TRAIN_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
-# บันทึกผู้แสดงที่เลือกเป็นชุดทดสอบ (รายการว่าง = กลับไปสุ่มอัตโนมัติ)
-def set_selected_signers(signers: list[str]) -> list[str]:
-    clean = sorted({s.strip() for s in signers if s and s.strip()})
-    with SessionLocal() as db:
-        row = db.get(AppSetting, SETTING_KEY)
-        if row is None:
-            db.add(AppSetting(key=SETTING_KEY, value={"signers": clean}))
-        else:
-            row.value = {"signers": clean}
-        db.commit()
-    return clean
+# สุ่มผู้แสดงชุด TSL เข้าชุดทดสอบ แบบเดียวกับ train.py split_test (seed เดียวกัน ได้คนเดียวกัน)
+def _random_tsl_signers(pools: dict[str, set[str]]) -> set[str]:
+    rng = np.random.default_rng(SEED)
+    out: set[str] = set()
+    for src in sorted(pools):
+        pool = sorted(pools[src])
+        if len(pool) >= 2:
+            out |= {str(s) for s in rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False)}
+    return out
 
 
-# สรุปผู้แสดงทุกคน (เฉพาะคำที่เลือกไว้เทรน) พร้อมจำนวนคลิป/คำ และสถานะว่าถูกเลือกเป็นชุดทดสอบไหม
-#   พร้อมคำเตือน: คำที่ไม่มีคลิปทดสอบเลย / คำที่คลิปทั้งหมดอยู่ในชุดทดสอบ (เทรนไม่ได้)
+# ภาพรวมชุดทดสอบ (ดูอย่างเดียว): ใครอยู่ในชุดทดสอบของการเทรนครั้งถัดไป เพราะอะไร คลิป/คำกี่ตัว และคำที่ไม่มีคลิปทดสอบ
+#   ชุด TSL = สุ่ม 20% · คลิปที่อัดผ่านระบบ = ตามคนที่ตั้งในหน้าผู้ใช้ หรือรายคลิป
+#   (ใกล้เคียงกับตอนเทรนจริง ต่างได้เล็กน้อยถ้าบางคลิปอ่านท่าไม่ได้ตอนเทรน)
 def overview() -> dict:
+    cfg = _train_settings()
+    include_null = cfg.get("include_null_class", True)
+    min_clips = cfg.get("min_recorded_clips", 5)
     with SessionLocal() as db:
         train_words = set(db.scalars(select(Word.word).where(Word.in_train_set.is_(True))).all())
         recorded = db.execute(
-            select(Sample.id, Sample.split, Word.word, Contributor.name)
+            select(Sample.split, Word.word, Contributor.name)
             .join(Word, Word.id == Sample.word_id)
             .outerjoin(Contributor, Contributor.id == Sample.contributor_id)
             .where(Sample.status != "rejected", Sample.source.in_(("record", "upload")))
         ).all()
-    selected = set(selected_signers())
+    test_people = set(selected_signers())
 
-    clips: dict[tuple[str, str], int] = defaultdict(int)
-    words: dict[tuple[str, str], set] = defaultdict(set)
-    # คำ → จำนวนคลิป (เทรน, ทดสอบ) ตามการเลือกปัจจุบัน (ใช้หาคำที่ไม่มีชุดทดสอบ)
-    per_word: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-    for signer, source, label in _tsl_rows():
-        if label not in train_words:
-            continue
-        clips[(signer, source)] += 1
-        words[(signer, source)].add(label)
-        per_word[label][signer in selected] += 1
-    clip_tests = 0
-    for _sid, split, word, name in recorded:
-        signer = RECORDED_PREFIX + (name or UNKNOWN_SIGNER)
-        clips[(signer, RECORDED_SOURCE)] += 1
-        words[(signer, RECORDED_SOURCE)].add(word)
-        is_test = signer in selected or split == "test"
-        clip_tests += split == "test"
-        if word in train_words:
-            per_word[word][is_test] += 1
-
-    signers = [
-        {
-            "id": signer,
-            "name": signer.removeprefix(RECORDED_PREFIX),
-            "source": source,
-            "clips": n,
-            "words": len(words[(signer, source)]),
-            "test": signer in selected,
-        }
-        for (signer, source), n in clips.items()
+    # คลิปที่เข้าเทรน: (ผู้แสดง, แหล่ง, คำ, ตั้งเป็นทดสอบรายคลิป)
+    clips: list[tuple[str, str, str, bool]] = [
+        (s, src, label, False) for s, src, label in _tsl_rows() if label in train_words or (include_null and label == NULL_LABEL)
     ]
-    signers.sort(key=lambda s: (s["source"] != RECORDED_SOURCE, s["source"], s["name"]))
+    per_word_recorded: dict[str, int] = defaultdict(int)
+    for _split, word, _name in recorded:
+        per_word_recorded[word] += 1
+    for split, word, name in recorded:
+        if per_word_recorded[word] >= min_clips:
+            clips.append((signer_id(name), RECORDED_SOURCE, word, split == "test"))
+
+    pools: dict[str, set[str]] = defaultdict(set)
+    for s, src, _label, _t in clips:
+        if src != RECORDED_SOURCE:
+            pools[src].add(s)
+    randomly = _random_tsl_signers(pools)
+    by_user = {s for s, src, *_ in clips if src == RECORDED_SOURCE} & test_people
+
+    n: dict[tuple[str, str], int] = defaultdict(int)
+    n_test: dict[tuple[str, str], int] = defaultdict(int)
+    words: dict[tuple[str, str], set] = defaultdict(set)
+    per_word: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # คำ → [คลิปเทรน, คลิปสอบ]
+    for s, src, label, clip_test in clips:
+        is_test = s in randomly or s in by_user or clip_test
+        n[(s, src)] += 1
+        n_test[(s, src)] += is_test
+        words[(s, src)].add(label)
+        if label != NULL_LABEL:
+            per_word[label][is_test] += 1
+
+    signers = []
+    for (s, src), count in n.items():
+        reason = "random" if s in randomly else "user" if s in by_user else "clips" if n_test[(s, src)] else None
+        signers.append({
+            "id": s,
+            "name": s.removeprefix(RECORDED_PREFIX),
+            "source": src,
+            "clips": count,
+            "test_clips": n_test[(s, src)],
+            "words": len(words[(s, src)] - {NULL_LABEL}),
+            "test": reason is not None,
+            "reason": reason,
+        })
+    signers.sort(key=lambda x: (not x["test"], x["source"] != RECORDED_SOURCE, x["source"], x["name"]))
     return {
-        "mode": "manual" if selected or clip_tests else "auto",
         "signers": signers,
-        "recorded_test_clips": clip_tests,
-        "words_without_test": sorted(w for w, (tr, te) in per_word.items() if te == 0) if selected or clip_tests else [],
-        "words_without_train": sorted(w for w, (tr, te) in per_word.items() if tr == 0),
+        "total_clips": len(clips),
+        "test_clips": sum(n_test.values()),
+        "words": len(per_word),
+        "words_without_test": sorted(w for w, (_tr, te) in per_word.items() if te == 0),
+        "words_without_train": sorted(w for w, (tr, _te) in per_word.items() if tr == 0),
     }
 
 

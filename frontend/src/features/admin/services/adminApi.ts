@@ -20,11 +20,11 @@ export interface User {
   // เลขบัตรคนพิการแบบเต็ม (แอดมินเท่านั้น)
   disability_card_number?: string | null;
   has_card_image?: boolean;
-  // false = เพิ่มจากหน้าแอดมินเป็นชื่อผู้แสดง ไม่มีอีเมล ล็อกอินไม่ได้
+  // false = ยังไม่มีบัญชีเข้าสู่ระบบ (แอดมินเพิ่มเอง) ใส่อีเมลไว้ได้ ล็อกอินด้วย Google อีเมลนั้นแล้วจะเข้าบัญชีนี้
   can_login?: boolean;
   created_at?: string;
   last_login_at?: string | null;
-  // คลิปที่คนนี้อัด (ในฐานะผู้แสดง) ใช้เป็นชุดเทรนหรือชุดทดสอบ (ผู้ใช้ทั่วไป = null)
+  // คลิปที่คนนี้อัด (ในฐานะล่าม) ใช้เป็นชุดเทรนหรือชุดทดสอบ (ผู้ใช้ทั่วไป = null)
   split?: Split | null;
   // จำนวนคลิปที่อัดไว้ในชื่อนี้ (เฉพาะแอดมิน)
   clips?: number | null;
@@ -35,24 +35,28 @@ export type Split = "train" | "test";
 
 // ช่องที่แอดมินแก้ไขผู้ใช้ได้
 export type UserChanges = Partial<
-  Pick<User, "role" | "active" | "first_name" | "last_name" | "phone" | "disability_card_number">
+  Pick<User, "role" | "active" | "first_name" | "last_name" | "phone" | "disability_card_number" | "email">
 >;
 
-// ผู้แสดงหนึ่งคนในหน้าเลือกชุดทดสอบ (id ตรงกับที่ train.py ใช้)
+// ล่ามหนึ่งคนในหน้าชุดทดสอบ (ดูอย่างเดียว)
+//   reason: random = ระบบสุ่ม (ชุด TSL), user = ตั้งเป็นทดสอบในหน้าผู้ใช้, clips = บางคลิปถูกตั้งเป็นทดสอบรายคลิป, null = ใช้เทรน
 export interface SplitSigner {
   id: string;
   name: string;
   source: string;
   clips: number;
+  test_clips: number;
   words: number;
   test: boolean;
+  reason: "random" | "user" | "clips" | null;
 }
 
-// ภาพรวมชุดทดสอบ: auto = สุ่มเอง, manual = แอดมินเลือก พร้อมคำเตือนคำที่ไม่มีคลิปทดสอบ/เทรน
+// ภาพรวมชุดทดสอบ: ล่ามในชุดทดสอบของการเทรนครั้งถัดไป คลิป/คำกี่ตัว และคำที่ไม่มีคลิปทดสอบ/ไม่เหลือให้เทรน
 export interface TestSplit {
-  mode: "auto" | "manual";
   signers: SplitSigner[];
-  recorded_test_clips: number;
+  total_clips: number;
+  test_clips: number;
+  words: number;
   words_without_test: string[];
   words_without_train: string[];
 }
@@ -132,7 +136,7 @@ export interface MetricSummary {
 export interface MetricDetail extends MetricSummary {
   per_word?: Record<string, { recall: number; precision: number; f1: number; clips: number }>;
   confusions?: { true: string; pred: string; count: number; rate: number }[];
-  threshold_curve?: { threshold: number; precision: number; recall: number; f1: number; null_false_alarm: number | null }[];
+  threshold_curve?: { threshold: number; precision: number; recall: number; f1: number; null_false_alarm: number | null; word_dropped?: number | null }[];
   confidence?: { bins: number[]; correct: number[]; wrong: number[] };
   has_null_class?: boolean;
   no_train_words?: string[];
@@ -195,9 +199,9 @@ export const getDashboard = () => send<Dashboard>(`${BASE}/dashboard`);
 
 // ดึงรายชื่อผู้ใช้
 export const listUsers = () => send<{ users: User[] }>(`${BASE}/users`).then((r) => r.users);
-// รายชื่อผู้ใช้ พร้อมชุดข้อมูลของคลิปที่อัดโดยไม่ระบุผู้แสดง (ใช้ในหน้าอัดคลิป)
+// รายชื่อผู้ใช้ พร้อมชุดข้อมูลของคลิปที่อัดโดยไม่ระบุล่าม (ใช้ในหน้าอัดคลิป)
 export const listSigners = () => send<{ users: User[]; unknown_split: Split }>(`${BASE}/users`);
-// ตั้งคลิปทั้งหมดของผู้แสดงคนนี้เป็นชุดเทรน/ทดสอบ (มีผลตอนเทรนครั้งถัดไป)
+// ตั้งคลิปทั้งหมดของล่ามคนนี้เป็นชุดเทรน/ทดสอบ (มีผลตอนเทรนครั้งถัดไป)
 export const setUserSplit = (id: string, split: Split) =>
   send<User>(`${BASE}/users/${encodeURIComponent(id)}/split`, json("PUT", { split }));
 // เพิ่มผู้ใช้
@@ -215,10 +219,7 @@ export async function userCardImage(id: string): Promise<string> {
   return URL.createObjectURL(await res.blob());
 }
 
-// ดูผู้แสดงทุกคนและชุดทดสอบที่เลือก
-export const getTestSplit = () => send<TestSplit>(`${BASE}/test-split`);
-// เลือกผู้แสดงที่กันไว้ทดสอบ (ว่าง = สุ่มอัตโนมัติ)
-export const setTestSplit = (signers: string[]) => send<TestSplit>(`${BASE}/test-split`, json("PUT", { signers }));
+// ดูล่ามทุกคนและชุดทดสอบที่เลือก
 // ตั้งคลิปที่ล่ามอัดเป็นชุดเทรน/ทดสอบ
 export const setSampleSplit = (id: string, split: "train" | "test") =>
   send<{ id: string; split: string }>(`${BASE}/samples/${encodeURIComponent(id)}`, json("PATCH", { split }));
@@ -244,6 +245,9 @@ export const setTrainWords = (words: string[], inTrainSet: boolean) =>
     json("POST", { words, in_train_set: inTrainSet }),
   );
 
+// ล่ามในชุดทดสอบของการเทรนครั้งถัดไป (ดูอย่างเดียว)
+export const getTestSplit = () => send<TestSplit>(`${BASE}/test-split`);
+
 // ดึงรายการไฟล์โมเดล
 export const listModels = () => send<{ models: ModelFile[] }>(`${BASE}/models`).then((r) => r.models);
 // เลือกเวอร์ชันโมเดลที่ระบบใช้
@@ -257,6 +261,13 @@ export const getModelMetrics = (version: string) =>
   send<ModelMetrics>(`${BASE}/models/${encodeURIComponent(version)}/metrics`);
 // วัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน (Run Test) ในพื้นหลัง
 export const runModelTest = () => send<{ message: string }>(`${BASE}/models/evaluate`, { method: "POST" });
+// สร้างท่าอวตารจาก skeleton จริง (ชุด TSL + คลิปที่อัด) ในพื้นหลัง และดูสถานะ
+export interface MotionBuild {
+  status: "idle" | "running" | "succeeded" | "failed";
+  log: string[];
+}
+export const buildMotions = () => send<{ message: string }>(`${BASE}/motions/build`, { method: "POST" });
+export const getMotionBuild = () => send<MotionBuild>(`${BASE}/motions/build`);
 
 // ลบโมเดลหนึ่งเวอร์ชัน (ลบตัวที่ใช้งานอยู่ไม่ได้)
 export const deleteModel = (version: string) =>

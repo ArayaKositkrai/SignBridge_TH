@@ -4,7 +4,7 @@ import Card from "../../components/ui/Card";
 import Chip from "../../components/ui/Chip";
 import Icon from "../../components/ui/Icon";
 import PageTitle from "../../components/ui/PageTitle";
-import type { SignClip } from "../../types";
+import type { SignClip, TextToSignResponse } from "../../types";
 import SignPlayer from "./components/SignPlayer";
 import TextInput from "./components/TextInput";
 import VoiceInput from "./components/VoiceInput";
@@ -18,6 +18,9 @@ export default function TextToSignPage() {
   const [clips, setClips] = useState<SignClip[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ผลการแก้คำ/คำที่ไม่มีท่า/ส่วนที่อ่านไม่ออก ของการแปลล่าสุด และข้อความที่ส่งไปแปล
+  const [notes, setNotes] = useState<Pick<TextToSignResponse, "fixes" | "no_sign" | "unknown"> | null>(null);
+  const [sent, setSent] = useState("");
   const player = useSignPlayback(clips);
   // คำที่อวตารทำท่าได้ (จากฐานข้อมูล) และคำค้นหา
   const [signWords, setSignWords] = useState<SignWord[]>([]);
@@ -45,12 +48,28 @@ export default function TextToSignPage() {
     try {
       const res = await translateText(trimmed);
       setClips(res.clips);
+      setSent(trimmed);
+      setNotes({ fixes: res.fixes ?? [], no_sign: res.no_sign ?? [], unknown: res.unknown ?? [] });
+      if (res.fixes?.length) logEvent("แก้คำพิมพ์ผิด", res.fixes.map((f) => `${f.typed}→${f.word}`).join(", "));
       if (!res.clips.length) setError("ไม่พบคำที่แปลเป็นภาษามือได้");
     } catch {
       setError("เชื่อมต่อ backend ไม่ได้ ลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
     }
+  };
+
+  // แทนส่วนที่พิมพ์ด้วยคำที่ผู้ใช้เลือก แล้วแปลใหม่
+  const replaceWith = (from: string, to: string) => {
+    const next = sent.includes(from) ? sent.replace(from, to) : sent;
+    setText(next);
+    void submit(next);
+  };
+  // ใช้ข้อความที่แก้แล้วในช่องพิมพ์
+  const applyFixes = () => {
+    let next = sent;
+    for (const f of notes?.fixes ?? []) next = next.replace(f.typed, f.word);
+    setText(next);
   };
 
   // เติมคำลงท้ายข้อความในช่อง
@@ -84,6 +103,7 @@ export default function TextToSignPage() {
               {error}
             </p>
           )}
+          {notes && <FixNotes notes={notes} onPick={replaceWith} onApply={applyFixes} />}
         </Card>
 
         {signWords.length > 0 && (
@@ -148,5 +168,83 @@ export default function TextToSignPage() {
       </div>
     </div>
     </>
+  );
+}
+
+// กล่องแจ้งผลการแปล: คำที่แก้ให้ (กดคำอื่นได้), คำที่อ่านไม่ออก (กดคำแนะนำได้), และคำที่ยังไม่มีท่า
+function FixNotes({
+  notes,
+  onPick,
+  onApply,
+}: {
+  notes: Pick<TextToSignResponse, "fixes" | "no_sign" | "unknown">;
+  onPick: (from: string, to: string) => void;
+  onApply: () => void;
+}) {
+  const fixes = notes.fixes ?? [];
+  const unknown = notes.unknown ?? [];
+  const noSign = notes.no_sign ?? [];
+  if (!fixes.length && !unknown.length && !noSign.length) return null;
+  return (
+    <div className="mt-3 flex flex-col gap-2 text-sm">
+      {fixes.length > 0 && (
+        <div className="rounded-lg bg-brand/10 px-3 py-2 text-navy">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Icon name="check" size={15} className="shrink-0 text-brand" />
+            <span className="font-semibold">แก้คำให้แล้ว:</span>
+            {fixes.map((f) => (
+              <span key={f.typed}>
+                <s className="text-ink/50">{f.typed}</s> → <b>{f.word}</b>
+              </span>
+            ))}
+            <button type="button" onClick={onApply} className="ml-auto text-xs font-semibold text-brand hover:underline">
+              ใช้ข้อความที่แก้แล้ว
+            </button>
+          </p>
+          {fixes.some((f) => f.alternatives.length) && (
+            <div className="mt-1.5 flex flex-col gap-1">
+              {fixes
+                .filter((f) => f.alternatives.length)
+                .map((f) => (
+                  <div key={f.typed} className="flex flex-wrap items-center gap-1.5 text-xs text-ink/70">
+                    "{f.typed}" ไม่ได้หมายถึง "{f.word}"? เลือกคำอื่น:
+                    {f.alternatives.map((a) => (
+                      <Chip key={a} onClick={() => onPick(f.typed, a)} className="!px-2 !py-0.5 text-xs">
+                        {a}
+                      </Chip>
+                    ))}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+      {unknown.map((u) => (
+        <div key={u.text} className="flex flex-wrap items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-400/10 dark:text-amber-200">
+          <Icon name="help" size={15} className="shrink-0" />
+          <span>
+            ไม่รู้จัก "<b>{u.text}</b>"
+          </span>
+          {u.suggestions.length > 0 ? (
+            <>
+              <span>— หมายถึง</span>
+              {u.suggestions.map((w) => (
+                <Chip key={w} onClick={() => onPick(u.text, w)} className="!px-2 !py-0.5 text-xs">
+                  {w}
+                </Chip>
+              ))}
+              <span>ใช่ไหม?</span>
+            </>
+          ) : (
+            <span>— ข้ามไป</span>
+          )}
+        </div>
+      ))}
+      {noSign.length > 0 && (
+        <p className="rounded-lg bg-sky/40 px-3 py-2 text-ink/70">
+          <span className="font-semibold">ยังไม่มีท่าภาษามือ (ข้ามไป):</span> {noSign.join(", ")}
+        </p>
+      )}
+    </div>
   );
 }

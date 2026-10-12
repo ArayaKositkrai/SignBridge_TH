@@ -81,7 +81,7 @@ export interface FaceFrame {
   rot?: number;
 }
 
-// ที่มาของท่า: ชุดข้อมูล/ผู้แสดง/คลิปที่ใช้สร้าง keyframe (dataset "เขียนมือ…" = ยังไม่มีข้อมูลจริง)
+// ที่มาของท่า: ชุดข้อมูล/ล่าม/คลิปที่ใช้สร้าง keyframe (dataset "เขียนมือ…" = ยังไม่มีข้อมูลจริง)
 export interface MotionSource {
   dataset: string;
   signer?: string;
@@ -108,6 +108,12 @@ export interface SignClip {
 export interface TextToSignResponse {
   tokens: string[];
   clips: SignClip[];
+  // คำที่ระบบแก้ให้ (typo = พิมพ์ผิด, alias = คำเรียกอื่น) พร้อมคำอื่นที่อาจหมายถึง
+  fixes?: { typed: string; word: string; kind: "typo" | "alias"; alternatives: string[] }[];
+  // คำไทยปกติที่อวตารยังไม่มีท่า (ข้ามไป)
+  no_sign?: string[];
+  // ส่วนที่อ่านไม่ออก พร้อมคำใกล้เคียงให้เลือก
+  unknown?: { text: string; suggestions: string[] }[];
 }
 
 // ปุ่มวลีฉุกเฉินหนึ่งปุ่ม (custom = ผู้ใช้เพิ่มเอง, icon "more" = ปุ่มเพิ่มคำใหม่)

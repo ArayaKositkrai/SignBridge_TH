@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
+from app.core.config import ML_DIR
 from app.db.models import Contributor, Sample, Word, WordExternalSource
 from app.db.session import SessionLocal
 from app.ml.classifier import features
@@ -309,11 +310,23 @@ def _sample_query():
 
 
 # คลิปที่ล่ามอัดของคำหนึ่งคำ (เรียงจากเก่าไปใหม่) พร้อมบอกว่าคลิปไหนมีวิดีโอ
+#   split = ชุดที่ใช้จริงตอนเทรน: ล่ามที่ตั้งเป็นชุดทดสอบ (หน้าผู้ใช้) = ทุกคลิปเป็น test (split_by_signer = True)
+#   ไม่งั้นใช้ค่าที่ตั้งรายคลิป (samples.split) — ต้องตรงกับ train.py split_test
 def list_samples(word: str) -> list[dict]:
+    from app.services import test_split  # import ในฟังก์ชัน กันวนกันตอนโหลดโมดูล
+
     with SessionLocal() as db:
         rows = db.execute(_sample_query().where(Word.word == word).order_by(Sample.created_at, Sample.id)).all()
     videos = storage.list_names(video_dir(rows[0][0].word_id)) if rows else set()
-    return [_sample_dict(s, w, c, has_video=s.id in videos) for s, w, c in rows]
+    test_people = set(test_split.selected_signers())
+    out = []
+    for s, w, c in rows:
+        d = _sample_dict(s, w, c, has_video=s.id in videos)
+        d["split_by_signer"] = test_split.signer_id(c) in test_people
+        if d["split_by_signer"]:
+            d["split"] = "test"
+        out.append(d)
+    return out
 
 
 # คลิปที่ล่ามอัดของทุกคำ (ใช้ทำแดชบอร์ด)
@@ -347,7 +360,58 @@ def all_word_stats() -> list[dict]:
     return [word_stats(w, by_word[w]) for w in sorted(by_word)]
 
 
+# ชื่อแหล่งข้อมูลที่อาจติดมาในช่อง "หมวด" เช่น "คำในประโยค (TSL-51)" → หมวด "คำในประโยค" + แหล่ง "TSL-51"
+KNOWN_SOURCES = {"TSL-51", "TSL-ONE-S"}
+# ค่าในช่อง "หมวด" ที่จริงเป็นชื่อแหล่งข้อมูลทั้งก้อน (ไม่มีหมวดจริง) เช่น "THSL (Kaggle)"
+SOURCE_ONLY_CATEGORIES = {"THSL (Kaggle)"}
+# ชื่อแหล่งของคลิปที่ล่ามอัดผ่านระบบ
+RECORDED_SOURCE_LABEL = "ล่าม"
+_CATEGORY_WITH_SOURCE = re.compile(r"^(.*?)\s*\(([^()]+)\)\s*$")
+
+
+# แยกข้อความในช่อง words.category ออกเป็น (หมวด, แหล่งที่มา) ไม่แก้ข้อมูลใน database
+def split_category(raw: str | None) -> tuple[str | None, str | None]:
+    text = (raw or "").strip()
+    if not text:
+        return None, None
+    if text in SOURCE_ONLY_CATEGORIES:
+        return None, text
+    m = _CATEGORY_WITH_SOURCE.match(text)
+    if m and m.group(2).strip() in KNOWN_SOURCES:
+        return (m.group(1).strip() or None), m.group(2).strip()
+    return text, None
+
+
+# cache จำนวนคลิป TSL ต่อ (คำ, แหล่ง): (เวลาแก้ไขไฟล์, {คำ: {แหล่ง: {"clips": n, "signers": k}}})
+_tsl_counts_cache: tuple[float, dict[str, dict[str, dict]]] | None = None
+
+
+# จำนวนคลิปและผู้แสดงของแต่ละคำในไฟล์ชุด TSL ที่ train.py ใช้เทรนจริง (tsl_skeleton.npz)
+#   คืน None ถ้าไม่มีไฟล์ในเครื่องนี้ (เช่น เซิร์ฟเวอร์ที่ไม่มีไฟล์) → ให้ใช้ตัวเลขในตาราง word_external_sources แทน
+def tsl_counts() -> dict[str, dict[str, dict]] | None:
+    global _tsl_counts_cache
+    path = ML_DIR / "data" / "processed" / "tsl_skeleton.npz"
+    if not path.is_file():
+        return None
+    mtime = path.stat().st_mtime
+    if _tsl_counts_cache is None or _tsl_counts_cache[0] != mtime:
+        clips: dict[tuple[str, str], int] = {}
+        signers: dict[tuple[str, str], set] = {}
+        with np.load(path, allow_pickle=False) as d:
+            for label, source, signer in zip(map(str, d["label"]), map(str, d["source"]), map(str, d["signer"])):
+                key = (label, source)
+                clips[key] = clips.get(key, 0) + 1
+                signers.setdefault(key, set()).add(signer)
+        out: dict[str, dict[str, dict]] = {}
+        for (label, source), n in clips.items():
+            out.setdefault(label, {})[source] = {"clips": n, "signers": len(signers[(label, source)])}
+        _tsl_counts_cache = (mtime, out)
+    return _tsl_counts_cache[1]
+
+
 # คลังคำศัพท์จาก database ในรูปแบบเดิมของ vocabulary.json
+#   คลิป TSL นับจากไฟล์ที่ใช้เทรนจริง (ถ้ามีไฟล์) ไม่งั้นใช้ตาราง word_external_sources
+#   category = หมวดล้วน ๆ, sources = แหล่งที่มา (ชุดข้อมูลที่คำนี้มีคลิป + แหล่งที่ติดมากับช่องหมวด)
 def load_vocab() -> list[dict]:
     with SessionLocal() as db:
         words = db.scalars(select(Word).order_by(Word.id)).all()
@@ -357,25 +421,39 @@ def load_vocab() -> list[dict]:
     external: dict[int, dict] = {}
     for word_id, source, clips, contributors in ext_rows:
         external.setdefault(word_id, {})[SOURCE_LABELS.get(source, source)] = {"clips": clips, "signers": contributors}
-    return [
-        {
-            "word": w.word,
-            "category": w.category,
-            "priority": w.priority,
-            "assigned": w.assigned_to,
-            "note": w.note,
-            "to_record": w.to_record,
-            "in_train_set": w.in_train_set,
-            "external": external.get(w.id, {}),
-        }
-        for w in words
-    ]
+    live = tsl_counts()
+    out = []
+    for w in words:
+        ext = live.get(w.word, {}) if live is not None else external.get(w.id, {})
+        category, category_source = split_category(w.category)
+        sources = list(ext)
+        if category_source and category_source not in sources:
+            sources.append(category_source)
+        out.append(
+            {
+                "word": w.word,
+                "category": category,
+                "sources": sources,
+                "priority": w.priority,
+                "assigned": w.assigned_to,
+                "note": w.note,
+                "to_record": w.to_record,
+                "in_train_set": w.in_train_set,
+                "external": ext,
+            }
+        )
+    return out
 
 
-# รวมคลังคำกับสถิติคลิปที่อัดจริง
+# รวมคลังคำกับสถิติคลิปที่อัดจริง (คำที่ล่ามอัดไว้ถือว่ามีแหล่ง "ล่าม" ด้วย)
 def vocabulary_items() -> list[dict]:
     stats = {w["word"]: w for w in all_word_stats()}
-    return [{**v, "data": stats.get(v["word"])} for v in load_vocab()]
+    items = []
+    for v in load_vocab():
+        data = stats.get(v["word"])
+        sources = v["sources"] + [RECORDED_SOURCE_LABEL] if data and data.get("samples") else v["sources"]
+        items.append({**v, "sources": sources, "data": data})
+    return items
 
 
 # ---------- เขียนข้อมูล ----------

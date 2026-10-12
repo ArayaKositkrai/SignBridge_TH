@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
@@ -16,7 +17,17 @@ import DataTable, { type Column } from "./components/DataTable";
 import PageHeader from "./components/PageHeader";
 import StatCards, { type Stat } from "./components/StatCards";
 import Toolbar, { FilterSelect } from "./components/Toolbar";
-import { addWord, getVocabulary, setSampleSplit, setTrainWord, setTrainWords, type VocabItem } from "./services/adminApi";
+import {
+  addWord,
+  buildMotions,
+  getMotionBuild,
+  getVocabulary,
+  setSampleSplit,
+  setTrainWord,
+  setTrainWords,
+  type MotionBuild,
+  type VocabItem,
+} from "./services/adminApi";
 
 // จำนวนคลิปที่ล่ามอัดขั้นต่ำต่อคำ ที่ train.py นำไปเทรน (ตรงกับ min_recorded_clips ใน ml/configs/train_words.json)
 const MIN_RECORDED_CLIPS = 5;
@@ -58,13 +69,17 @@ export default function VocabularyView() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [category, setCategory] = useState("");
+  const [source, setSource] = useState("");
   const [open, setOpen] = useState<VocabItem | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   // งานเลือก/ยกเลิกเทรนหลายคำที่รอยืนยัน
   const [bulk, setBulk] = useState<{ next: boolean; words: string[]; skipped: number } | null>(null);
+  // การสร้างท่าอวตาร (null = ยังไม่ได้สั่งในรอบนี้)
+  const [motion, setMotion] = useState<MotionBuild | null>(null);
   const toast = useToast();
+  const navigate = useNavigate();
 
   // โหลดคลังคำ
   const refresh = useCallback(async () => {
@@ -79,10 +94,43 @@ export default function VocabularyView() {
     }
   }, []);
 
-  // โหลดตอนเปิดหน้า
+  // โหลดตอนเปิดหน้า (และดูว่ามีการสร้างท่าอวตารค้างอยู่ไหม)
   useEffect(() => {
     void refresh();
+    getMotionBuild()
+      .then((s) => s.status === "running" && setMotion(s))
+      .catch(() => undefined);
   }, [refresh]);
+
+  // ระหว่างสร้างท่าอวตาร: ถามสถานะทุก 3 วินาที เสร็จแล้วโหลดคลังคำใหม่
+  const motionRunning = motion?.status === "running";
+  useEffect(() => {
+    if (!motionRunning) return;
+    const id = window.setInterval(() => {
+      getMotionBuild()
+        .then((s) => {
+          setMotion(s);
+          if (s.status === "succeeded") {
+            toast.success("สร้างท่าอวตารเสร็จแล้ว");
+            void refresh();
+          } else if (s.status === "failed") toast.error("สร้างท่าอวตารไม่สำเร็จ ดูรายละเอียดในแถบด้านบน");
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [motionRunning, refresh, toast]);
+
+  // สั่งสร้างท่าอวตารจาก skeleton จริง
+  const startMotions = async () => {
+    try {
+      const r = await buildMotions();
+      setMotion({ status: "running", log: [] });
+      toast.info(r.message);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "สั่งสร้างท่าอวตารไม่สำเร็จ");
+    }
+  };
+  const motionSummary = motion?.log.filter((l) => l.startsWith("สร้างท่า") || l.startsWith("ไม่มีข้อมูลจริง")) ?? [];
 
   // สลับเลือกคำไว้เทรน (อัปเดตหน้าจอทันที ถ้าบันทึกไม่สำเร็จค่อยคืนค่าเดิม)
   const toggleTrain = async (v: VocabItem, next: boolean) => {
@@ -127,11 +175,14 @@ export default function VocabularyView() {
   };
 
   const categories = useMemo(() => [...new Set(vocab.map((v) => v.category).filter(Boolean) as string[])].sort(), [vocab]);
+  const sources = useMemo(() => [...new Set(vocab.flatMap((v) => v.sources ?? []))].sort(), [vocab]);
   const rows = useMemo(() => {
     const test = FILTERS.find((f) => f.value === filter)!.test;
     const needle = q.trim();
-    return vocab.filter((v) => test(v) && (!category || v.category === category) && (!needle || v.word.includes(needle)));
-  }, [vocab, filter, category, q]);
+    return vocab.filter(
+      (v) => test(v) && (!category || v.category === category) && (!source || (v.sources ?? []).includes(source)) && (!needle || v.word.includes(needle)),
+    );
+  }, [vocab, filter, category, source, q]);
   // จำนวนคำของตัวกรอง
   const count = (f: string) => vocab.filter(FILTERS.find((x) => x.value === f)!.test).length;
   const hasDraft = !!brief?.draft.label;
@@ -160,7 +211,25 @@ export default function VocabularyView() {
         </span>
       ),
     },
-    { key: "category", header: "หมวด", hideBelow: "md", sort: (v) => v.category, cell: (v) => <span className="text-ink/65">{v.category ?? "–"}</span> },
+    { key: "category", header: "หมวดหมู่", hideBelow: "md", sort: (v) => v.category, cell: (v) => <span className="text-ink/65">{v.category ?? "–"}</span> },
+    {
+      key: "source",
+      header: "แหล่งที่มา",
+      hideBelow: "md",
+      sort: (v) => (v.sources ?? []).join(" "),
+      cell: (v) =>
+        v.sources?.length ? (
+          <span className="flex flex-wrap gap-1">
+            {v.sources.map((s) => (
+              <Badge key={s} tone="neutral">
+                {s}
+              </Badge>
+            ))}
+          </span>
+        ) : (
+          <span className="text-ink/30">–</span>
+        ),
+    },
     { key: "rec", header: "คลิปล่าม", align: "right", sort: (v) => v.data?.samples ?? 0, cell: (v) => <Num n={v.data?.samples ?? 0} /> },
     { key: "tsl", header: "คลิป TSL", align: "right", hideBelow: "sm", sort: (v) => tslClips(v), cell: (v) => <Num n={tslClips(v)} /> },
     {
@@ -212,11 +281,46 @@ export default function VocabularyView() {
         title="คลังคำศัพท์"
         description="คำทั้งหมดในระบบ จำนวนคลิป คำที่จะใช้เทรน และความแม่นยำของโมเดล — คลิกคำเพื่อดูคลิปและเลือกคลิปทดสอบ"
         actions={
-          <Button icon="plus" onClick={() => setAdding(true)}>
-            เพิ่มคำ
-          </Button>
+          <>
+            <Button variant="ghost" icon="hand" onClick={() => void startMotions()} disabled={motionRunning}>
+              {motionRunning ? "กำลังสร้างท่าอวตาร…" : "สร้างท่าอวตาร"}
+            </Button>
+            <HintIcon
+              icon="help"
+              tone="info"
+              wide
+              text="สร้างท่าให้อวตาร (หน้า ข้อความ → ภาษามือ) จาก skeleton ของคนทำท่าจริง ทั้งชุด TSL และคลิปที่อัดผ่านระบบ ทำให้ทุกคำที่เลือกเทรนหรือมีคลิป เลือกคลิปที่ดีที่สุดคำละ 1 คลิป ท่าเดิมจะถูกแทนที่ · ข้อจำกัด: ชุด TSL ไม่มีสีหน้า และรูปมือเป็นภาพ 2 มิติ ท่าจึงใกล้เคียงแต่ไม่ละเอียดเท่าคลิปที่อัดผ่านระบบ"
+            />
+            <Button variant="ghost" icon="plus" onClick={() => setAdding(true)}>
+              เพิ่มคำ
+            </Button>
+            {/* คำที่เปิดสวิตช์ "เทรน" จะถูกใช้ตอนกดเริ่มเทรนในหน้าโมเดล */}
+            <Button icon="layers" onClick={() => navigate("/admin/models?tab=train")}>
+              ไปเทรนคำที่เลือก ({count("train")})
+            </Button>
+          </>
         }
       />
+      {motion && motion.status !== "idle" && (
+        <div
+          className={`mb-3 rounded-xl px-4 py-2 text-sm ring-1 ${
+            motion.status === "failed"
+              ? "bg-danger/10 text-danger ring-danger/20"
+              : motion.status === "succeeded"
+                ? "bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300"
+                : "bg-sky/40 text-ink/80 ring-sky"
+          }`}
+        >
+          {motion.status === "running" && <p>กำลังสร้างท่าอวตารจาก skeleton… {motion.log[motion.log.length - 1] ?? ""}</p>}
+          {motion.status === "succeeded" && (motionSummary.length ? motionSummary.map((l) => <p key={l}>{l}</p>) : <p>สร้างท่าอวตารเสร็จแล้ว</p>)}
+          {motion.status === "failed" && (
+            <>
+              <p className="font-semibold">สร้างท่าอวตารไม่สำเร็จ</p>
+              <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{motion.log.slice(-8).join("\n")}</pre>
+            </>
+          )}
+        </div>
+      )}
       <StatCards stats={stats} active={filter} onSelect={(f) => setFilter(f || "all")} />
       <Toolbar>
         {/* เลือก/ยกเลิกเทรนทุกคำที่แสดงอยู่ (ใช้ร่วมกับคำค้น หมวด และตัวกรองข้างขวา) */}
@@ -228,10 +332,16 @@ export default function VocabularyView() {
         </Button>
         <SearchInput value={q} onChange={setQ} placeholder="ค้นหาคำ" className="min-w-[220px] flex-1" />
         <FilterSelect
-          label="หมวด"
+          label="หมวดหมู่"
           value={category}
           onChange={setCategory}
-          options={[{ value: "", label: "ทุกหมวด" }, ...categories.map((c) => ({ value: c, label: c }))]}
+          options={[{ value: "", label: "ทุกหมวดหมู่" }, ...categories.map((c) => ({ value: c, label: c }))]}
+        />
+        <FilterSelect
+          label="แหล่งที่มา"
+          value={source}
+          onChange={setSource}
+          options={[{ value: "", label: "ทุกแหล่งที่มา" }, ...sources.map((s) => ({ value: s, label: s }))]}
         />
         <FilterSelect
           label="ตัวกรอง"
@@ -368,11 +478,11 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
     }
   };
 
-  // จัดกลุ่มคลิปตามผู้แสดง
+  // จัดกลุ่มคลิปตามล่าม
   const bySigner = useMemo(() => {
     const m = new Map<string, SampleMeta[]>();
     for (const s of samples ?? []) {
-      const k = s.signer ?? "ไม่ระบุผู้แสดง";
+      const k = s.signer ?? "ไม่ระบุล่าม";
       m.set(k, [...(m.get(k) ?? []), s]);
     }
     return [...m.entries()];
@@ -380,7 +490,7 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
 
   const ext = Object.entries(item?.external ?? {});
   return (
-    <Dialog open={!!item} title={item?.word ?? ""} subtitle={item?.category ?? undefined} onClose={onClose}>
+    <Dialog open={!!item} title={item?.word ?? ""} subtitle={item ? [item.category, ...(item.sources ?? [])].filter(Boolean).join(" · ") || undefined : undefined} onClose={onClose}>
       {item && (
         <div className="flex flex-col gap-5 text-sm">
           <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -397,7 +507,7 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
           <section>
             <h3 className="mb-1 font-bold text-navy">คลิปที่ล่ามอัด ({samples?.length ?? "…"})</h3>
             <p className="mb-2 text-xs text-ink/55">
-              สลับเป็น <b>ทดสอบ</b> เพื่อกันคลิปไว้วัดความแม่นยำ · เลือกทั้งคนได้ที่ "โมเดล → ชุดทดสอบ"
+              คลิปของล่ามที่ตั้งเป็นชุดทดสอบ (หน้าผู้ใช้) เป็น <b>ทดสอบ</b> ทั้งหมดอยู่แล้ว · ล่ามคนอื่นสลับเป็นทดสอบทีละคลิปได้ถ้าต้องการ
             </p>
             {error && <p className="mb-2 text-xs text-danger">{error}</p>}
             {samples && samples.length === 0 && <p className="rounded-xl border border-dashed border-sky px-3 py-6 text-center text-ink/50">ยังไม่มีคลิป</p>}
@@ -416,18 +526,28 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
                             {fmtDate(s.created_at)} · {s.frame_count} เฟรม
                           </span>
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => void toggleSplit(s)}
-                          className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 transition ${
-                            s.split === "test"
-                              ? "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30"
-                              : "bg-surface text-navy ring-sky hover:bg-sky/40"
-                          }`}
-                          title="คลิกเพื่อสลับ เทรน/ทดสอบ"
-                        >
-                          {s.split === "test" ? "ทดสอบ" : "เทรน"}
-                        </button>
+                        {s.split_by_signer ? (
+                          // ล่ามคนนี้เป็นชุดทดสอบ: ทุกคลิปเป็นทดสอบเสมอ (เปลี่ยนที่หน้าผู้ใช้)
+                          <span
+                            className="shrink-0 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30"
+                            title="ล่ามคนนี้ถูกตั้งเป็นชุดทดสอบ ทุกคลิปของเขาจึงเป็นทดสอบ (เปลี่ยนได้ที่ แอดมิน › ผู้ใช้)"
+                          >
+                            ทดสอบ · ตามล่าม
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void toggleSplit(s)}
+                            className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ring-1 transition ${
+                              s.split === "test"
+                                ? "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30"
+                                : "bg-surface text-navy ring-sky hover:bg-sky/40"
+                            }`}
+                            title="คลิกเพื่อสลับ เทรน/ทดสอบ เฉพาะคลิปนี้"
+                          >
+                            {s.split === "test" ? "ทดสอบ" : "เทรน"}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>

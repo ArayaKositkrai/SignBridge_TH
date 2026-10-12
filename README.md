@@ -25,7 +25,8 @@ ml/models/*.npz                      ไฟล์โมเดลที่เท�
 - **ตาราง `words`** คือคลังคำทั้งหมด สร้างจาก Excel ของทีม + รายชื่อคำของ TSL ด้วย `ml/src/build_vocabulary.py`
 - **คำที่โมเดลรู้จัก** = คำที่ติ๊ก "เทรน" ในหน้าแอดมิน (`words.in_train_set`)
 - **คำที่อวตารทำท่าได้** = คำที่มีแถวในตาราง `motions` (สร้างด้วย `ml/src/build_motions.py`)
-- ตัวเลข "คลิปที่อัด" ในหน้าเว็บนับเฉพาะคลิปที่ล่ามอัดผ่านระบบ ไม่นับคลิป TSL
+- ตัวเลข "คลิปล่าม" ในหน้าเว็บนับเฉพาะคลิปที่ล่ามอัดผ่านระบบ ส่วน "คลิป TSL" นับจากไฟล์ `ml/data/processed/tsl_skeleton.npz` ที่ใช้เทรนจริง (ไม่มีไฟล์ในเครื่อง backend = ใช้ตัวเลขในตาราง `word_external_sources` แทน)
+- คลังคำศัพท์แยก "หมวดหมู่" กับ "แหล่งที่มา" ตอนส่งข้อมูลออก API (`split_category` ใน `dataset_service.py`) ข้อความใน `words.category` ไม่ถูกแก้
 
 ---
 
@@ -94,7 +95,7 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 |---|---|
 | 1. เตรียมชุด TSL | `python ml/src/import_tsl_storage.py` (ดึงจาก Storage) หรือ `python ml/src/import_tsl.py --frames ... --meta ...` (จากไฟล์ในเครื่อง) → ได้ `ml/data/processed/tsl_skeleton.npz` |
 | 2. คลังคำ | `python ml/src/build_vocabulary.py --tracker <Excel ของทีม> --merged <tsl_merged_dataset.zip>` (ทำครั้งเดียว/เมื่อ Excel เปลี่ยน) |
-| 3. เลือกคำและชุดทดสอบ | หน้าเว็บ **แอดมิน → คลังคำศัพท์** → เปิดสวิตช์คอลัมน์ "เทรน" · **แอดมิน → โมเดล → ชุดทดสอบ** เลือกผู้แสดงที่กันไว้วัดผล (ไม่เลือก = สุ่ม 20%) หรือสลับรายคลิปในแผงของคำ |
+| 3. เลือกคำและชุดทดสอบ | หน้าเว็บ **แอดมิน → คลังคำศัพท์** → เปิดสวิตช์คอลัมน์ "เทรน" · **แอดมิน → ผู้ใช้** ตั้งล่ามตัวจริงเป็น "ทดสอบ" คนในทีมเป็น "เทรน" · ชุด TSL ระบบสุ่มผู้แสดง 20% เป็นชุดทดสอบให้เอง |
 | 4. เทรน | `cd ml/src && python train.py` (~1 นาที) — ระหว่างเทรนดูความคืบหน้าได้ที่หน้าแอดมิน ผลที่ได้เป็นเวอร์ชัน **Draft** |
 | 5. ทดสอบและเผยแพร่ | หน้าแอดมิน → โมเดล → "ลองใช้ Draft" → ถ้าดีกว่าตัวเดิมกด "เผยแพร่" ผู้ใช้ทั่วไปถึงจะได้ใช้ |
 | 6. ท่าอวตาร | `python ml/src/build_motions.py` สร้างท่าของตัวละครจากคลิปจริง (ทำใหม่เมื่อมีคลิปเพิ่ม) |
@@ -130,7 +131,7 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `app/services/auth_service.py` | รหัสผ่าน (scrypt) session (JWT) OAuth |
 | `app/services/user_service.py` | จัดการผู้ใช้ + ตรวจรูปแบบเบอร์โทร/เลขบัตรคนพิการ (ข้อมูลบัตรเก็บเฉพาะบทบาทผู้ใช้ทั่วไป `CARD_ROLES`) |
 | `app/services/card_image.py` | รูปบัตรคนพิการ (Storage แบบ private ดูได้เฉพาะเจ้าของ/แอดมิน ผ่าน backend) |
-| `app/services/test_split.py` | ชุดทดสอบโมเดล: ผู้แสดงที่แอดมินเลือก (ตาราง `app_settings`) และรายคลิป (`samples.split`) |
+| `app/services/test_split.py` | ชุดทดสอบของคลิปที่อัดผ่านระบบ: คนที่ตั้งเป็นทดสอบในหน้าผู้ใช้ (ตาราง `app_settings`) และรายคลิป (`samples.split`) · ชุด TSL สุ่มใน `train.py` |
 | `app/services/recognition_service.py` | ตัวแปลภาษามือ: ทายจากหลายความยาวหน้าต่าง (0.7/1.0/1.4/2.0 วิ ทุก 0.1 วิ ให้ทันคนทำเร็ว) เฉลี่ยความมั่นใจ แล้วตัดสินว่า "ได้คำ" (มั่นใจ ≥ 0.45 สองรอบ หรือนำอันดับ 2 ห่าง 3 เท่าสามรอบ สำหรับท่าที่ทำเร็ว) ส่ง `word` ครั้งเดียวต่อคำ |
 | `app/services/retrieval_service.py` | หาท่าของแต่ละคำ (ข้อความ → ภาษามือ) |
 | `app/services/motion_library.py` | อ่านท่าอวตารจากตาราง `motions` |
@@ -157,7 +158,7 @@ python -m app.scripts.set_role you@example.com admin      # หรือ contrib
 | `src/features/text-to-sign/` | หน้าข้อความ → ภาษามือ: ช่องพิมพ์/พูด, ตัวละคร 3D (`Avatar3D.tsx`) และแบบ 2D สำรอง |
 | `src/features/emergency-aac/` | หน้าปุ่มฉุกเฉิน |
 | `src/features/contributor/` | พื้นที่ล่าม: อัดคลิป (`RecorderPanel`), ช่องเลือกคำ (`WordCombobox`), อ่านไฟล์ .npy/.npz (`parseLandmarkFile`), คลังคำ |
-| `src/features/admin/` | หน้าแอดมิน: แดชบอร์ด · ผู้ใช้ (`UsersView`) · คลังคำศัพท์ (`VocabularyView`) · โมเดล + ชุดทดสอบ (`ModelsView`) · บันทึกการใช้งาน (`LogsView`) |
+| `src/features/admin/` | หน้าแอดมิน: แดชบอร์ด · ผู้ใช้ (`UsersView`) · คลังคำศัพท์ (`VocabularyView`) · โมเดล + ชุดทดสอบแบบดูอย่างเดียว (`ModelsView`) · บันทึกการใช้งาน (`LogsView`) |
 | `src/features/admin/components/` | ชิ้นส่วนของหน้าแอดมิน: หัวหน้า (`PageHeader`) การ์ดตัวเลขกดกรอง (`StatCards`) ตารางเรียง/แบ่งหน้า (`DataTable`) แท็บย่อย ตัวกรอง |
 | `src/lib/theme.ts`, `components/layout/ThemeToggle.tsx` | โหมดสว่าง/มืด (สีอยู่ใน CSS variable ที่ `src/styles/index.css` แยกชั้น พื้นหลัง < การ์ด `surface` < หน้าต่าง `panel`, จำค่าในเบราว์เซอร์) |
 | `src/features/profile/` | หน้าโปรไฟล์ของผู้ใช้ทุกบทบาท (`/profile`) |

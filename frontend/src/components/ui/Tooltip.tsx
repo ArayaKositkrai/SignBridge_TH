@@ -7,10 +7,12 @@ interface Props {
   text: ReactNode;
   children: ReactNode;
   className?: string;
+  // กล่องกว้างขึ้นสำหรับคำอธิบายยาว ๆ
+  wide?: boolean;
 }
 
 // กล่องข้อความอธิบายเมื่อชี้เมาส์ โฟกัสด้วยคีย์บอร์ด หรือแตะ (มือถือ) — วางลอยบน body จึงไม่ถูกตารางที่เลื่อนได้ตัดขอบ
-export default function Tooltip({ text, children, className = "" }: Props) {
+export default function Tooltip({ text, children, className = "", wide = false }: Props) {
   const id = useId();
   const ref = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number; below: boolean } | null>(null);
@@ -64,7 +66,7 @@ export default function Tooltip({ text, children, className = "" }: Props) {
             id={id}
             role="tooltip"
             style={{ left: pos.x, top: pos.y }}
-            className={`pointer-events-none fixed z-[60] w-max max-w-[16rem] -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-xs font-normal leading-snug text-cream shadow-lg animate-fadeUp dark:bg-slate-100 dark:text-slate-900 ${
+            className={`pointer-events-none fixed z-[60] w-max ${wide ? "max-w-[22rem]" : "max-w-[16rem]"} -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-xs font-normal leading-snug text-cream shadow-lg animate-fadeUp dark:bg-slate-100 dark:text-slate-900 ${
               pos.below ? "" : "-translate-y-full"
             }`}
           >
@@ -83,10 +85,22 @@ const TONES = {
   info: "text-brand",
 } as const;
 
-// ไอคอนเตือน/ข้อมูลพร้อม tooltip บอกว่าเตือนเรื่องอะไร (ผู้อ่านหน้าจออ่านข้อความได้ด้วย)
-export function HintIcon({ text, tone = "warning", icon = "alert", size = 15 }: { text: string; tone?: keyof typeof TONES; icon?: IconName; size?: number }) {
+// ไอคอนเตือน (alert) หรือคำอธิบาย (help = เครื่องหมาย ? โทน info) พร้อม tooltip (ผู้อ่านหน้าจออ่านข้อความได้ด้วย)
+export function HintIcon({
+  text,
+  tone = "warning",
+  icon = "alert",
+  size = 15,
+  wide = false,
+}: {
+  text: string;
+  tone?: keyof typeof TONES;
+  icon?: IconName;
+  size?: number;
+  wide?: boolean;
+}) {
   return (
-    <Tooltip text={text}>
+    <Tooltip text={text} wide={wide}>
       <Icon name={icon} size={size} className={TONES[tone]} />
       <span className="sr-only">{text}</span>
     </Tooltip>

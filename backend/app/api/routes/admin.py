@@ -44,6 +44,10 @@ TRAIN_STARTUP_WAIT = 4
 EVALUATE_SCRIPT = TRAIN_SCRIPT.with_name("evaluate.py")
 EVALUATE_LOG = MODELS_DIR / "evaluate.log"
 _eval_proc: subprocess.Popen | None = None
+# สคริปต์สร้างท่าอวตารจาก skeleton จริง (ชุด TSL + คลิปที่อัด) ใช้ numpy อย่างเดียว ไม่ต้องมี torch
+MOTIONS_SCRIPT = TRAIN_SCRIPT.with_name("build_motions.py")
+MOTIONS_LOG = MODELS_DIR / "build_motions.log"
+_motion_proc: subprocess.Popen | None = None
 # การเทรนที่สั่งจากหน้าเว็บ (มีได้ทีละตัวต่อ backend)
 _train_lock = threading.Lock()
 _train_proc: subprocess.Popen | None = None
@@ -81,11 +85,8 @@ class UserPatch(BaseModel):
     last_name: str | None = Field(default=None, max_length=50)
     phone: str | None = Field(default=None, max_length=20)
     disability_card_number: str | None = Field(default=None, max_length=20)
-
-
-# ผู้แสดงที่เลือกเป็นชุดทดสอบ (รายการว่าง = สุ่มอัตโนมัติ)
-class TestSplitIn(BaseModel):
-    signers: list[str] = Field(default_factory=list, max_length=500)
+    # อีเมล (เฉพาะคนที่ยังไม่มีบัญชีเข้าสู่ระบบ เช่น ล่ามที่แอดมินเพิ่มเอง)
+    email: str | None = Field(default=None, max_length=120)
 
 
 # ตั้งคลิปเป็นชุดเทรน/ทดสอบ
@@ -158,18 +159,21 @@ def _local(t: datetime | None) -> str | None:
 def dashboard():
     samples = ds.all_samples()
     words = ds.all_word_stats()
+    users = user_service.list_users()
     signers = Counter(s.get("signer") or "ไม่ระบุ" for s in samples)
     hand_rates = [max(s.get("lh_present_rate", 0), s.get("rh_present_rate", 0)) for s in samples]
     summary = mr.model_summary()
     recent = sorted(samples, key=lambda s: s.get("created_at", ""), reverse=True)[:RECENT_LIMIT]
     return {
         "totals": {
-            "words": sum(1 for w in words if w["samples"]),
+            # จำนวนคำทั้งหมดในคลังคำศัพท์ (ตรงกับหน้าคลังคำศัพท์)
+            "words": len(ds.load_vocab()),
             "samples": len(samples),
             "frames": sum(s.get("frame_count", 0) for s in samples),
             "duration_ms": round(sum(s.get("duration_ms") or 0 for s in samples)),
-            "signers": len([k for k in signers if k != "ไม่ระบุ"]),
-            "users": len(user_service.list_users()),
+            # ล่าม = ผู้ใช้บทบาทล่ามทั้งหมด (ตรงกับตัวเลข "ล่าม" ในหน้าผู้ใช้)
+            "signers": sum(1 for u in users if u["role"] == "contributor"),
+            "users": len(users),
             "without_landmarks": sum(1 for s in samples if not s.get("frame_count")),
             "hand_rate": round(sum(hand_rates) / len(hand_rates), 4) if hand_rates else 0.0,
         },
@@ -321,18 +325,12 @@ def set_train_word(word: str, body: TrainWordIn):
 
 
 # ---------- ชุดทดสอบโมเดล ----------
+#   คลิปที่อัดผ่านระบบ: ตั้งตามคนที่หน้าผู้ใช้ (PUT /users/{id}/split) หรือรายคลิปด้านล่าง · ชุด TSL: train.py สุ่ม 20% เอง
 
 
-# ผู้แสดงทุกคน (TSL + ที่ล่ามอัด) พร้อมจำนวนคลิป และคนที่เลือกเป็นชุดทดสอบ
+# ดูอย่างเดียว: ผู้แสดงในชุดทดสอบของการเทรนครั้งถัดไป พร้อมคลิป/คำ และคำที่ไม่มีคลิปทดสอบ
 @router.get("/test-split", dependencies=ADMIN)
 def get_test_split():
-    return test_split.overview()
-
-
-# เลือกผู้แสดงที่กันไว้ทดสอบ (มีผลในการเทรนครั้งถัดไป)
-@router.put("/test-split", dependencies=ADMIN)
-def put_test_split(body: TestSplitIn):
-    test_split.set_selected_signers(body.signers)
     return test_split.overview()
 
 
@@ -430,6 +428,40 @@ def _eval_state() -> dict:
     code = _eval_proc.poll()
     status = "running" if code is None else ("succeeded" if code == 0 else "failed")
     lines = EVALUATE_LOG.read_text(encoding="utf-8", errors="replace").splitlines() if EVALUATE_LOG.is_file() else []
+    return {"status": status, "log": lines[-LOG_TAIL_LINES:]}
+
+
+# สั่งสร้างท่าอวตารในพื้นหลัง: รัน build_motions.py บนเครื่อง backend
+#   คำเป้าหมาย = คำที่เลือกเทรน + คำที่อวตารทำได้อยู่แล้ว + คำที่ล่ามอัด เลือกคลิปที่ดีที่สุดคำละ 1 คลิป
+@router.post("/motions/build", status_code=202, dependencies=ADMIN)
+def build_motions():
+    global _motion_proc
+    if not MOTIONS_SCRIPT.is_file():
+        raise HTTPException(status_code=409, detail="ไม่พบสคริปต์ ml/src/build_motions.py บนเครื่องเซิร์ฟเวอร์นี้")
+    with _train_lock:
+        if _motion_proc is not None and _motion_proc.poll() is None:
+            raise HTTPException(status_code=409, detail="กำลังสร้างท่าอวตารอยู่แล้ว")
+        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(MOTIONS_LOG, "w", encoding="utf-8") as log:
+            _motion_proc = subprocess.Popen(
+                [sys.executable, "-u", str(MOTIONS_SCRIPT)],
+                cwd=MOTIONS_SCRIPT.parent,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                **_low_priority(),
+            )
+    return {"message": "เริ่มสร้างท่าอวตารแล้ว (ใช้เวลาสักครู่)"}
+
+
+# สถานะการสร้างท่าอวตารล่าสุด: running / succeeded / failed / idle พร้อม log ท้าย ๆ
+@router.get("/motions/build", dependencies=ADMIN)
+def build_motions_status():
+    if _motion_proc is None:
+        return {"status": "idle", "log": []}
+    code = _motion_proc.poll()
+    status = "running" if code is None else ("succeeded" if code == 0 else "failed")
+    lines = MOTIONS_LOG.read_text(encoding="utf-8", errors="replace").splitlines() if MOTIONS_LOG.is_file() else []
     return {"status": status, "log": lines[-LOG_TAIL_LINES:]}
 
 

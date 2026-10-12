@@ -4,11 +4,11 @@ import type { Split } from "../../admin/services/adminApi";
 
 // ข้อความอธิบายของแต่ละชุด (แสดงใน tooltip)
 const EXPLAIN: Record<Split, string> = {
-  train: "คลิปของผู้แสดงคนนี้จะถูกใช้สอนโมเดล (แอดมินเปลี่ยนได้ที่ แอดมิน › ผู้ใช้)",
-  test: "คลิปของผู้แสดงคนนี้ถูกกันไว้วัดความแม่นยำ โมเดลจะไม่เรียนจากคลิปเหล่านี้ เพื่อทดสอบกับคนที่ไม่เคยเห็น (แอดมินเปลี่ยนได้ที่ แอดมิน › ผู้ใช้)",
+  train: "คลิปของล่ามคนนี้จะถูกใช้สอนโมเดล (แอดมินเปลี่ยนได้ที่ แอดมิน › ผู้ใช้)",
+  test: "คลิปของล่ามคนนี้ถูกกันไว้วัดความแม่นยำ โมเดลจะไม่เรียนจากคลิปเหล่านี้ เพื่อทดสอบกับคนที่ไม่เคยเห็น (แอดมินเปลี่ยนได้ที่ แอดมิน › ผู้ใช้)",
 };
 
-// แถบบอกว่าคลิปที่กำลังจะอัดในชื่อผู้แสดงนี้ จะเข้าชุดเทรนหรือชุดทดสอบ (compact = แบบสั้นในบรรทัดเดียว)
+// แถบบอกว่าคลิปที่กำลังจะอัดในชื่อล่ามนี้ จะเข้าชุดเทรนหรือชุดทดสอบ (compact = แบบสั้นในบรรทัดเดียว)
 export default function SplitNotice({ signer, split, compact }: { signer: string | null; split: Split; compact?: boolean }) {
   const test = split === "test";
   const tone = test
@@ -21,7 +21,7 @@ export default function SplitNotice({ signer, split, compact }: { signer: string
         <span className="min-w-0">
           {!compact && <span className="block text-[11px] opacity-75">คลิปที่อัดจะเป็น</span>}
           <span className="block font-bold">
-            {compact && <span className="font-normal opacity-80">{signer ?? "ไม่ระบุผู้แสดง"} · </span>}
+            {compact && <span className="font-normal opacity-80">{signer ?? "ไม่ระบุล่าม"} · </span>}
             {test ? "ชุดทดสอบ (ไม่ใช้เทรน)" : "ชุดเทรน"}
           </span>
         </span>

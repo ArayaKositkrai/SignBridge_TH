@@ -26,7 +26,7 @@ export default function ModelBadge({ status, models, compact }: Props) {
   return (
     <span
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${tone(acc)}`}
-      title={acc == null ? "ไม่มีคลิปของคนใหม่ให้วัดผลคำนี้" : "ทดสอบกับผู้แสดงที่โมเดลไม่เคยเห็น"}
+      title={acc == null ? "ไม่มีคลิปของคนใหม่ให้วัดผลคำนี้" : "ทดสอบกับล่ามที่โมเดลไม่เคยเห็น"}
     >
       {pick === "draft" ? "Draft " : compact ? "" : "ใช้งาน "}
       {label}

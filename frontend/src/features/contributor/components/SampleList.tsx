@@ -17,10 +17,12 @@ export default function SampleList({ word, samples, loading, onOpen, onDelete }:
   if (loading && !samples.length) return <Empty icon="refresh" text="กำลังโหลด…" />;
   if (!samples.length) return <Empty icon="camera" text="ยังไม่มีคลิปของคำนี้ เริ่มอัดคลิปแรกได้เลย" />;
 
+  // กรอบเลื่อนแยกจากตาราง: ตารางไม่ถูกบีบให้สูงเท่ากรอบ ภาพตัวอย่างจึงคงสัดส่วน 16:9 ไม่ซ้อนกัน
   return (
-    <ul className="scrollbar-thin grid h-full min-h-0 grid-cols-2 content-start gap-2 overflow-y-auto pr-1.5">
+    <div className="scrollbar-thin h-full min-h-0 overflow-y-auto pr-1.5">
+    <ul className="grid grid-cols-2 gap-2">
       {samples.map((s, i) => (
-        <li key={s.id} className="group relative aspect-video overflow-hidden rounded-xl bg-deep ring-1 ring-sky">
+        <li key={s.id} className="group relative aspect-video shrink-0 overflow-hidden rounded-xl bg-deep ring-1 ring-sky">
           <button
             type="button"
             onClick={() => onOpen(i)}
@@ -59,6 +61,7 @@ export default function SampleList({ word, samples, loading, onOpen, onDelete }:
         </li>
       ))}
     </ul>
+    </div>
   );
 }
 

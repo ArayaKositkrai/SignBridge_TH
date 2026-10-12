@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Icon from "./Icon";
 
 // ความกว้างของหน้าต่าง
@@ -32,7 +33,8 @@ export default function Dialog({ open, title, subtitle, onClose, children, foote
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  // วางบน body เสมอ: ถ้าอยู่ในการ์ดที่มี backdrop-blur หน้าต่างจะถูกขังในการ์ดและโดนการ์ดอื่นทับ
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-[2px] sm:items-center sm:p-6 dark:bg-black/70"
       onClick={onClose}
@@ -56,6 +58,7 @@ export default function Dialog({ open, title, subtitle, onClose, children, foote
         <div className="scrollbar-thin flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
         {footer && <footer className="border-t border-sky bg-panel px-5 py-3 sm:px-6">{footer}</footer>}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
