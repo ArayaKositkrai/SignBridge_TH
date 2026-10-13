@@ -94,7 +94,7 @@ def compute(probs: np.ndarray, y: np.ndarray, labels: list[str]) -> dict:
         key=lambda c: (-c["count"], -c["rate"]),
     )[:MAX_CONFUSIONS]
 
-    # เลือกเกณฑ์ความมั่นใจ (F1 ของคำที่ระบบพูดออกมา: พูดผิด/พูดตอนไม่ได้ทำท่า = precision ตก, ไม่พูดตอนทำท่า = recall ตก)
+    # เลือกเกณฑ์ความมั่นใจ (F1 ของคำที่ระบบพูดออกมา: แปลมั่ว/แปลตอนไม่ได้ทำท่า = precision ตก, ไม่พูดตอนทำท่า = recall ตก)
     curve = [_at_threshold(probs, y, null, t) for t in THRESHOLDS]
     best = max(curve, key=lambda c: (round(c["f1"], 4), -c["threshold"])) if curve else None
     threshold = best["threshold"] if best and best["f1"] > 0 else DEFAULT_THRESHOLD

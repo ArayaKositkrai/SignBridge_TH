@@ -349,14 +349,14 @@ def main():
         acc, top3, per = evaluate(model, X[is_val], y[is_val], mean, std, labels)
         metrics = {"val_accuracy": round(acc, 4), "val_top3": round(top3, 4), "val_per_word": per, "val_clips": int(is_val.sum())}
         log(f"ผลบนผู้แสดงใหม่: ถูก {acc:.1%} · ติด 3 อันดับ {top3:.1%}")
-        # ตัวชี้วัดละเอียด (precision/recall/F1 คำที่สับสนกัน เกณฑ์ความมั่นใจ พูดผิดตอนไม่ทำท่า) ดู metrics.py
+        # ตัวชี้วัดละเอียด (precision/recall/F1 คำที่สับสนกัน เกณฑ์ความมั่นใจ แปลมั่วตอนไม่ได้ทำท่า) ดู metrics.py
         full_metrics = M.compute(predict_probs(model, X[is_val], mean, std), y[is_val], labels)
         full_metrics["test_set_id"] = test_set_id(val_signers, int(is_val.sum()))
         full_metrics["no_train_words"] = no_train
         fa = full_metrics["null_false_alarm"]
         log(f"Precision {full_metrics['precision']:.1%} · Recall {full_metrics['recall']:.1%} · F1 {full_metrics['f1']:.1%}"
             f" · เกณฑ์ความมั่นใจ {full_metrics['threshold']:.0%}"
-            + (f" · พูดผิดตอนไม่ทำท่า {fa:.1%}" if fa is not None else ""))
+            + (f" · แปลมั่วตอนไม่ได้ทำท่า {fa:.1%}" if fa is not None else ""))
         worst = sorted(per.items(), key=lambda kv: kv[1])[:5]
         log("คำที่ทายพลาดบ่อย: " + ", ".join(f"{k} {v:.0%}" for k, v in worst))
 
