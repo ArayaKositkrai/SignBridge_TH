@@ -54,14 +54,16 @@ export function useCustomPhrases(userId: string | null) {
     }
   }, []);
 
-  // ลบวลีตาม id
+  // ลบวลีตาม id คืน true เมื่อลบสำเร็จ
   const remove = useCallback(async (id: string) => {
     try {
       await deleteCustomPhrase(id);
       setPhrases((p) => p.filter((x) => x.id !== id));
       setError(null);
+      return true;
     } catch {
       setError("ลบไม่สำเร็จ ลองใหม่อีกครั้ง");
+      return false;
     }
   }, []);
 

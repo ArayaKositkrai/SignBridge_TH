@@ -403,7 +403,8 @@ function AddWordDialog({ open, categories, onClose, onAdded }: { open: boolean; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // บันทึกคำใหม่
+  const toast = useToast();
+  // บันทึกคำใหม่ (คำซ้ำ/ผิดรูปแบบ = แสดงใต้ช่องกรอก)
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!word.trim()) return;
@@ -411,6 +412,7 @@ function AddWordDialog({ open, categories, onClose, onAdded }: { open: boolean; 
     setError(null);
     try {
       await addWord(word.trim(), category.trim(), toRecord);
+      toast.success(`เพิ่มคำ "${word.trim()}" แล้ว`);
       setWord("");
       onAdded();
     } catch (err) {
@@ -465,7 +467,8 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
       .catch((e) => setError(e instanceof Error ? e.message : "โหลดคลิปไม่สำเร็จ"));
   }, [item]);
 
-  // สลับคลิปเป็นชุดเทรน/ทดสอบ
+  const toast = useToast();
+  // สลับคลิปเป็นชุดเทรน/ทดสอบ (สวิตช์เปลี่ยนทันที บันทึกไม่สำเร็จค่อยคืนค่าเดิมและแจ้ง)
   const toggleSplit = async (s: SampleMeta) => {
     const next = s.split === "test" ? "train" : "test";
     setSamples((list) => list?.map((x) => (x.id === s.id ? { ...x, split: next } : x)) ?? null);
@@ -474,7 +477,7 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
       onChanged();
     } catch (e) {
       setSamples((list) => list?.map((x) => (x.id === s.id ? { ...x, split: s.split } : x)) ?? null);
-      setError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+      toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
     }
   };
 

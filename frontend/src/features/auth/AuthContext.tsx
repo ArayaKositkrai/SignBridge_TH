@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useToast } from "../../components/ui/Toast";
 import * as api from "./services/authApi";
 import type { AuthUser, Provider, RegisterInput } from "./services/authApi";
 
@@ -22,6 +23,7 @@ const ME_TIMEOUT_MS = 8000;
 
 // ครอบแอปเพื่อให้ทุกหน้ารู้ว่าใครล็อกอินอยู่ (session เก็บใน cookie ฝั่ง backend)
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const toast = useToast();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       url.searchParams.delete("auth_linked");
       url.searchParams.delete("auth_error");
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-      window.alert(error ?? `ผูกบัญชี ${api.PROVIDER_NAMES[linked!] ?? linked} แล้ว ครั้งหน้าล็อกอินด้วยบัญชีนี้ได้เลย`);
+      if (error) toast.error(error);
+      else toast.success(`ผูกบัญชี ${api.PROVIDER_NAMES[linked!] ?? linked} แล้ว ครั้งหน้าล็อกอินด้วยบัญชีนี้ได้เลย`);
     }
 
     // backend ไม่ตอบภายใน ME_TIMEOUT_MS ถือว่ายังไม่ล็อกอิน (ไม่ให้ปุ่มเข้าสู่ระบบหายไปตลอดระหว่างรอ)

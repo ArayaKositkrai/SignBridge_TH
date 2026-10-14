@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Card from "../../components/ui/Card";
+import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import { useToast } from "../../components/ui/Toast";
 import ClipViewer from "./components/ClipViewer";
 import ModelBadge from "./components/ModelBadge";
 import SplitNotice from "./components/SplitNotice";
@@ -64,17 +66,27 @@ export default function RecordView() {
     void refresh();
   };
 
-  // ลบคลิป (ถามยืนยันก่อน) ถ้าเปิดดูจอใหญ่อยู่ให้เลื่อนไปคลิปที่เหลือ
-  const handleDelete = async (s: SampleMeta) => {
-    if (!window.confirm("ลบคลิปนี้ใช่ไหม? ลบแล้วกู้คืนไม่ได้")) return;
+  // ลบคลิป: ถามยืนยันก่อน (กล่องยืนยัน) แล้วแจ้งผลด้วย toast ถ้าเปิดดูจอใหญ่อยู่ให้เลื่อนไปคลิปที่เหลือ
+  const toast = useToast();
+  const [pendingDelete, setPendingDelete] = useState<SampleMeta | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const handleDelete = (s: SampleMeta) => setPendingDelete(s);
+  const confirmDelete = async () => {
+    const s = pendingDelete;
+    if (!s) return;
+    setDeleting(true);
     try {
       await deleteSample(s.word, s.id);
       const next = samples.filter((x) => x.id !== s.id);
       setSamples(next);
       setViewing((v) => (v === null || !next.length ? null : Math.min(v, next.length - 1)));
       void refresh();
+      toast.success(`ลบคลิปของ "${s.word}" แล้ว`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "ลบคลิปไม่สำเร็จ");
+      toast.error(e instanceof Error ? e.message : "ลบคลิปไม่สำเร็จ");
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -150,6 +162,18 @@ export default function RecordView() {
           onDelete={(s) => void handleDelete(s)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="ลบคลิป"
+        confirmLabel="ลบคลิป"
+        danger
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setPendingDelete(null)}
+      >
+        ลบคลิปนี้ของคำ <b>{pendingDelete?.word}</b> ใช่ไหม? ลบทั้งวิดีโอและ skeleton กู้คืนไม่ได้
+      </ConfirmDialog>
     </div>
   );
 }

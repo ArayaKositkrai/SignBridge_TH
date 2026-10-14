@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { useNavigate } from "react-router-dom";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
 import Card from "../../components/ui/Card";
 import Field from "../../components/ui/Field";
 import Icon from "../../components/ui/Icon";
@@ -111,16 +112,18 @@ function Status({ msg }: { msg: { ok: boolean; text: string } | null }) {
 }
 
 // เรียก API พร้อมจัดการสถานะกำลังทำ/ข้อความผล
+//   สำเร็จ = แจ้งด้วย toast / ผิดพลาด = แสดงใต้ฟอร์มนั้น (ต้องแก้ข้อมูลตรงนั้น)
 function useAction() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const toast = useToast();
   // ทำงาน แล้วแสดงข้อความสำเร็จหรือข้อผิดพลาด
   const run = async (action: () => Promise<void>, okText?: string) => {
     setBusy(true);
     setMsg(null);
     try {
       await action();
-      if (okText) setMsg({ ok: true, text: okText });
+      if (okText) toast.success(okText);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" });
     } finally {

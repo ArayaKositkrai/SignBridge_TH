@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import Badge, { type Tone } from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import Dialog from "../../components/ui/Dialog";
 import Field from "../../components/ui/Field";
@@ -284,7 +285,9 @@ function UserDialog({
     : existing;
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", phone: "", disability_card_number: "" });
   const [busy, setBusy] = useState(false);
+  // ข้อความผิดพลาดใต้ฟอร์ม (บันทึกสำเร็จแจ้งด้วย toast)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const toast = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [card, setCard] = useState<string | null>(null);
   const [cardError, setCardError] = useState<string | null>(null);
@@ -320,7 +323,7 @@ function UserDialog({
     setMsg(null);
     try {
       onSaved(await updateUser(user.id, changes));
-      setMsg({ ok: true, text: okText });
+      toast.success(okText);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
     } finally {
@@ -339,7 +342,7 @@ function UserDialog({
     setMsg(null);
     try {
       onSaved({ ...user, ...(await setUserSplit(user.id, split)) });
-      setMsg({ ok: true, text: split === "test" ? "ตั้งเป็นชุดทดสอบแล้ว" : "ตั้งเป็นชุดเทรนแล้ว" });
+      toast.success(split === "test" ? "ตั้งเป็นชุดทดสอบแล้ว" : "ตั้งเป็นชุดเทรนแล้ว");
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
     } finally {
@@ -383,6 +386,7 @@ function UserDialog({
     }
     onCreated(created);
     setBusy(false);
+    toast.success(`เพิ่ม ${created.name || form.first_name.trim()} แล้ว`);
     onClose();
   };
 
@@ -401,7 +405,7 @@ function UserDialog({
     if (!performer && fields.card && form.disability_card_number.replace(/\D/g, "") !== (user.disability_card_number ?? "").replace(/\D/g, ""))
       changes.disability_card_number = form.disability_card_number;
     if (Object.keys(changes).length) void save(changes);
-    else setMsg({ ok: true, text: "ไม่มีอะไรเปลี่ยน" });
+    else toast.info("ไม่มีอะไรเปลี่ยน");
   };
 
   // ลบผู้ใช้ (หลังยืนยัน)
@@ -412,6 +416,7 @@ function UserDialog({
       await deleteUser(user.id);
       setConfirmDelete(false);
       onDeleted(user.id);
+      toast.success(`ลบ ${user.name} แล้ว`);
     } catch (e) {
       setConfirmDelete(false);
       setMsg({ ok: false, text: e instanceof Error ? e.message : "ลบไม่สำเร็จ" });

@@ -11,6 +11,7 @@ import { logEvent } from "../../lib/activityLog";
 import { fmtBytes, fmtDate } from "../../lib/format";
 import DataTable, { type Column } from "./components/DataTable";
 import ModelMetrics from "./components/ModelMetrics";
+import { STAGES, overall } from "./trainProgress";
 import PageHeader from "./components/PageHeader";
 import SubTabs from "./components/SubTabs";
 import Toolbar, { FilterSelect } from "./components/Toolbar";
@@ -35,16 +36,6 @@ import {
 // แท็บย่อยของหน้าโมเดล
 type Tab = "overview" | "train" | "split" | "history";
 
-// ชื่อขั้นการเทรน และช่วงของแถบความคืบหน้า (0-1) ที่แต่ละขั้นใช้
-const STAGES: Record<NonNullable<TrainProgress["stage"]>, { label: string; from: number; to: number }> = {
-  load: { label: "โหลดข้อมูล", from: 0, to: 0.05 },
-  validate: { label: "เทรนเพื่อวัดความแม่นยำ", from: 0.05, to: 0.5 },
-  final: { label: "เทรนรอบสุดท้ายด้วยข้อมูลทั้งหมด", from: 0.5, to: 0.95 },
-  save: { label: "บันทึกโมเดล", from: 0.95, to: 1 },
-  done: { label: "เสร็จ", from: 1, to: 1 },
-  failed: { label: "หยุด", from: 0, to: 0 },
-};
-
 // ข้อความ/สีของสถานะการเทรน
 const RUN_STATUS: Record<TrainStatus["status"], { label: string; tone: "neutral" | "warning" | "success" | "danger" }> = {
   idle: { label: "ยังไม่เคยเทรน", tone: "neutral" },
@@ -53,13 +44,6 @@ const RUN_STATUS: Record<TrainStatus["status"], { label: string; tone: "neutral"
   succeeded: { label: "เทรนเสร็จแล้ว", tone: "success" },
   failed: { label: "เทรนไม่สำเร็จ", tone: "danger" },
 };
-
-// สัดส่วนความคืบหน้าทั้งหมด (0-1) จากขั้นและรอบที่รายงานมา
-function overall(p: TrainProgress): number {
-  const stage = STAGES[p.stage ?? "load"];
-  const inStage = p.epoch && p.epochs ? p.epoch / p.epochs : 0;
-  return stage.from + (stage.to - stage.from) * inStage;
-}
 
 // แสดงเปอร์เซ็นต์ (ไม่มีค่า = ขีด)
 const pct = (v: number | null | undefined) => (v == null ? "–" : `${Math.round(v * 100)}%`);
@@ -93,62 +77,37 @@ function useNow(active: boolean): number {
   return now;
 }
 
-// แถบ "กำลังเทรน" ที่เห็นได้จากทุกแท็บของหน้าโมเดล: ขั้นตอน % และเวลาที่ใช้ไป
-function TrainBanner({ status, onOpen }: { status: TrainStatus | null; onOpen: () => void }) {
-  const active = status?.status === "running" || status?.status === "stalled";
-  const now = useNow(active);
-  if (!active || !status?.run) return null;
-  const prog = status.run.progress ?? {};
-  const fraction = overall(prog);
-  const elapsed = trainElapsed(status, now);
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="mb-4 flex w-full flex-col gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-left ring-1 ring-amber-200 transition hover:ring-amber-300 dark:bg-amber-400/10 dark:ring-amber-400/30"
-    >
-      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-amber-900 dark:text-amber-200">
-        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-amber-500" />
-        <b>{status.status === "stalled" ? "การเทรนขาดการติดต่อ" : "กำลังเทรนโมเดล"}</b>
-        <span>
-          {STAGES[prog.stage ?? "load"].label}
-          {prog.epoch && prog.epochs ? ` · รอบ ${prog.epoch}/${prog.epochs}` : ""}
-        </span>
-        <span className="font-semibold">{Math.round(fraction * 100)}%</span>
-        {elapsed != null && <span>· ใช้เวลาไป {fmtElapsed(elapsed)}</span>}
-        <span className="ml-auto text-xs underline">ดูรายละเอียด</span>
-      </span>
-      <span className="h-1.5 overflow-hidden rounded-full bg-amber-200/60">
-        <span className="block h-full rounded-full bg-amber-500 transition-[width] duration-700" style={{ width: `${fraction * 100}%` }} />
-      </span>
-    </button>
-  );
-}
-
 // หน้าโมเดล: ปุ่มลองใช้/เผยแพร่ Draft ด้านบน แล้วแบ่งแท็บ ภาพรวม · การเทรน · ชุดทดสอบ · ประวัติเวอร์ชัน
 export default function ModelsView() {
   // เปิดแท็บจากลิงก์ได้ เช่น /admin/models?tab=split (ลิงก์จากแดชบอร์ด)
-  const [params] = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => {
+  const [params, setParams] = useSearchParams();
+  const tabFromUrl = (): Tab => {
     const t = params.get("tab");
     return t === "train" || t === "split" || t === "history" ? t : "overview";
-  });
+  };
+  const [tab, setTab] = useState<Tab>(tabFromUrl);
+  // ลิงก์เปลี่ยน ?tab= ขณะอยู่หน้านี้แล้ว (เช่นกด toast "ดู log การเทรน") ให้สลับแท็บตาม
+  const urlTab = params.get("tab");
+  useEffect(() => {
+    setTab(tabFromUrl());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab]);
   const [models, setModels] = useState<ModelFile[]>([]);
   const [status, setStatus] = useState<TrainStatus | null>(null);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirm, setConfirm] = useState<
     { kind: "publish" } | { kind: "activate"; model: ModelFile } | { kind: "delete"; model: ModelFile } | null
   >(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   // โหลดรายการโมเดล
   const refreshModels = useCallback(async () => {
     try {
       setModels(await listModels());
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : "โหลดรายการโมเดลไม่สำเร็จ" });
+      toast.error(e instanceof Error ? e.message : "โหลดรายการโมเดลไม่สำเร็จ");
     }
-  }, []);
+  }, [toast]);
 
   // โหลดสถานะการเทรน
   const refreshStatus = useCallback(async () => {
@@ -171,16 +130,12 @@ export default function ModelsView() {
     return () => window.clearInterval(id);
   }, [running, evaluating, refreshStatus]);
 
-  const toast = useToast();
   // เทรนเสร็จ: โหลดรายการโมเดลใหม่ (ได้ Draft ใหม่) และแจ้งผล
   const prevRun = useRef(status?.status);
   useEffect(() => {
     const now = status?.status;
     if (prevRun.current === "running" && (now === "succeeded" || now === "failed")) {
-      void refreshModels();
-      const model = status?.run?.model?.replace(/^model_signBridge_|\.npz$/g, "");
-      if (now === "succeeded") toast.success(`เทรนเสร็จแล้ว${model ? ` ได้ ${model} เป็น Draft` : ""}`);
-      else toast.error("เทรนไม่สำเร็จ: " + (status?.run?.error ?? "ดู log ในแท็บการเทรน"));
+      void refreshModels(); // แจ้งผลด้วย toast ที่ TrainingProgress (ทุกหน้า)
     }
     prevRun.current = now;
   }, [status, refreshModels, toast]);
@@ -190,9 +145,7 @@ export default function ModelsView() {
   useEffect(() => {
     const now = status?.evaluation?.status;
     if (prevEval.current === "running" && (now === "succeeded" || now === "failed")) {
-      void refreshModels();
-      if (now === "succeeded") toast.success("Run Test เสร็จแล้ว");
-      else toast.error("Run Test ไม่สำเร็จ: " + (status?.evaluation?.log.slice(-1)[0] ?? "ดู log"));
+      void refreshModels(); // แจ้งผลด้วย toast ที่ TrainingProgress (ทุกหน้า)
     }
     prevEval.current = now;
   }, [status, refreshModels, toast]);
@@ -231,15 +184,15 @@ export default function ModelsView() {
     try {
       if (confirm.kind === "delete") {
         await deleteModel(confirm.model.version);
-        setMessage({ ok: true, text: `ลบโมเดล ${confirm.model.label} แล้ว` });
+        toast.success(`ลบโมเดล ${confirm.model.label} แล้ว`);
       } else {
         const r = confirm.kind === "publish" ? await publishModel() : await setActiveModel(confirm.model.version);
-        setMessage({ ok: true, text: r.message });
+        toast.success(r.message);
       }
       await refreshModels();
       void refreshStatus();
     } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" });
+      toast.error(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
       setBusy(false);
       setConfirm(null);
@@ -270,18 +223,13 @@ export default function ModelsView() {
           </>
         }
       />
-      {message && (
-        <p
-          className={`mb-4 rounded-xl px-4 py-2 text-sm ${
-            message.ok ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300" : "bg-danger/10 text-danger"
-          }`}
-        >
-          {message.text}
-        </p>
-      )}
       <SubTabs
         value={tab}
-        onChange={setTab}
+        onChange={(t) => {
+          // เก็บแท็บไว้ใน URL ด้วย (ลิงก์ ?tab= จาก toast จะสลับแท็บได้เสมอ และรีเฟรชแล้วอยู่แท็บเดิม)
+          setTab(t);
+          setParams(t === "overview" ? {} : { tab: t }, { replace: true });
+        }}
         tabs={[
           { value: "overview", label: "ภาพรวม" },
           { value: "train", label: "การเทรน", badge: running ? "กำลังเทรน" : undefined },
@@ -289,7 +237,6 @@ export default function ModelsView() {
           { value: "history", label: "ประวัติเวอร์ชัน", badge: models.length },
         ]}
       />
-      {tab !== "train" && <TrainBanner status={status} onOpen={() => setTab("train")} />}
 
       {tab === "overview" && (
         <>

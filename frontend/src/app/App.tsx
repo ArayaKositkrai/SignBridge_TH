@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import PageLayout from "../components/layout/PageLayout";
+import TrainingProgress from "../features/admin/components/TrainingProgress";
 import { logEvent } from "../lib/activityLog";
 import AppRoutes from "./routes";
 
@@ -34,6 +35,8 @@ export default function App() {
   return (
     <PageLayout>
       <AppRoutes />
+      {/* ความคืบหน้าการเทรน/Run Test แบบลอย ทุกหน้า (เฉพาะแอดมิน) */}
+      <TrainingProgress />
     </PageLayout>
   );
 }

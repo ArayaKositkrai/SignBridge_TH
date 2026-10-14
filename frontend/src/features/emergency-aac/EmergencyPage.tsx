@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "../../components/ui/Icon";
+import { useToast } from "../../components/ui/Toast";
 import PageTitle from "../../components/ui/PageTitle";
 import { EMERGENCY_PHRASES, HELP_PHRASE } from "../../config/emergencyPhrases";
 import { logEvent } from "../../lib/activityLog";
@@ -60,7 +61,16 @@ export default function EmergencyPage() {
   };
 
   // บันทึกจากหน้าต่าง: เพิ่มใหม่หรือแก้ไขตามปุ่มที่เลือก
-  const save = (input: PhraseInput) => (target ? custom.update(target.id, input) : custom.add(input));
+  const toast = useToast();
+  const save = async (input: PhraseInput) => {
+    const ok = await (target ? custom.update(target.id, input) : custom.add(input));
+    if (ok) toast.success(target ? `แก้ไขปุ่ม "${input.label}" แล้ว` : `เพิ่มปุ่ม "${input.label}" แล้ว`);
+    return ok;
+  };
+  // ลบปุ่มแล้วแจ้งผล (ลบไม่สำเร็จ = ข้อความแดงใต้ปุ่ม)
+  const removePhrase = async (p: EmergencyPhrase) => {
+    if (await custom.remove(p.id)) toast.success(`ลบปุ่ม "${p.label}" แล้ว`);
+  };
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-5">
@@ -111,7 +121,7 @@ export default function EmergencyPage() {
         activeId={activeId}
         editing={editing}
         onPick={pick}
-        onDelete={(p) => void custom.remove(p.id)}
+        onDelete={(p) => void removePhrase(p)}
       />
 
       {custom.error && !dialogOpen && (
