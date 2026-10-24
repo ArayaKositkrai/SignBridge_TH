@@ -95,7 +95,7 @@ export default function RecordView() {
 
   return (
     <div className="grid gap-4 xl:h-[calc(100dvh-12.75rem)] xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-5">
-      <div className="scrollbar-thin flex min-h-0 min-w-0 flex-col gap-4 xl:overflow-y-auto xl:pr-1">
+      <div className="scrollbar-thin flex min-h-0 min-w-0 flex-col gap-4 xl:pr-1">
         {/* เลือกคำ + อัดคลิปในการ์ดเดียว ให้เห็นส่วนอัดทันทีไม่ต้องเลื่อน */}
         <Card className="shrink-0">
           <div className="mb-3">
