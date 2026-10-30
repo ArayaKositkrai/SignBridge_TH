@@ -274,6 +274,8 @@ export const deleteModel = (version: string) =>
   send<void>(`${BASE}/models/${encodeURIComponent(version)}`, { method: "DELETE" });
 // สั่งเทรนจากหน้าเว็บ (รัน train.py บนเครื่อง backend)
 export const startTraining = () => send<{ message: string }>(`${BASE}/train`, { method: "POST" });
+// ยกเลิกการเทรนที่กำลังรันหรือขาดการติดต่อ
+export const cancelTraining = () => send<{ message: string }>(`${BASE}/train/cancel`, { method: "POST" });
 // เผยแพร่โมเดล draft ให้ผู้ใช้ทั่วไปใช้
 export const publishModel = () => send<{ message: string }>(`${BASE}/publish`, { method: "POST" });
 

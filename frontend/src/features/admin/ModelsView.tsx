@@ -16,6 +16,7 @@ import PageHeader from "./components/PageHeader";
 import SubTabs from "./components/SubTabs";
 import Toolbar, { FilterSelect } from "./components/Toolbar";
 import {
+  cancelTraining,
   deleteModel,
   getTrainStatus,
   runModelTest,
@@ -61,7 +62,15 @@ function fmtElapsed(sec: number): string {
 function trainElapsed(status: TrainStatus | null, now: number): number | null {
   const r = status?.run;
   if (!r?.started_at) return null;
-  const end = status?.status === "running" || status?.status === "stalled" ? now : r.finished_at ? new Date(r.finished_at).getTime() : null;
+  // ขาดการติดต่อ = หยุดนับที่ heartbeat ล่าสุด ไม่ให้เวลาเดินต่อทั้งที่เครื่องเทรนเงียบไปแล้ว
+  const end =
+    status?.status === "running"
+      ? now
+      : status?.status === "stalled"
+        ? new Date(r.heartbeat_at ?? r.started_at).getTime()
+        : r.finished_at
+          ? new Date(r.finished_at).getTime()
+          : null;
   return end == null ? null : (end - new Date(r.started_at).getTime()) / 1000;
 }
 
@@ -444,6 +453,8 @@ function Overview({ active, draft }: { active: ModelFile | null; draft: ModelFil
 function Training({ status, onStarted }: { status: TrainStatus | null; onStarted: () => void }) {
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [askCancel, setAskCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const toast = useToast();
   const busyRun = status?.status === "running";
   const canTrain = status?.can_train_here ?? false;
@@ -461,11 +472,26 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
       setStarting(false);
     }
   };
+  // ยกเลิกการเทรนที่กำลังรัน/ค้างอยู่
+  const cancel = async () => {
+    setCancelling(true);
+    try {
+      const r = await cancelTraining();
+      toast.success(r.message);
+      setAskCancel(false);
+      onStarted();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ยกเลิกไม่สำเร็จ");
+    } finally {
+      setCancelling(false);
+    }
+  };
   const r = status?.run;
   const prog = r?.progress ?? {};
   const fraction = status?.status === "succeeded" ? 1 : overall(prog);
   const st = RUN_STATUS[status?.status ?? "idle"];
-  const now = useNow(busyRun || status?.status === "stalled");
+  const now = useNow(busyRun);
+  const stuck = status?.status === "stalled";
   const elapsed = trainElapsed(status, now);
 
   // คัดลอกคำสั่งเทรน
@@ -504,8 +530,13 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
         </ol>
         <div className="mt-4">
           <Button icon="play" className="w-full" onClick={() => void start()} disabled={!status || !canTrain || busyRun || starting}>
-            {starting ? "กำลังเริ่ม…" : busyRun ? "กำลังเทรนอยู่" : "เริ่มเทรน"}
+            {starting ? "กำลังเริ่ม…" : busyRun ? "กำลังเทรนอยู่" : stuck || status?.status === "failed" ? "เริ่มเทรนใหม่" : "เริ่มเทรน"}
           </Button>
+          {(busyRun || stuck) && (
+            <Button variant="ghost" className="mt-2 w-full" onClick={() => setAskCancel(true)}>
+              ยกเลิกเทรน
+            </Button>
+          )}
           {status && !canTrain && (
             <p className="mt-2 text-xs text-ink/60">เครื่องเซิร์ฟเวอร์ไม่มี torch จึงเทรนจากหน้าเว็บไม่ได้ ให้รันคำสั่งด้านล่างบนเครื่องที่มี torch แทน</p>
           )}
@@ -523,7 +554,14 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
       <section className="rounded-2xl bg-surface/80 p-5 ring-1 ring-sky">
         <header className="mb-1 flex items-center justify-between gap-2">
           <h2 className="text-base font-bold text-navy">การเทรนล่าสุด</h2>
-          <Badge tone={st.tone}>{st.label}</Badge>
+          <div className="flex items-center gap-2">
+            {(busyRun || stuck) && (
+              <Button size="sm" variant="danger" onClick={() => setAskCancel(true)}>
+                ยกเลิกเทรน
+              </Button>
+            )}
+            <Badge tone={st.tone}>{st.label}</Badge>
+          </div>
         </header>
         <p className="mb-3 text-xs text-ink/55">
           กดเริ่มเทรนแล้วความคืบหน้าจะขึ้นตรงนี้ · เสร็จแล้วได้รุ่นใหม่เป็น Draft — ดูคะแนนที่แท็บ "ภาพรวม" และรุ่นทั้งหมดที่ "ประวัติเวอร์ชัน"
@@ -548,7 +586,7 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-ink/55">{busyRun ? "ใช้เวลาไป" : "ใช้เวลา"}</dt>
+                <dt className="text-xs text-ink/55">{busyRun ? "ใช้เวลาไป" : stuck ? "ใช้เวลา (ก่อนหลุด)" : "ใช้เวลา"}</dt>
                 <dd className="font-semibold text-navy">{elapsed != null ? fmtElapsed(elapsed) : "–"}</dd>
               </div>
               <div>
@@ -576,7 +614,7 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
                   />
                 </div>
                 {status?.status === "stalled" && (
-                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">เครื่องที่เทรนเงียบไปเกิน 2 นาที อาจถูกปิดหรือหลุดการเชื่อมต่อ</p>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">เครื่องที่เทรนเงียบไปเกิน 2 นาที อาจถูกปิดหรือหลุดการเชื่อมต่อ — กด "ยกเลิกเทรน" หรือ "เริ่มเทรนใหม่" ได้เลย</p>
                 )}
               </div>
             )}
@@ -592,6 +630,17 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
           </>
         )}
       </section>
+      <ConfirmDialog
+        open={askCancel}
+        title="ยกเลิกการเทรน"
+        busy={cancelling}
+        danger
+        confirmLabel="ยกเลิกเทรน"
+        onClose={() => setAskCancel(false)}
+        onConfirm={() => void cancel()}
+      >
+        หยุดการเทรนที่กำลังรันอยู่ ความคืบหน้าที่ทำไปจะหายและไม่ได้โมเดลรุ่นใหม่ จากนั้นกดเริ่มเทรนใหม่ได้ทันที
+      </ConfirmDialog>
     </div>
   );
 }

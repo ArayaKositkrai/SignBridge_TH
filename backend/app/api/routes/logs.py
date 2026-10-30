@@ -39,6 +39,7 @@ ACTION_NAMES = {
     "PATCH /api/admin/vocabulary/{word}": "เลือกคำไว้เทรน",
     "POST /api/admin/vocabulary": "เพิ่มคำในคลัง",
     "POST /api/admin/train": "เริ่มเทรนโมเดล",
+    "POST /api/admin/train/cancel": "ยกเลิกการเทรน",
     "POST /api/admin/models/evaluate": "Run Test วัดผลทุกเวอร์ชัน",
     "DELETE /api/admin/models/{file}": "ลบโมเดล",
     "POST /api/admin/motions/build": "สร้างท่าอวตาร",

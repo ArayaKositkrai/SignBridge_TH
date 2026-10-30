@@ -544,6 +544,42 @@ def start_training(user: dict = Depends(require_admin)):
     return {"message": "เริ่มเทรนแล้ว ดูความคืบหน้าได้ที่แท็บการเทรน", "status": "running"}
 
 
+# ฆ่า process เทรนพร้อมโปรเซสลูก (Windows ต้องใช้ taskkill /T ไม่งั้นลูกค้างอยู่)
+def _kill_tree(proc: subprocess.Popen) -> None:
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+# ยกเลิกการเทรนที่กำลังรันหรือขาดการติดต่อ: ฆ่า process (ถ้าอยู่เครื่องนี้) แล้วปิดแถวเป็น failed จะได้เริ่มใหม่ได้
+@router.post("/train/cancel", dependencies=ADMIN)
+def cancel_training():
+    global _train_proc
+    with _train_lock:
+        killed = _train_proc is not None and _train_proc.poll() is None
+        if killed:
+            _kill_tree(_train_proc)
+        _train_proc = None
+        with SessionLocal() as db:
+            run = db.scalar(select(TrainingRun).where(TrainingRun.status == "running").order_by(TrainingRun.started_at.desc()).limit(1))
+            if run is None:
+                raise HTTPException(status_code=409, detail="ไม่มีการเทรนที่กำลังรันอยู่")
+            run.status = "failed"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error = "ยกเลิกโดยแอดมิน"
+            run.progress = {**(run.progress or {}), "stage": "failed"}
+            host = run.host
+            db.commit()
+    if killed:
+        return {"message": "ยกเลิกการเทรนแล้ว"}
+    return {"message": f"ปิดงานเทรนที่ค้างแล้ว (process อยู่เครื่อง {host or 'อื่น'} ถ้ายังรันอยู่ให้ปิดที่เครื่องนั้น)"}
+
+
 # ลบโมเดลหนึ่งเวอร์ชัน (ข้อมูลใน database + ไฟล์ในเครื่องนี้ + ย้ายไฟล์ใน Storage ไปถังลบ) ลบตัวที่ใช้งานอยู่ไม่ได้
 #   model_words ของเวอร์ชันนี้ถูกลบตาม ส่วนประวัติการเทรนยังอยู่แต่ไม่ผูกกับโมเดลแล้ว
 @router.delete("/models/{file}", status_code=204, dependencies=ADMIN)
