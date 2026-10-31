@@ -435,6 +435,39 @@ def main():
     return model_id
 
 
+# สร้างท่าอวตารจากข้อมูลล่าสุดต่อท้ายการเทรน (ล้มเหลวไม่ถือว่าเทรนล้ม เพราะโมเดลบันทึกไปแล้ว) คืน True ถ้าสร้างสำเร็จ
+def build_avatar_motions() -> bool:
+    import contextlib
+
+    import build_motions
+
+    # ขั้นใหม่ล้างค่าความคืบหน้า จึงส่งค่าความแม่นยำต่อไปด้วย ไม่ให้หายจากหน้าแอดมิน
+    keep = {k: _run.state[k] for k in ("val_accuracy", "val_top3") if _run and _run.state.get(k) is not None}
+    progress(stage="motions", **keep)
+
+    # build_motions ใช้ print จึงเปลี่ยนเส้นทางเข้า log ของการเทรนเพื่อให้เห็นบนหน้าแอดมิน
+    class _ToLog:
+        def write(self, text: str) -> int:
+            for line in text.splitlines():
+                if line.strip():
+                    log(line)
+            return len(text)
+
+        def flush(self) -> None:
+            pass
+
+    try:
+        with contextlib.redirect_stdout(_ToLog()):
+            build_motions.main()
+        ok = True
+    except (Exception, SystemExit) as e:  # noqa: BLE001
+        log(f"สร้างท่าอวตารไม่สำเร็จ ({e}) — กดปุ่ม 'สร้างท่าอวตาร' ที่หน้าคลังคำศัพท์เพื่อลองใหม่")
+        ok = False
+    # ให้หน้าเว็บรู้ผล (บันทึกลง database ตอน finish)
+    progress(motions_ok=ok)
+    return ok
+
+
 # เขียนผลการเทรนลงหน้า "บันทึกการใช้งาน" (ตาราง activity_logs) เป็นภาษาคน เช่น "เทรนเสร็จ v0.0.15 · 5 นาที 41 วินาที"
 #   บันทึกไม่ได้ไม่ถือว่าเทรนล้ม
 def log_activity(action: str, detail: str | None, ok: bool, started: float) -> None:
@@ -478,9 +511,10 @@ def run():
         _run.finish("failed", error=f"{type(e).__name__}: {e}")
         log_activity("เทรนโมเดลไม่สำเร็จ", f"{type(e).__name__}: {e}", False, started)
         raise
+    made = build_avatar_motions()
     _run.finish("succeeded", model_id=model_id)
     s = _run.state
-    log_activity(f"เทรนเสร็จ ได้ {_LAST_VERSION or 'โมเดลใหม่'} (Draft)",
+    log_activity(f"เทรนเสร็จ ได้ {_LAST_VERSION or 'โมเดลใหม่'} (Draft)" + (" และอัปเดตท่าอวตาร" if made else ""),
                  f"ทายถูก {s['val_accuracy']:.1%}" if s.get("val_accuracy") is not None else None, True, started)
 
 

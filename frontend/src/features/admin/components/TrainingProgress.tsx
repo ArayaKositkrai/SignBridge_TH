@@ -92,11 +92,14 @@ export default function TrainingProgress() {
     const evaluation = status.evaluation?.status;
     if (before.train === "running" && train === "succeeded") {
       const v = shortVersion(status.run?.model);
-      toast.success(`เทรนเสร็จแล้ว${v ? ` ได้ ${v} เป็น Draft` : ""}`, { link: { to: TRAIN_TAB, label: "ดูผลและเผยแพร่ →" } });
+      toast.success(`เทรนเสร็จแล้ว${v ? ` ได้ ${v} เป็น Draft` : ""}${status.run?.progress.motions_ok === true ? " · อัปเดตท่าอวตารแล้ว" : status.run?.progress.motions_ok === false ? " · แต่สร้างท่าอวตารไม่สำเร็จ" : ""}`, { link: { to: TRAIN_TAB, label: "ดูผลและเผยแพร่ →" } });
     } else if (before.train === "running" && train === "failed") {
-      toast.error("เทรนไม่สำเร็จ: " + (status.run?.error ?? "ดูรายละเอียดใน log"), {
-        link: { to: TRAIN_TAB, label: "ดู log การเทรน →" },
-      });
+      // แอดมินกดยกเลิกเอง ไม่ใช่ข้อผิดพลาด
+      if (status.run?.error === "ยกเลิกโดยแอดมิน") toast.info("ยกเลิกการเทรนแล้ว");
+      else
+        toast.error("เทรนไม่สำเร็จ: " + (status.run?.error ?? "ดูรายละเอียดใน log"), {
+          link: { to: TRAIN_TAB, label: "ดู log การเทรน →" },
+        });
     }
     if (before.evaluation === "running" && evaluation === "succeeded")
       toast.success("Run Test เสร็จแล้ว", { link: { to: MODELS_PAGE, label: "ดูผลวัด →" } });

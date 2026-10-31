@@ -4,6 +4,7 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import Modal from "../../components/ui/Modal";
 import Icon from "../../components/ui/Icon";
 import { HintIcon } from "../../components/ui/Tooltip";
 import SearchInput from "../../components/ui/SearchInput";
@@ -18,6 +19,7 @@ import Toolbar, { FilterSelect } from "./components/Toolbar";
 import {
   cancelTraining,
   deleteModel,
+  getModelTrainLog,
   getTrainStatus,
   runModelTest,
   startTraining,
@@ -26,6 +28,7 @@ import {
   publishModel,
   setActiveModel,
   type ModelFile,
+  type ModelTrainLog,
   type TrainProgress,
   type TrainStatus,
   type VocabItem,
@@ -794,6 +797,7 @@ function History({
   onActivate: (m: ModelFile) => void;
   onDelete: (m: ModelFile) => void;
 }) {
+  const [logOf, setLogOf] = useState<ModelFile | null>(null);
   const columns: Column<ModelFile>[] = [
     {
       key: "label",
@@ -801,7 +805,9 @@ function History({
       sort: (m) => m.modified_at,
       cell: (m) => (
         <span className="flex items-center gap-2">
-          <span className="font-semibold text-navy">{m.label}</span>
+          <button type="button" onClick={() => setLogOf(m)} title="ดู log การเทรน" className="font-semibold text-navy underline-offset-2 hover:text-brand hover:underline">
+            {m.label}
+          </button>
           {m.active && <Badge tone="success">ใช้งานอยู่</Badge>}
           {m.draft && <Badge tone="warning">Draft</Badge>}
         </span>
@@ -890,5 +896,75 @@ function History({
       ),
     },
   ];
-  return <DataTable rows={models} columns={columns} rowKey={(m) => m.version} initialSort={{ key: "label", dir: "desc" }} empty="ยังไม่มีโมเดล" />;
+  return (
+    <>
+      <DataTable rows={models} columns={columns} rowKey={(m) => m.version} initialSort={{ key: "label", dir: "desc" }} empty="ยังไม่มีโมเดล" />
+      <TrainLogDialog model={logOf} onClose={() => setLogOf(null)} />
+    </>
+  );
+}
+
+// หน้าต่างดู log การเทรนของโมเดลหนึ่งเวอร์ชัน (เปิดจากแท็บประวัติเวอร์ชัน)
+function TrainLogDialog({ model, onClose }: { model: ModelFile | null; onClose: () => void }) {
+  const [data, setData] = useState<ModelTrainLog | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // โหลด log ทุกครั้งที่เปิดโมเดลใหม่
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    if (!model) return;
+    let cancelled = false;
+    getModelTrainLog(model.version)
+      .then((d) => !cancelled && setData(d))
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "โหลด log ไม่สำเร็จ"));
+    return () => {
+      cancelled = true;
+    };
+  }, [model]);
+
+  const run = data?.run;
+  const secs = run?.started_at && run.finished_at ? (new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1000 : null;
+  return (
+    <Modal open={!!model} title={`log การเทรน ${model?.label ?? ""}`} onClose={onClose} wide>
+      {error ? (
+        <p className="py-6 text-center text-sm text-danger">{error}</p>
+      ) : !data ? (
+        <p className="py-6 text-center text-sm text-ink/50">กำลังโหลด…</p>
+      ) : !run ? (
+        <p className="py-6 text-center text-sm text-ink/50">เวอร์ชันนี้ไม่มีบันทึกการเทรน (เทรนก่อนมีระบบบันทึก log)</p>
+      ) : (
+        <>
+          <dl className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-xs text-ink/55">เริ่ม</dt>
+              <dd className="font-semibold text-navy">{run.started_at ? fmtDate(run.started_at) : "–"}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-xs text-ink/55">เครื่อง</dt>
+              <dd className="truncate font-semibold text-navy" title={run.host ?? ""}>
+                {run.host ?? "–"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink/55">ใช้เวลา</dt>
+              <dd className="font-semibold text-navy">{secs != null ? fmtElapsed(secs) : "–"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink/55">ทายถูก</dt>
+              <dd className="font-semibold text-navy">{pct(run.progress.val_accuracy)}</dd>
+            </div>
+          </dl>
+          {run.error && <p className="mb-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">{run.error}</p>}
+          {run.log.length > 0 ? (
+            <pre className="scrollbar-thin max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-deep p-3 font-mono text-[11px] leading-relaxed text-white/85">
+              {run.log.join("\n")}
+            </pre>
+          ) : (
+            <p className="py-4 text-center text-sm text-ink/50">ไม่มี log</p>
+          )}
+        </>
+      )}
+    </Modal>
+  );
 }

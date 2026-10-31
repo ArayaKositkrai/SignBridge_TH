@@ -397,6 +397,28 @@ def model_metrics(file: str):
     return {"version": model.version, "file": model.file, **(model.metrics or {})}
 
 
+# log การเทรนของโมเดลหนึ่งเวอร์ชัน (เก็บท้าย ๆ ไม่เกิน 300 บรรทัด) run = None ถ้าเวอร์ชันนี้ไม่มีบันทึกการเทรน (เทรนก่อนมีระบบบันทึก)
+@router.get("/models/{file}/train-log", dependencies=ADMIN)
+def model_train_log(file: str):
+    with SessionLocal() as db:
+        model = db.scalar(select(Model).where(Model.file == file))
+        if model is None:
+            raise HTTPException(status_code=404, detail="ไม่พบโมเดลเวอร์ชันนี้")
+        run = db.scalar(select(TrainingRun).where(TrainingRun.model_id == model.id).order_by(TrainingRun.started_at.desc()).limit(1))
+    return {
+        "version": model.version,
+        "run": None if run is None else {
+            "id": run.id,
+            "host": run.host,
+            "started_at": _local(run.started_at),
+            "finished_at": _local(run.finished_at),
+            "progress": run.progress or {},
+            "error": run.error,
+            "log": (run.log or "").splitlines(),
+        },
+    }
+
+
 # สั่งวัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน (Run Test) ในพื้นหลัง: รัน evaluate.py --all บนเครื่อง backend
 @router.post("/models/evaluate", status_code=202, dependencies=ADMIN)
 def evaluate_models():

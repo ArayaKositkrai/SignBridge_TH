@@ -153,7 +153,9 @@ export interface ModelMetrics {
 // สถานะการเทรนโมเดลและเวอร์ชันปัจจุบัน
 // ความคืบหน้าที่ train.py รายงาน: ขั้น (load/validate/final/save/done/failed) รอบที่ ค่า loss และความแม่นยำ
 export interface TrainProgress {
-  stage?: "load" | "validate" | "final" | "save" | "done" | "failed";
+  stage?: "load" | "validate" | "final" | "save" | "motions" | "done" | "failed";
+  // ผลขั้นสร้างท่าอวตารท้ายการเทรน (ไม่มีค่า = เทรนจากเครื่องรุ่นเก่าที่ไม่มีขั้นนี้)
+  motions_ok?: boolean;
   epoch?: number;
   epochs?: number;
   loss?: number;
@@ -185,6 +187,12 @@ export interface TrainStatus {
   run: TrainRun | null;
   active_version: string | null;
   draft_version: string | null;
+}
+
+// log การเทรนของโมเดลหนึ่งเวอร์ชัน (run = null ถ้าไม่มีบันทึกการเทรน)
+export interface ModelTrainLog {
+  version: string;
+  run: Omit<TrainRun, "model" | "heartbeat_at"> | null;
 }
 
 // ส่ง JSON ไปพร้อม header ที่ถูกต้อง
@@ -274,6 +282,9 @@ export const deleteModel = (version: string) =>
   send<void>(`${BASE}/models/${encodeURIComponent(version)}`, { method: "DELETE" });
 // สั่งเทรนจากหน้าเว็บ (รัน train.py บนเครื่อง backend)
 export const startTraining = () => send<{ message: string }>(`${BASE}/train`, { method: "POST" });
+// ดู log การเทรนของโมเดลเวอร์ชันหนึ่ง
+export const getModelTrainLog = (version: string) =>
+  send<ModelTrainLog>(`${BASE}/models/${encodeURIComponent(version)}/train-log`);
 // ยกเลิกการเทรนที่กำลังรันหรือขาดการติดต่อ
 export const cancelTraining = () => send<{ message: string }>(`${BASE}/train/cancel`, { method: "POST" });
 // เผยแพร่โมเดล draft ให้ผู้ใช้ทั่วไปใช้

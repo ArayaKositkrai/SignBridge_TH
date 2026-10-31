@@ -137,6 +137,7 @@ export default function VocabularyView() {
     setVocab((list) => list.map((x) => (x.word === v.word ? { ...x, in_train_set: next } : x)));
     try {
       await setTrainWord(v.word, next);
+      toast.success(next ? `เลือก "${v.word}" ไว้เทรนแล้ว` : `เลิกเลือก "${v.word}" แล้ว`);
     } catch (e) {
       setVocab((list) => list.map((x) => (x.word === v.word ? { ...x, in_train_set: !next } : x)));
       toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
@@ -474,6 +475,7 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
     setSamples((list) => list?.map((x) => (x.id === s.id ? { ...x, split: next } : x)) ?? null);
     try {
       await setSampleSplit(s.id, next);
+      toast.success(next === "test" ? "ตั้งคลิปเป็นชุดทดสอบแล้ว" : "ตั้งคลิปเป็นชุดเทรนแล้ว");
       onChanged();
     } catch (e) {
       setSamples((list) => list?.map((x) => (x.id === s.id ? { ...x, split: s.split } : x)) ?? null);

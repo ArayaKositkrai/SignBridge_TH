@@ -5,7 +5,8 @@ export const STAGES: Record<NonNullable<TrainProgress["stage"]>, { label: string
   load: { label: "โหลดข้อมูล", from: 0, to: 0.05 },
   validate: { label: "เทรนเพื่อวัดความแม่นยำ", from: 0.05, to: 0.5 },
   final: { label: "เทรนรอบสุดท้าย", from: 0.5, to: 0.95 },
-  save: { label: "บันทึกโมเดล", from: 0.95, to: 1 },
+  save: { label: "บันทึกโมเดล", from: 0.95, to: 0.97 },
+  motions: { label: "สร้างท่าอวตาร", from: 0.97, to: 1 },
   done: { label: "เสร็จ", from: 1, to: 1 },
   failed: { label: "หยุด", from: 0, to: 0 },
 };
