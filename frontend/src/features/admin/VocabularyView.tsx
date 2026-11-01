@@ -475,7 +475,7 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
     setSamples((list) => list?.map((x) => (x.id === s.id ? { ...x, split: next } : x)) ?? null);
     try {
       await setSampleSplit(s.id, next);
-      toast.success(next === "test" ? "ตั้งคลิปเป็นชุดทดสอบแล้ว" : "ตั้งคลิปเป็นชุดเทรนแล้ว");
+      toast.success(next === "test" ? "ตั้งคลิปเป็นชุดเทสแล้ว" : "ตั้งคลิปเป็นชุดเทรนแล้ว");
       onChanged();
     } catch (e) {
       setSamples((list) => list?.map((x) => (x.id === s.id ? { ...x, split: s.split } : x)) ?? null);
@@ -512,7 +512,7 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
           <section>
             <h3 className="mb-1 font-bold text-navy">คลิปที่ล่ามอัด ({samples?.length ?? "…"})</h3>
             <p className="mb-2 text-xs text-ink/55">
-              คลิปของล่ามที่ตั้งเป็นชุดทดสอบ (หน้าผู้ใช้) เป็น <b>ทดสอบ</b> ทั้งหมดอยู่แล้ว · ล่ามคนอื่นสลับเป็นทดสอบทีละคลิปได้ถ้าต้องการ
+              คลิปของล่ามที่ตั้งเป็นชุดเทส (หน้าผู้ใช้) เป็น <b>ทดสอบ</b> ทั้งหมดอยู่แล้ว · ล่ามคนอื่นสลับเป็นทดสอบทีละคลิปได้ถ้าต้องการ
             </p>
             {error && <p className="mb-2 text-xs text-danger">{error}</p>}
             {samples && samples.length === 0 && <p className="rounded-xl border border-dashed border-sky px-3 py-6 text-center text-ink/50">ยังไม่มีคลิป</p>}
@@ -532,10 +532,10 @@ function WordDialog({ item, brief, onClose, onChanged }: { item: VocabItem | nul
                           </span>
                         </span>
                         {s.split_by_signer ? (
-                          // ล่ามคนนี้เป็นชุดทดสอบ: ทุกคลิปเป็นทดสอบเสมอ (เปลี่ยนที่หน้าผู้ใช้)
+                          // ล่ามคนนี้เป็นชุดเทส: ทุกคลิปเป็นทดสอบเสมอ (เปลี่ยนที่หน้าผู้ใช้)
                           <span
                             className="shrink-0 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30"
-                            title="ล่ามคนนี้ถูกตั้งเป็นชุดทดสอบ ทุกคลิปของเขาจึงเป็นทดสอบ (เปลี่ยนได้ที่ แอดมิน › ผู้ใช้)"
+                            title="ล่ามคนนี้ถูกตั้งเป็นชุดเทส ทุกคลิปของเขาจึงเป็นทดสอบ (เปลี่ยนได้ที่ แอดมิน › ผู้ใช้)"
                           >
                             ทดสอบ · ตามล่าม
                           </span>

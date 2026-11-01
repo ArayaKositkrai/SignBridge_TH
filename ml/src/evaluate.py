@@ -1,11 +1,11 @@
-"""วัดผลโมเดลด้วยชุดทดสอบปัจจุบัน (Run Test) — ทุกเวอร์ชันวัดด้วยชุดเดียวกัน จึงเทียบกันได้ตรง ๆ
+"""วัดผลโมเดลด้วยชุดเทสปัจจุบัน (Run Test) — ทุกเวอร์ชันวัดด้วยชุดเดียวกัน จึงเทียบกันได้ตรง ๆ
 
 ใช้ (ในโฟลเดอร์ ml/src):
     python evaluate.py --all                         # ทุกเวอร์ชันที่ใช้กับโค้ดปัจจุบันได้
     python evaluate.py model_signBridge_v0.0.8.npz   # เฉพาะไฟล์ที่ระบุ
 
-ชุดทดสอบเลือกแบบเดียวกับ train.py (TSL สุ่ม 20%, คลิปที่อัดผ่านระบบตามคนที่ตั้งเป็นทดสอบ) ใช้แค่คลิปในชุดทดสอบ ไม่ได้เทรนอะไร
-คำในชุดทดสอบที่โมเดลเวอร์ชันนั้นไม่รู้จัก ไม่นับ (บอกจำนวนไว้ใน excluded_clips)
+ชุดเทสเลือกแบบเดียวกับ train.py (TSL สุ่ม 20%, คลิปที่อัดผ่านระบบตามคนที่ตั้งเป็นทดสอบ) ใช้แค่คลิปในชุดเทส ไม่ได้เทรนอะไร
+คำในชุดเทสที่โมเดลเวอร์ชันนั้นไม่รู้จัก ไม่นับ (บอกจำนวนไว้ใน excluded_clips)
 ผลเก็บใน models.metrics.test (ตัวชี้วัดชุดเดียวกับตอนเทรน ดู metrics.py) แสดงในหน้าแอดมิน → โมเดล
 ไฟล์โมเดลที่ไม่มีในเครื่องจะดาวน์โหลดจาก Storage (models/)
 """
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import db  # noqa: E402
 import features as F  # noqa: E402
 import metrics as M  # noqa: E402
-import train as T  # noqa: E402  (ใช้ตัวโหลดข้อมูลและการแบ่งชุดทดสอบตัวเดียวกับตอนเทรน)
+import train as T  # noqa: E402  (ใช้ตัวโหลดข้อมูลและการแบ่งชุดเทสตัวเดียวกับตอนเทรน)
 
 
 def log(msg: str) -> None:
@@ -65,7 +65,7 @@ def main() -> None:
     if not files:
         raise SystemExit("ระบุไฟล์โมเดล หรือใส่ --all")
 
-    log("--- Run Test: วัดผลด้วยชุดทดสอบปัจจุบัน ---")
+    log("--- Run Test: วัดผลด้วยชุดเทสปัจจุบัน ---")
     clips = T.load_tsl(words, cfg.get("include_null_class", True)) + T.load_recorded(conn, cfg.get("min_recorded_clips", 5))
     labels_raw = [c[2] for c in clips]
     signers = [c[3] for c in clips]
@@ -74,9 +74,9 @@ def main() -> None:
     is_val, val_signers, _ = T.split_test(conn, signers, sources, clip_test, labels_raw)
     test = [c for c, v in zip(clips, is_val) if v]
     if not test:
-        raise SystemExit("ชุดทดสอบว่าง (ยังไม่มีผู้แสดงให้กันไว้ทดสอบ)")
+        raise SystemExit("ชุดเทสว่าง (ยังไม่มีผู้แสดงให้กันไว้ทดสอบ)")
     set_id = T.test_set_id(val_signers, len(test))
-    log(f"ชุดทดสอบ: {len(test)} คลิป จากผู้แสดง {len(val_signers)} คน (รหัส {set_id})")
+    log(f"ชุดเทส: {len(test)} คลิป จากผู้แสดง {len(val_signers)} คน (รหัส {set_id})")
 
     # แปลงเป็น feature ครั้งเดียว 2 แบบ (มี/ไม่มีใบหน้า) ใช้กับทุกเวอร์ชัน
     feats = {flag: [F.clip_features(c[0], c[1], c[5] if flag else None) for c in test] for flag in (False, True)}
@@ -101,10 +101,10 @@ def main() -> None:
             probs.append(F.predict_proba(weights, f))
             y.append(idx[c[2]])
         if not probs:
-            log(f"  {registered.get(file, file)}: ไม่มีคลิปในชุดทดสอบที่โมเดลนี้รู้จัก")
+            log(f"  {registered.get(file, file)}: ไม่มีคลิปในชุดเทสที่โมเดลนี้รู้จัก")
             continue
         result = M.compute(np.stack(probs), np.array(y), labels)
-        # โมเดลเคยเห็นชุดทดสอบนี้ตอนเทรนไหม: เชื่อผลได้เฉพาะโมเดลที่เทรนรอบสุดท้ายโดยกันชุดทดสอบเดียวกันนี้ออก
+        # โมเดลเคยเห็นชุดเทสนี้ตอนเทรนไหม: เชื่อผลได้เฉพาะโมเดลที่เทรนรอบสุดท้ายโดยกันชุดเทสเดียวกันนี้ออก
         val = validation.get(file, {})
         seen = not (val.get("final_excludes_test") and val.get("test_set_id") == set_id)
         result.update(test_set_id=set_id, excluded_clips=excluded, seen_test=seen,
@@ -115,7 +115,7 @@ def main() -> None:
         )
         log(f"  {registered.get(file, file)}: ถูก {result['accuracy']:.1%} · F1 {result['f1']:.1%} · {result['clips']} คลิป"
             + (f" (ไม่นับ {excluded} คลิปที่ไม่รู้จัก)" if excluded else "")
-            + (" ⚠ โมเดลนี้เคยเห็นชุดทดสอบตอนเทรน ผลสูงเกินจริง" if seen else ""))
+            + (" ⚠ โมเดลนี้เคยเห็นชุดเทสตอนเทรน ผลสูงเกินจริง" if seen else ""))
     conn.close()
     log("--- Run Test เสร็จ ---")
 

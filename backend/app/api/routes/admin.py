@@ -40,7 +40,7 @@ TRAIN_COMMAND = "cd ml/src && python train.py"
 TRAIN_LOG = MODELS_DIR / "train.log"
 # รอดูว่าสคริปต์ล้มทันทีตอนเริ่มไหม (เช่นข้อมูลไม่พอ/มีการเทรนอื่นอยู่) จะได้แจ้งบนหน้าเว็บเลย
 TRAIN_STARTUP_WAIT = 4
-# สคริปต์วัดผลโมเดลด้วยชุดทดสอบปัจจุบัน (Run Test) และไฟล์ output
+# สคริปต์วัดผลโมเดลด้วยชุดเทสปัจจุบัน (Run Test) และไฟล์ output
 EVALUATE_SCRIPT = TRAIN_SCRIPT.with_name("evaluate.py")
 EVALUATE_LOG = MODELS_DIR / "evaluate.log"
 _eval_proc: subprocess.Popen | None = None
@@ -200,7 +200,7 @@ def list_users(me: dict = Depends(require_staff)):
     return {"users": users, "unknown_split": test_split.unknown_signer_split()}
 
 
-# ตั้งคลิปทั้งหมดของผู้แสดงคนนี้ (ล่าม/แอดมิน/ผู้แสดงไม่มีบัญชี) เป็นชุดเทรนหรือชุดทดสอบ (มีผลตอนเทรนครั้งถัดไป)
+# ตั้งคลิปทั้งหมดของผู้แสดงคนนี้ (ล่าม/แอดมิน/ผู้แสดงไม่มีบัญชี) เป็นชุดเทรนหรือชุดเทส (มีผลตอนเทรนครั้งถัดไป)
 @router.put("/users/{user_id}/split", dependencies=ADMIN)
 def set_user_split(user_id: str, body: SampleSplitIn):
     user = next((u for u in user_service.list_users() if u["id"] == user_id), None)
@@ -324,17 +324,17 @@ def set_train_word(word: str, body: TrainWordIn):
     return {"word": ds.clean_word(word), "in_train_set": body.in_train_set}
 
 
-# ---------- ชุดทดสอบโมเดล ----------
+# ---------- ชุดเทสโมเดล ----------
 #   คลิปที่อัดผ่านระบบ: ตั้งตามคนที่หน้าผู้ใช้ (PUT /users/{id}/split) หรือรายคลิปด้านล่าง · ชุด TSL: train.py สุ่ม 20% เอง
 
 
-# ดูอย่างเดียว: ผู้แสดงในชุดทดสอบของการเทรนครั้งถัดไป พร้อมคลิป/คำ และคำที่ไม่มีคลิปทดสอบ
+# ดูอย่างเดียว: ผู้แสดงในชุดเทสของการเทรนครั้งถัดไป พร้อมคลิป/คำ และคำที่ไม่มีคลิปทดสอบ
 @router.get("/test-split", dependencies=ADMIN)
 def get_test_split():
     return test_split.overview()
 
 
-# ตั้งคลิปที่ล่ามอัดหนึ่งคลิปเป็นชุดเทรนหรือชุดทดสอบ
+# ตั้งคลิปที่ล่ามอัดหนึ่งคลิปเป็นชุดเทรนหรือชุดเทส
 @router.patch("/samples/{sample_id}", dependencies=ADMIN)
 def set_sample_split(sample_id: str, body: SampleSplitIn):
     if not test_split.set_sample_split(sample_id, body.split):
@@ -419,7 +419,7 @@ def model_train_log(file: str):
     }
 
 
-# สั่งวัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน (Run Test) ในพื้นหลัง: รัน evaluate.py --all บนเครื่อง backend
+# สั่งวัดผลทุกเวอร์ชันด้วยชุดเทสปัจจุบัน (Run Test) ในพื้นหลัง: รัน evaluate.py --all บนเครื่อง backend
 @router.post("/models/evaluate", status_code=202, dependencies=ADMIN)
 def evaluate_models():
     global _eval_proc

@@ -1,8 +1,12 @@
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { VRMLoaderPlugin, VRMUtils, type VRM } from "@pixiv/three-vrm";
 import { FOREARM, UPPER_ARM, type Side } from "../avatar/skeleton";
-import { ARM_BONES, FINGERS, HEAD_BONE, SHOULDER_BONES, fingerBones } from "./bones";
+import { ARM_BONES, FINGERS, HEAD_BONE, SHOULDER_BONES, VRM_TO_MIXAMO, fingerBones } from "./bones";
 
+// ลองโหลดโมเดล VRM ก่อน ถ้าไม่มีไฟล์/โหลดไม่ได้ ตกไปใช้ X Bot (FBX) เหมือนเดิม
+const VRM_URL = "/models/avatar.vrm";
 const MODEL_URL = "/models/x-bot.fbx";
 
 // ตำแหน่งและการหมุนของกระดูกหนึ่งชิ้น ณ ท่ายืนตั้งต้น (bind pose)
@@ -53,8 +57,10 @@ export interface Rig {
   spreadAxis: Map<string, THREE.Vector3>;
   // รูปร่างลำตัว+ศีรษะ ใช้ดันแขน/มือมาข้างหน้าไม่ให้ทะลุเข้าตัว
   body: BodyProfile;
-  // แผ่นหน้าการ์ตูน (มือที่แตะหน้าต้องอยู่หน้าแผ่นนี้ ไม่งั้นมือจะหายไปหลังหน้า)
+  // แผ่นหน้าการ์ตูน (มือที่แตะหน้าต้องอยู่หน้าแผ่นนี้ ไม่งั้นมือจะหายไปหลังหน้า) โมเดล VRM ไม่ใช้ (half = 0)
   faceCard: FaceCard;
+  // มีค่าเมื่อโมเดลที่โหลดเป็น VRM: ใช้ขยับสีหน้า (expression) และสปริงผม/เสื้อผ้า
+  vrm?: VRM;
   // ความยาวแขนทั้งเส้น (ไหล่ → ข้อมือ) หน่วยของโมเดล ใช้คิดระยะเผื่อต่าง ๆ
   armLength: number;
   // แกนเอียงศีรษะ (อยู่ในกรอบพิกัดของกระดูกหัวเอง ตอน bind)
@@ -78,19 +84,44 @@ export function loadRig(): Promise<Rig> {
   return rigPromise;
 }
 
-// โหลดไฟล์ FBX จริง แล้วเตรียมโมเดลให้พร้อมขยับ
+// โหลดโมเดลจริง แล้วเตรียมให้พร้อมขยับ: VRM ก่อน ไม่สำเร็จค่อยใช้ FBX
 async function build(): Promise<Rig> {
-  return buildRig(await new FBXLoader().loadAsync(MODEL_URL));
+  try {
+    return await buildVrmRig();
+  } catch (err) {
+    console.warn("โหลด avatar.vrm ไม่สำเร็จ ใช้ x-bot.fbx แทน", err);
+    return buildRig(await new FBXLoader().loadAsync(MODEL_URL));
+  }
+}
+
+// โหลดไฟล์ VRM แล้วเปลี่ยนชื่อกระดูก humanoid เป็นชื่อ Mixamo ที่ระบบท่าทางเดิมใช้ (rig.ts ไม่ต้องรู้จัก VRM)
+async function buildVrmRig(): Promise<Rig> {
+  const loader = new GLTFLoader();
+  loader.register((parser) => new VRMLoaderPlugin(parser));
+  const gltf = await loader.loadAsync(VRM_URL);
+  const vrm = gltf.userData.vrm as VRM | undefined;
+  if (!vrm) throw new Error("avatar.vrm: ไม่ใช่ไฟล์ VRM");
+  // ระบบท่าทางหมุนกระดูกจริง (raw) เอง ต้องปิดไม่ให้ three-vrm เขียนทับด้วยท่าของกระดูก normalized (ซึ่งว่างอยู่ = กลับเป็นท่า T)
+  vrm.humanoid.autoUpdateHumanBones = false;
+  VRMUtils.rotateVRM0(vrm); // VRM 0.x หันหลังให้กล้อง ต้องหมุนกลับ (VRM 1.0 ไม่ทำอะไร)
+  VRMUtils.combineSkeletons(vrm.scene); // รวมสกินหลายเมช (หน้า/ตัว/ผม) ให้ใช้โครงกระดูกเดียว
+  for (const [vrmName, mixamoName] of Object.entries(VRM_TO_MIXAMO)) {
+    const node = vrm.humanoid.getRawBoneNode(vrmName as Parameters<typeof vrm.humanoid.getRawBoneNode>[0]);
+    if (node) node.name = mixamoName;
+  }
+  vrm.scene.traverse((o) => (o.frustumCulled = false));
+  sharpenForSigning(vrm);
+  return buildRig(vrm.scene, vrm);
 }
 
 // เตรียมท่า bind pose และคำนวณค่าคาลิเบรตทั้งหมดที่ applyPose ต้องใช้จากโมเดลที่โหลดแล้ว (แยกออกมาให้ทดสอบได้)
-export function buildRig(root: THREE.Group): Rig {
+export function buildRig(root: THREE.Object3D, vrm?: VRM): Rig {
 
   const skinnedMeshes: THREE.SkinnedMesh[] = [];
   root.traverse((obj) => {
     if ((obj as THREE.SkinnedMesh).isSkinnedMesh) skinnedMeshes.push(obj as THREE.SkinnedMesh);
     const mesh = obj as THREE.Mesh;
-    if (mesh.isMesh) {
+    if (mesh.isMesh && !vrm) {
       // แทนวัสดุเดิมด้วยโทนสีธีมของแอป (นวล/ฟ้า) แทนสีเทาเริ่มต้นของโมเดล
       mesh.material = new THREE.MeshStandardMaterial({
         color: 0xd7e6ec,
@@ -112,6 +143,23 @@ export function buildRig(root: THREE.Group): Rig {
 
   const bones = new Map<string, THREE.Bone>();
   for (const b of skeleton.bones) bones.set(b.name, b);
+
+  // VRM ไม่มีกระดูกปลายหัว: สร้างกระดูกเปล่าไว้บนสุดของเมชหน้า (ใช้วัดขนาดหัวและตั้งกล้อง)
+  if (vrm && !bones.has("mixamorigHeadTop_End")) {
+    const head = bones.get(HEAD_BONE);
+    if (head) {
+      const faceMesh = skinnedMeshes.find((m) => /face/i.test(m.name)) ?? skinned;
+      const box = new THREE.Box3().setFromObject(faceMesh, true);
+      const top = head.getWorldPosition(new THREE.Vector3());
+      top.y = box.max.y;
+      const end = new THREE.Bone();
+      end.name = "mixamorigHeadTop_End";
+      head.add(end);
+      end.position.copy(head.worldToLocal(top));
+      root.updateMatrixWorld(true);
+      bones.set(end.name, end);
+    }
+  }
 
   const need = (name: string): THREE.Bone => {
     const b = bones.get(name);
@@ -208,7 +256,19 @@ export function buildRig(root: THREE.Group): Rig {
   const headTiltAxis = new THREE.Vector3(0, 0, 1).applyQuaternion(headBind.worldQuat.clone().invert()).normalize();
 
   const headTopBind = bind.get("mixamorigHeadTop_End")!;
-  const body = measureBody(skinnedMeshes, bind.get("mixamorigHips")!.pos.y, headTopBind.pos.y, bind.get("mixamorigNeck")!.pos.y);
+  // หน่วยของโมเดล: X Bot เป็นเซนติเมตร VRM เป็นเมตร (ตารางรูปร่างตัวด้านล่างคิดเป็นเซนติเมตร จึงย่อตามหน่วย)
+  const unit = upperLen + foreLen < 5 ? 0.01 : 1;
+  // VRM: บริเวณไหล่มีส่วนที่กว้างเลยข้อไหล่ออกไป (ปลายไหล่/แขนเสื้อที่ผูกกับกระดูกไหล่ ไม่ใช่แขน) ถ้านับเป็นลำตัว แขนที่ห้อยจะถูกกันให้กางออกเป็นปีกไก่
+  // จึงตัดส่วนที่กว้างเกินข้อไหล่ออกจากตารางรูปร่างลำตัวเฉพาะแถบใกล้ระดับไหล่ (ลงมา VRM_CLIP_DEPTH ของความยาวแขน) ส่วนตัวเสื้อด้านล่างคงไว้ ให้แขนอยู่นอกเสื้อ ไม่ทะลุเข้าไป
+  const shoulderHalf = Math.abs(bind.get(SHOULDER_BONES.r)!.pos.x);
+  const body = measureBody(
+    skinnedMeshes,
+    bind.get("mixamorigHips")!.pos.y,
+    headTopBind.pos.y,
+    bind.get("mixamorigNeck")!.pos.y,
+    unit,
+    vrm ? { halfWidth: shoulderHalf * VRM_TORSO_WIDTH, aboveY: bind.get(SHOULDER_BONES.r)!.pos.y - VRM_CLIP_DEPTH * (upperLen + foreLen) } : undefined,
+  );
 
   // แผ่นหน้า: จุดกำเนิดของกระดูกหัวอยู่แถวคาง/โคนคอ จึงดันขึ้นไปทางกระหม่อมด้วย ไม่ใช่แค่ดันออกมาข้างหน้า
   const headRadius = headBind.pos.distanceTo(headTopBind.pos);
@@ -219,7 +279,8 @@ export function buildRig(root: THREE.Group): Rig {
     offset: faceOffset,
     size: faceSize,
     center: faceOffset.clone().applyQuaternion(headBind.worldQuat).add(headBind.pos),
-    half: faceSize / 2,
+    // VRM มีใบหน้าจริงในเมช (วัดอยู่ใน body profile แล้ว) ไม่ต้องมีแผ่นหน้าให้มือชน
+    half: vrm ? 0 : faceSize / 2,
   };
   const chest = new THREE.Vector3().addVectors(bind.get(SHOULDER_BONES.r)!.pos, bind.get(SHOULDER_BONES.l)!.pos).multiplyScalar(0.5);
   const height = headTopBind.pos.y - chest.y;
@@ -240,6 +301,7 @@ export function buildRig(root: THREE.Group): Rig {
     headTiltAxis,
     armScale,
     frame: { headTop: headTopBind.pos.clone(), chest, height },
+    vrm,
   };
 }
 
@@ -248,12 +310,25 @@ const BODY_CELL = 2;
 const BODY_HALF_WIDTH = 30;
 // จุดยอดที่ผูกกับกระดูกแขน/มือเป็นหลักไม่นับเป็นลำตัว (ตอน bind แขนกางออกด้านข้าง)
 const ARM_BONE_RE = /(Arm|Hand)/;
+// VRM: ในแถบใกล้ไหล่ ไม่นับส่วนที่กว้างเกินข้อไหล่ × ค่านี้ (ลดค่า = ข้อศอกแนบตัวขึ้น แต่แขนเสี่ยงจมเข้าเสื้อ)
+const VRM_TORSO_WIDTH = 1.0;
+// ความลึกของแถบนั้น (สัดส่วนความยาวแขน) ลงมาจากระดับไหล่ ถ้าแขนจมเข้าเสื้อให้ลดค่านี้ ถ้าข้อศอกยังกางเป็นปีกไก่ให้เพิ่มค่านี้ (0.5 ขึ้นไปแขนจมเสื้อ)
+const VRM_CLIP_DEPTH = 0.25;
 
 // วัดรูปร่างลำตัวและศีรษะจากจุดยอดของทุกเมชในท่า bind (ตัดจุดยอดของแขน/มือออกตาม skin weight)
-function measureBody(meshes: THREE.SkinnedMesh[], yBottom: number, yTop: number, neckY: number): BodyProfile {
-  const rows = Math.ceil((yTop - yBottom) / BODY_CELL) + 1;
-  const cols = Math.ceil((BODY_HALF_WIDTH * 2) / BODY_CELL);
-  const x0 = -BODY_HALF_WIDTH;
+function measureBody(
+  meshes: THREE.SkinnedMesh[],
+  yBottom: number,
+  yTop: number,
+  neckY: number,
+  unit = 1,
+  clip?: { halfWidth: number; aboveY: number },
+): BodyProfile {
+  const cell = BODY_CELL * unit;
+  const halfWidth = BODY_HALF_WIDTH * unit;
+  const rows = Math.ceil((yTop - yBottom) / cell) + 1;
+  const cols = Math.ceil((halfWidth * 2) / cell);
+  const x0 = -halfWidth;
   const front = new Float32Array(rows * cols).fill(Number.NaN);
   const back = new Float32Array(rows * cols).fill(Number.NaN);
   const v = new THREE.Vector3();
@@ -272,13 +347,41 @@ function measureBody(meshes: THREE.SkinnedMesh[], yBottom: number, yTop: number,
       }
       if (ARM_BONE_RE.test(bones[best]?.name ?? "")) continue;
       mesh.getVertexPosition(i, v).applyMatrix4(mesh.matrixWorld);
-      const r = Math.floor((v.y - yBottom) / BODY_CELL);
-      const c = Math.floor((v.x - x0) / BODY_CELL);
+      if (clip && v.y > clip.aboveY && Math.abs(v.x) > clip.halfWidth) continue;
+      const r = Math.floor((v.y - yBottom) / cell);
+      const c = Math.floor((v.x - x0) / cell);
       if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
       const k = r * cols + c;
       if (!(front[k] >= v.z)) front[k] = v.z;
       if (!(back[k] <= v.z)) back[k] = v.z;
     }
   }
-  return { y0: yBottom, dy: BODY_CELL, x0, dx: BODY_CELL, rows, cols, front, back, headY: neckY };
+  return { y0: yBottom, dy: cell, x0, dx: cell, rows, cols, front, back, headY: neckY };
+}
+
+// เส้นขอบเดิมของ VRM บางมาก (0.8 มม.) และผิวหนังแทบไม่มีเงา ทำให้มือเป็นก้อนเรียบนุ่ม ๆ แยกนิ้วไม่ออก
+// เสริมเส้นขอบให้หนาขึ้นและทำเงาผิวให้เข้มขึ้นเล็กน้อย เพื่อให้เห็นรูปนิ้ว ร่องระหว่างนิ้ว และใบหน้าชัดขึ้น
+const OUTLINE_BOOST = 2.6;
+function sharpenForSigning(vrm: VRM): void {
+  const seen = new Set<THREE.Material>();
+  vrm.scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      const m = mat as THREE.Material & {
+        isMToonMaterial?: boolean;
+        outlineWidthMode?: string;
+        outlineWidthFactor?: number;
+        outlineColorFactor?: THREE.Color;
+        shadeColorFactor?: THREE.Color;
+      };
+      if (!m.isMToonMaterial || seen.has(m)) continue;
+      seen.add(m);
+      if (m.outlineWidthMode && m.outlineWidthMode !== "none" && m.outlineWidthFactor) {
+        m.outlineWidthFactor *= OUTLINE_BOOST;
+        m.outlineColorFactor?.setRGB(0.18, 0.07, 0.07);
+      }
+      if (/SKIN/i.test(m.name)) m.shadeColorFactor?.setRGB(0.8, 0.58, 0.54);
+    }
+  });
 }

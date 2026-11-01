@@ -4,6 +4,7 @@ import { applyPose, posedBones } from "../../../lib/avatar3d/rig";
 import { loadRig, type Rig } from "../../../lib/avatar3d/loadModel";
 import { HEAD_BONE } from "../../../lib/avatar3d/bones";
 import { createFaceMesh, createFaceTexture, drawFace } from "../../../lib/avatar3d/face";
+import { applyVrmFace, findFaceMeshes } from "../../../lib/avatar3d/vrmFace";
 import { SHOULDER, sampleFace, sampleMotion } from "../../../lib/avatar/skeleton";
 import type { Motion } from "../../../types";
 import SkeletonAvatar from "./SkeletonAvatar";
@@ -14,6 +15,9 @@ interface Props {
   // true = แสดงแบบกระจก (กลับภาพซ้าย-ขวา มือขวาของตัวละครอยู่ฝั่งขวาจอ ทำตามได้เหมือนส่องกระจก)
   mirror?: boolean;
 }
+
+// ลากเมาส์/นิ้วบนตัวละครเพื่อหมุนกล้องรอบตัวได้ 360 องศา (ตัวละครไม่ได้หมุน ท่าทางและการคำนวณแขนจึงไม่เปลี่ยน) ดับเบิลคลิกเพื่อกลับมาหน้าตรง
+const DRAG_RAD_PER_PX = 0.01;
 
 type Status = "loading" | "ready" | "error";
 
@@ -27,11 +31,13 @@ const FRAME_WIDTH_UNIT = 1.05;
 // เวลาที่ใช้ไล่ท่าให้ทันท่าใหม่ (วินาที) ยิ่งน้อยยิ่งตามไว ช่วยกันมือ/นิ้วกระตุกหรือหมุนวูบเมื่อท่าเปลี่ยนเร็ว
 const POSE_SMOOTH_SEC = 0.06;
 
-// ตัวละครโมเดล 3D (X Bot จาก Mixamo) ขยับแขน มือ นิ้ว และเอียงหัวตามท่าทางปัจจุบัน
+// ตัวละครโมเดล 3D (VRM ถ้ามี /models/avatar.vrm ไม่งั้น X Bot จาก Mixamo) ขยับแขน มือ นิ้ว และเอียงหัวตามท่าทางปัจจุบัน
 // ถ้าโหลดโมเดลไม่สำเร็จ จะตกไปใช้ตัวโครงกระดูก 2D แทนโดยอัตโนมัติ
 export default function Avatar3D({ motion, progressRef, mirror = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const motionRef = useRef(motion);
+  const mirrorRef = useRef(mirror);
+  mirrorRef.current = mirror;
   motionRef.current = motion;
   const [status, setStatus] = useState<Status>("loading");
 
@@ -43,10 +49,10 @@ export default function Avatar3D({ motion, progressRef, mirror = false }: Props)
       .then((rig) => {
         if (cancelled) return;
         setStatus("ready");
-        stop = startScene(containerRef.current!, rig, motionRef, progressRef);
+        stop = startScene(containerRef.current!, rig, motionRef, progressRef, mirrorRef);
       })
       .catch((err) => {
-        console.error("โหลดโมเดล x-bot.fbx ไม่สำเร็จ", err);
+        console.error("โหลดโมเดล 3D ไม่สำเร็จ", err);
         if (!cancelled) setStatus("error");
       });
 
@@ -61,7 +67,10 @@ export default function Avatar3D({ motion, progressRef, mirror = false }: Props)
 
   return (
     <div className="absolute inset-0">
-      <div ref={containerRef} className={`absolute inset-0 ${mirror ? "-scale-x-100" : ""}`} data-testid="avatar3d-container" />
+      <div ref={containerRef} className={`absolute inset-0 cursor-grab touch-none active:cursor-grabbing ${mirror ? "-scale-x-100" : ""}`} data-testid="avatar3d-container" />
+      {status === "ready" && (
+        <span className="pointer-events-none absolute bottom-2 right-3 select-none text-[11px] text-white/45">ลากเพื่อหมุนดู · ดับเบิลคลิกเพื่อรีเซ็ต</span>
+      )}
       {status === "loading" && (
         <div className="absolute inset-0 grid place-items-center text-sky/70">
           <span className="h-6 w-6 animate-spin rounded-full border-2 border-sky/30 border-t-sky" />
@@ -77,17 +86,33 @@ function startScene(
   rig: Rig,
   motionRef: MutableRefObject<Motion | null | undefined>,
   progressRef: MutableRefObject<number>,
+  mirrorRef: MutableRefObject<boolean>,
 ): () => void {
   const scene = new THREE.Scene();
   scene.add(rig.root);
 
-  scene.add(new THREE.AmbientLight(0xbbd6e1, 0.55));
-  const key = new THREE.DirectionalLight(0xffffff, 1.1);
-  key.position.set(1.2, 2.2, 2.4);
-  scene.add(key);
-  const rim = new THREE.DirectionalLight(0x3885ab, 0.9);
-  rim.position.set(-1.4, 1.4, -2);
-  scene.add(rim);
+  // แสงอยู่ในกลุ่มเดียวกันและหมุนตามกล้อง (ตอนผู้ใช้หมุนดูรอบตัว แสงจะตามไปส่องด้านที่กำลังดู ไม่มืดด้านหลัง)
+  const lights = new THREE.Group();
+  scene.add(lights);
+  if (rig.vrm) {
+    // วัสดุ VRM (MToon) ตอบสนองต่อแสงแรงกว่าหุ่นเทา: ใช้แสงขาวจากด้านหน้า (ไม่มีแสงฟ้าด้านหลัง) ให้สีผิวสว่างและเห็นนิ้ว/หน้าชัด
+    // ถ้าจะปรับความสว่าง ลองขยับค่าสามตัวนี้ (มากเกินไปจะขาวไหม้)
+    lights.add(new THREE.AmbientLight(0xffffff, 1.0));
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(0.8, 1.6, 3);
+    lights.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+    fill.position.set(-1.5, 0.6, 2.5);
+    lights.add(fill);
+  } else {
+    lights.add(new THREE.AmbientLight(0xbbd6e1, 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    key.position.set(1.2, 2.2, 2.4);
+    lights.add(key);
+    const rim = new THREE.DirectionalLight(0x3885ab, 0.9);
+    rim.position.set(-1.4, 1.4, -2);
+    lights.add(rim);
+  }
 
   // ตั้งกล้องให้เห็นครึ่งตัวเต็มเฟรม โดยคำนวณจากกรอบบน-ล่างในพิกัด 0-1 เดียวกับที่ใช้
   // กำหนดท่ามือ (ไม่ใช่เดาสัดส่วนตัวโมเดลเอาเอง) จึงครอบคลุมทุกท่าได้จริงไม่ว่ายกมือสูงแค่ไหน
@@ -105,15 +130,31 @@ function startScene(
   const camera = new THREE.PerspectiveCamera(fovDeg, 1, 0.1, distanceFor(0.25) * 4);
   camera.position.set(lookAt.x, lookAt.y, lookAt.z + distanceFor(1));
   camera.lookAt(lookAt);
+  // กล้องวนรอบตัวละครในแนวนอน (azimuth 0 = มองตรงหน้า)
+  let azimuth = 0;
+  let camDist = distanceFor(1);
 
   // แปะหน้าการ์ตูน (วาดสีหน้าไม่ได้ผ่านกระดูกเพราะโมเดลนี้ไม่มี blendshape) ไว้เป็นลูกของ
   // กระดูกหัว หันไปทางกล้องเสมอ ตำแหน่ง/ขนาดคำนวณไว้ใน rig.faceCard (rig ใช้ค่าเดียวกันให้มือแตะหน้าได้พอดี)
-  const faceTex = createFaceTexture();
-  const faceMesh = createFaceMesh(faceTex.texture, rig.faceCard.size, rig.faceCard.offset, rig.headTiltAxis);
-  rig.bones.get(HEAD_BONE)!.add(faceMesh);
+  // โมเดล VRM มีหน้าจริงและ blendshape อยู่แล้ว จึงไม่แปะแผ่นหน้า
+  const vrm = rig.vrm;
+  const vrmFace = vrm ? findFaceMeshes(vrm) : null;
+  const faceTex = vrm ? null : createFaceTexture();
+  const faceMesh = faceTex ? createFaceMesh(faceTex.texture, rig.faceCard.size, rig.faceCard.offset, rig.headTiltAxis) : null;
+  if (faceMesh) rig.bones.get(HEAD_BONE)!.add(faceMesh);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // VRM มีเส้นขอบบางและพื้นผิวละเอียด: บนจอปกติ (devicePixelRatio = 1) เส้นจะเป็นขั้นบันไดแตก จึงเรนเดอร์ที่ความละเอียด 2 เท่าขึ้นไปเสมอ
+  // (CSS ย่อภาพลงเอง จึงเนียนเหมือนทำ supersampling) X Bot คงเดิม
+  renderer.setPixelRatio(rig.vrm ? Math.min(Math.max(window.devicePixelRatio || 1, 2), 3) : Math.min(window.devicePixelRatio || 1, 2));
+  if (rig.vrm) {
+    // พื้นผิวเอียง (ผิวแขน ผม) คมขึ้นเมื่อมองเฉียง
+    const aniso = renderer.capabilities.getMaxAnisotropy();
+    rig.vrm.scene.traverse((o) => {
+      const mat = (o as THREE.Mesh).material as (THREE.Material & { map?: THREE.Texture | null }) | undefined;
+      if (mat?.map) mat.map.anisotropy = aniso;
+    });
+  }
   renderer.setClearColor(0x000000, 0);
   // ต้องกำหนด CSS ขนาดของ canvas เอง (setSize ตัวที่ 3 = false คือไม่ให้มันตั้งให้)
   // เพราะเราคุมขนาด "บัฟเฟอร์วาดภาพ" เองตาม devicePixelRatio อยู่แล้วในลูปด้านล่าง
@@ -123,6 +164,30 @@ function startScene(
   renderer.domElement.style.height = "100%";
   renderer.domElement.style.display = "block";
   container.appendChild(renderer.domElement);
+
+  // ลาก = หมุน (ถ้าแสดงแบบกระจก ภาพกลับซ้าย-ขวาอยู่แล้ว ต้องกลับทิศการลากด้วยให้รู้สึกตรงกับที่มือลาก)
+  let dragX: number | null = null;
+  const el = renderer.domElement;
+  const onDown = (e: PointerEvent) => {
+    dragX = e.clientX;
+    el.setPointerCapture(e.pointerId);
+  };
+  const onMove = (e: PointerEvent) => {
+    if (dragX === null) return;
+    azimuth -= (e.clientX - dragX) * DRAG_RAD_PER_PX * (mirrorRef.current ? -1 : 1);
+    dragX = e.clientX;
+  };
+  const onUp = () => {
+    dragX = null;
+  };
+  const onReset = () => {
+    azimuth = 0;
+  };
+  el.addEventListener("pointerdown", onDown);
+  el.addEventListener("pointermove", onMove);
+  el.addEventListener("pointerup", onUp);
+  el.addEventListener("pointercancel", onUp);
+  el.addEventListener("dblclick", onReset);
 
   let raf = 0;
   // การหมุนของกระดูกที่แสดงในเฟรมก่อน (ไว้ไล่ไปหาท่าใหม่แบบนุ่มนวล)
@@ -142,7 +207,7 @@ function startScene(
         lastH = h;
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
-        camera.position.z = lookAt.z + distanceFor(w / h);
+        camDist = distanceFor(w / h);
         camera.updateProjectionMatrix();
       }
       // หายใจเบา ๆ ตอนไม่มีท่า ไม่ให้ตัวละครดูนิ่งค้าง (เหมือนตัว 2D เดิม)
@@ -164,7 +229,14 @@ function startScene(
         bones.forEach((b, i) => b.quaternion.copy(prevQuats![i].slerp(b.quaternion, k)));
       }
       prevQuats = bones.map((b) => b.quaternion.clone());
-      drawFace(faceTex, face, now);
+      if (faceTex) drawFace(faceTex, face, now);
+      if (vrm && vrmFace) {
+        applyVrmFace(vrm, vrmFace, face, now);
+        vrm.update(dt); // เขียน expression ลงเมช + ขยับสปริงผม/เสื้อผ้า
+      }
+      camera.position.set(lookAt.x + Math.sin(azimuth) * camDist, lookAt.y, lookAt.z + Math.cos(azimuth) * camDist);
+      camera.lookAt(lookAt);
+      lights.rotation.y = azimuth;
       renderer.render(scene, camera);
     }
     raf = requestAnimationFrame(tick);
@@ -173,12 +245,20 @@ function startScene(
 
   return () => {
     cancelAnimationFrame(raf);
+    el.removeEventListener("pointerdown", onDown);
+    el.removeEventListener("pointermove", onMove);
+    el.removeEventListener("pointerup", onUp);
+    el.removeEventListener("pointercancel", onUp);
+    el.removeEventListener("dblclick", onReset);
     renderer.dispose();
     scene.remove(rig.root);
-    rig.bones.get(HEAD_BONE)!.remove(faceMesh);
-    faceMesh.geometry.dispose();
-    (faceMesh.material as THREE.MeshBasicMaterial).dispose();
-    faceTex.texture.dispose();
+    if (faceMesh && faceTex) {
+      rig.bones.get(HEAD_BONE)!.remove(faceMesh);
+      faceMesh.geometry.dispose();
+      (faceMesh.material as THREE.MeshBasicMaterial).dispose();
+      faceTex.texture.dispose();
+    }
+    // loadRig() เก็บ rig ไว้ใช้ซ้ำ จึงไม่ทำลายวัสดุ/เมชของ VRM ตอน unmount (ไม่งั้นเปิดหน้านี้รอบสองจะเป็นโมเดลเปล่า)
     if (renderer.domElement.parentElement === container) container.removeChild(renderer.domElement);
   };
 }

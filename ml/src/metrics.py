@@ -1,11 +1,11 @@
-"""คำนวณตัวชี้วัดของโมเดลจากความน่าจะเป็นที่ทายบนชุดทดสอบ — ใช้ร่วมกันทั้ง train.py (ตอนเทรน) และ evaluate.py (Run Test)
+"""คำนวณตัวชี้วัดของโมเดลจากความน่าจะเป็นที่ทายบนชุดเทส — ใช้ร่วมกันทั้ง train.py (ตอนเทรน) และ evaluate.py (Run Test)
 
 ใช้แค่ numpy ผลเป็น dict ที่เก็บลงคอลัมน์ models.metrics ได้ตรง ๆ:
     accuracy, top3                       ทายถูกอันดับ 1 / ติด 3 อันดับแรก
     precision, recall, f1                เฉลี่ยทุกคำ (macro ไม่นับคลาส "ไม่ทำท่า") คำที่มีคลิปเยอะไม่กลบคำที่มีคลิปน้อย
     per_word                             ต่อคำ: recall (ทายคำนี้ถูกกี่ %), precision, f1, จำนวนคลิป
     confusions                           คู่คำที่ทายสลับกันบ่อย (คำจริง → ทายเป็น) แทน confusion matrix ที่ใหญ่เกินจะอ่าน
-    threshold                            เกณฑ์ความมั่นใจขั้นต่ำที่ให้ผลดีที่สุดบนชุดทดสอบ (ตัวแปลใช้ตัดสินว่า "ได้คำ")
+    threshold                            เกณฑ์ความมั่นใจขั้นต่ำที่ให้ผลดีที่สุดบนชุดเทส (ตัวแปลใช้ตัดสินว่า "ได้คำ")
     threshold_curve                      ผลของแต่ละเกณฑ์ (ไว้วาดกราฟ)
     null_false_alarm                     ตอนไม่ได้ทำท่า ระบบพูดเป็นคำกี่ % (ที่เกณฑ์ที่เลือก) — None ถ้าไม่มีคลาส "ไม่ทำท่า"
     word_dropped                         ตอนทำท่าจริง ระบบไม่พูดอะไรกี่ % (ทายเป็น "ไม่ทำท่า" หรือมั่นใจไม่ถึงเกณฑ์)
@@ -75,7 +75,7 @@ def compute(probs: np.ndarray, y: np.ndarray, labels: list[str]) -> dict:
         support = int((y == c).sum())
         predicted = int((pred == c).sum())
         p, r = _safe_div(tp, predicted), _safe_div(tp, support)
-        if support:  # คำที่ไม่มีคลิปในชุดทดสอบ ไม่นับในค่าเฉลี่ย
+        if support:  # คำที่ไม่มีคลิปในชุดเทส ไม่นับในค่าเฉลี่ย
             per_word[labels[c]] = {"recall": _r(r, 3), "precision": _r(p, 3), "f1": _r(_safe_div(2 * p * r, p + r), 3), "clips": support}
     macro = {k: float(np.mean([w[k] for w in per_word.values()])) if per_word else 0.0 for k in ("precision", "recall", "f1")}
 

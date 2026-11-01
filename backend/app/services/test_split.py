@@ -9,8 +9,8 @@ from app.core.config import ML_DIR
 from app.db.models import AppSetting, Contributor, Sample, Word
 from app.db.session import SessionLocal
 
-# ชุดทดสอบของคลิปที่อัดผ่านระบบ: แอดมินตั้งทีละคนที่หน้าผู้ใช้ (ล่ามตัวจริง = ทดสอบ, คนในทีม = เทรน)
-#   เก็บรายชื่อคนที่เป็นชุดทดสอบในตาราง app_settings key = test_split และเลือกรายคลิปได้ (คอลัมน์ samples.split)
+# ชุดเทสของคลิปที่อัดผ่านระบบ: แอดมินตั้งทีละคนที่หน้าผู้ใช้ (ล่ามตัวจริง = ทดสอบ, คนในทีม = เทรน)
+#   เก็บรายชื่อคนที่เป็นชุดเทสในตาราง app_settings key = test_split และเลือกรายคลิปได้ (คอลัมน์ samples.split)
 #   ชุด TSL ไม่ใช้ค่านี้ — train.py สุ่มผู้แสดง 20% ของแต่ละชุดเอง
 SETTING_KEY = "test_split"
 # รูปแบบรหัสผู้แสดงของคลิปที่อัดผ่านระบบ (ต้องตรงกับ train.py load_recorded)
@@ -18,7 +18,7 @@ RECORDED_PREFIX = "ล่าม:"
 UNKNOWN_SIGNER = "ไม่ระบุ"
 RECORDED_SOURCE = "ล่าม"
 
-# ค่าที่ต้องตรงกับ ml/src/train.py (split_test, load_tsl, load_recorded) เพื่อให้หน้าเว็บแสดงชุดทดสอบตรงกับตอนเทรน
+# ค่าที่ต้องตรงกับ ml/src/train.py (split_test, load_tsl, load_recorded) เพื่อให้หน้าเว็บแสดงชุดเทสตรงกับตอนเทรน
 TSL_PATH = ML_DIR / "data" / "processed" / "tsl_skeleton.npz"
 TRAIN_SETTINGS_PATH = ML_DIR / "configs" / "train_words.json"
 NULL_LABEL = "ไม่ทำท่า"
@@ -30,14 +30,14 @@ _tsl_cache: tuple[float, list[tuple[str, str, str]]] | None = None
 _lock = threading.Lock()
 
 
-# ผู้แสดงที่แอดมินเลือกไว้เป็นชุดทดสอบ
+# ผู้แสดงที่แอดมินเลือกไว้เป็นชุดเทส
 def selected_signers() -> list[str]:
     with SessionLocal() as db:
         row = db.get(AppSetting, SETTING_KEY)
     return list((row.value or {}).get("signers", [])) if row else []
 
 
-# บันทึกผู้แสดงที่เลือกเป็นชุดทดสอบ
+# บันทึกผู้แสดงที่เลือกเป็นชุดเทส
 def set_selected_signers(signers: list[str]) -> list[str]:
     clean = sorted({s.strip() for s in signers if s and s.strip()})
     with SessionLocal() as db:
@@ -72,7 +72,7 @@ def _train_settings() -> dict:
         return {}
 
 
-# สุ่มผู้แสดงชุด TSL เข้าชุดทดสอบ แบบเดียวกับ train.py split_test (seed เดียวกัน ได้คนเดียวกัน)
+# สุ่มผู้แสดงชุด TSL เข้าชุดเทส แบบเดียวกับ train.py split_test (seed เดียวกัน ได้คนเดียวกัน)
 def _random_tsl_signers(pools: dict[str, set[str]]) -> set[str]:
     rng = np.random.default_rng(SEED)
     out: set[str] = set()
@@ -83,7 +83,7 @@ def _random_tsl_signers(pools: dict[str, set[str]]) -> set[str]:
     return out
 
 
-# ภาพรวมชุดทดสอบ (ดูอย่างเดียว): ใครอยู่ในชุดทดสอบของการเทรนครั้งถัดไป เพราะอะไร คลิป/คำกี่ตัว และคำที่ไม่มีคลิปทดสอบ
+# ภาพรวมชุดเทส (ดูอย่างเดียว): ใครอยู่ในชุดเทสของการเทรนครั้งถัดไป เพราะอะไร คลิป/คำกี่ตัว และคำที่ไม่มีคลิปทดสอบ
 #   ชุด TSL = สุ่ม 20% · คลิปที่อัดผ่านระบบ = ตามคนที่ตั้งในหน้าผู้ใช้ หรือรายคลิป
 #   (ใกล้เคียงกับตอนเทรนจริง ต่างได้เล็กน้อยถ้าบางคลิปอ่านท่าไม่ได้ตอนเทรน)
 def overview() -> dict:
@@ -159,7 +159,7 @@ def signer_id(name: str | None) -> str:
     return RECORDED_PREFIX + ((name or "").strip() or UNKNOWN_SIGNER)
 
 
-# ตั้งผู้แสดงที่ล่ามอัดหนึ่งคนให้เป็นชุดทดสอบ (True) หรือชุดเทรน (False)
+# ตั้งผู้แสดงที่ล่ามอัดหนึ่งคนให้เป็นชุดเทส (True) หรือชุดเทรน (False)
 def set_signer_test(name: str | None, test: bool) -> None:
     sid = signer_id(name)
     selected = set(selected_signers())

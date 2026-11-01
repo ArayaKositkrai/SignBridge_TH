@@ -310,7 +310,7 @@ def _sample_query():
 
 
 # คลิปที่ล่ามอัดของคำหนึ่งคำ (เรียงจากเก่าไปใหม่) พร้อมบอกว่าคลิปไหนมีวิดีโอ
-#   split = ชุดที่ใช้จริงตอนเทรน: ล่ามที่ตั้งเป็นชุดทดสอบ (หน้าผู้ใช้) = ทุกคลิปเป็น test (split_by_signer = True)
+#   split = ชุดที่ใช้จริงตอนเทรน: ล่ามที่ตั้งเป็นชุดเทส (หน้าผู้ใช้) = ทุกคลิปเป็น test (split_by_signer = True)
 #   ไม่งั้นใช้ค่าที่ตั้งรายคลิป (samples.split) — ต้องตรงกับ train.py split_test
 def list_samples(word: str) -> list[dict]:
     from app.services import test_split  # import ในฟังก์ชัน กันวนกันตอนโหลดโมดูล

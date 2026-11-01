@@ -89,7 +89,7 @@ function useNow(active: boolean): number {
   return now;
 }
 
-// หน้าโมเดล: ปุ่มลองใช้/เผยแพร่ Draft ด้านบน แล้วแบ่งแท็บ ภาพรวม · การเทรน · ชุดทดสอบ · ประวัติเวอร์ชัน
+// หน้าโมเดล: ปุ่มลองใช้/เผยแพร่ Draft ด้านบน แล้วแบ่งแท็บ ภาพรวม · การเทรน · ชุดเทส · ประวัติเวอร์ชัน
 export default function ModelsView() {
   // เปิดแท็บจากลิงก์ได้ เช่น /admin/models?tab=split (ลิงก์จากแดชบอร์ด)
   const [params, setParams] = useSearchParams();
@@ -215,7 +215,7 @@ export default function ModelsView() {
     <>
       <PageHeader
         title="โมเดล"
-        description="เทียบโมเดลที่ใช้อยู่กับ Draft ตัวใหม่ เทรน ดูชุดทดสอบ และย้อนเวอร์ชัน"
+        description="เทียบโมเดลที่ใช้อยู่กับ Draft ตัวใหม่ เทรน ดูชุดเทส และย้อนเวอร์ชัน"
         actions={
           <>
             <Button
@@ -245,7 +245,7 @@ export default function ModelsView() {
         tabs={[
           { value: "overview", label: "ภาพรวม" },
           { value: "train", label: "การเทรน", badge: running ? "กำลังเทรน" : undefined },
-          { value: "split", label: "ชุดทดสอบ" },
+          { value: "split", label: "ชุดเทส" },
           { value: "history", label: "ประวัติเวอร์ชัน", badge: models.length },
         ]}
       />
@@ -511,7 +511,7 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
 
   const steps = [
     { title: "เลือกคำ", text: 'เปิดสวิตช์ "เทรน" ของคำที่ต้องการในหน้าคลังคำศัพท์' },
-    { title: "ตั้งชุดทดสอบ", text: 'แอดมิน › ผู้ใช้: ตั้งล่ามตัวจริงเป็น "ทดสอบ" คนในทีมเป็น "เทรน" (ชุด TSL ระบบสุ่ม 20% ให้เอง) ดูผลได้ที่แท็บ "ชุดทดสอบ"' },
+    { title: "ตั้งชุดเทส", text: 'แอดมิน › ผู้ใช้: ตั้งล่ามตัวจริงเป็น "ทดสอบ" คนในทีมเป็น "เทรน" (ชุด TSL ระบบสุ่ม 20% ให้เอง) ดูผลได้ที่แท็บ "ชุดเทส"' },
     { title: "เริ่มเทรน", text: 'กดปุ่ม "เริ่มเทรน" ด้านล่าง หรือรันคำสั่งบนเครื่องที่มี torch (~1 นาที)' },
     { title: "ลองใช้แล้วเผยแพร่", text: 'ได้ Draft แล้วกด "ลองใช้ Draft" ด้านบน ถ้าดีกว่าค่อยเผยแพร่' },
   ];
@@ -648,7 +648,7 @@ function Training({ status, onStarted }: { status: TrainStatus | null; onStarted
   );
 }
 
-// แท็บชุดทดสอบ (ดูอย่างเดียว): คลิปของใครอยู่ในชุดทดสอบในการเทรนครั้งถัดไป และเพราะอะไร
+// แท็บชุดเทส (ดูอย่างเดียว): คลิปของใครอยู่ในชุดเทสในการเทรนครั้งถัดไป และเพราะอะไร
 //   ชุด TSL = ระบบสุ่ม 20% · คลิปที่อัดผ่านระบบ = ตามคนที่ตั้งในหน้าผู้ใช้ (ล่ามตัวจริง = ทดสอบ)
 function SplitTab() {
   const [data, setData] = useState<TestSplit | null>(null);
@@ -681,7 +681,7 @@ function SplitTab() {
   const byRandom = testers.filter((s) => s.reason === "random").length;
   const byUser = testers.filter((s) => s.reason === "user").length;
   const covered = data ? data.words - data.words_without_test.length : 0;
-  const reasonText = { random: "ระบบสุ่ม", user: "ล่ามเป็นชุดทดสอบ", clips: "บางคลิปถูกตั้งเป็นทดสอบ" } as const;
+  const reasonText = { random: "ระบบสุ่ม", user: "ล่ามเป็นชุดเทส", clips: "บางคลิปถูกตั้งเป็นทดสอบ" } as const;
 
   const columns: Column<SplitSigner>[] = [
     { key: "name", header: "ล่าม", sort: (s) => s.name, cell: (s) => <span className="font-semibold text-navy">{s.name}</span> },
@@ -710,8 +710,8 @@ function SplitTab() {
       <p className="mb-3 flex gap-2 rounded-xl bg-sky/40 px-3 py-2 text-sm text-ink/80">
         <Icon name="info" size={16} className="mt-0.5 shrink-0 text-brand" />
         <span>
-          หน้านี้ไว้ดูว่าการเทรนครั้งถัดไป จะใช้คลิปของใครเป็นชุดทดสอบ (คลิปทดสอบใช้วัดผลอย่างเดียว ไม่ถูกใช้สอนโมเดล) · ชุด TSL: ระบบสุ่มล่ามประมาณ 20% ให้เอง ·
-          คลิปที่อัดผ่านระบบ: เข้าชุดทดสอบเมื่อคนอัดถูกตั้งเป็น "ทดสอบ" ที่{" "}
+          หน้านี้ไว้ดูว่าการเทรนครั้งถัดไป จะใช้คลิปของใครเป็นชุดเทส (คลิปทดสอบใช้วัดผลอย่างเดียว ไม่ถูกใช้สอนโมเดล) · ชุด TSL: ระบบสุ่มล่ามประมาณ 20% ให้เอง ·
+          คลิปที่อัดผ่านระบบ: เข้าชุดเทสเมื่อคนอัดถูกตั้งเป็น "ทดสอบ" ที่{" "}
           <Link to="/admin/users" className="font-semibold text-brand hover:underline">
             แอดมิน › ผู้ใช้
           </Link>{" "}
@@ -720,11 +720,11 @@ function SplitTab() {
       </p>
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl bg-surface/80 px-4 py-3 ring-1 ring-sky">
-          <span className="block text-xs text-ink/55">ล่ามในชุดทดสอบ</span>
+          <span className="block text-xs text-ink/55">ล่ามในชุดเทส</span>
           <span className="mt-1 block text-lg font-bold text-navy">{data ? `${testers.length} คน` : "–"}</span>
           {data && (
             <span className="block text-[11px] text-ink/50">
-              ระบบสุ่มจาก TSL {byRandom} คน · ล่ามที่เป็นชุดทดสอบ {byUser} คน
+              ระบบสุ่มจาก TSL {byRandom} คน · ล่ามที่เป็นชุดเทส {byUser} คน
             </span>
           )}
         </div>
@@ -749,7 +749,7 @@ function SplitTab() {
         <p className="mb-3 flex gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-400/10 dark:text-amber-300">
           <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
           <span>
-            <b>คำที่ยังไม่มีคลิปทดสอบ {data.words_without_test.length} คำ</b> — ให้ล่ามตัวจริงอัดคำเหล่านี้ แล้วจะเข้าชุดทดสอบเอง: {data.words_without_test.join(", ")}
+            <b>คำที่ยังไม่มีคลิปทดสอบ {data.words_without_test.length} คำ</b> — ให้ล่ามตัวจริงอัดคำเหล่านี้ แล้วจะเข้าชุดเทสเอง: {data.words_without_test.join(", ")}
           </span>
         </p>
       )}
@@ -757,7 +757,7 @@ function SplitTab() {
         <p className="mb-3 flex gap-2 rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">
           <Icon name="alert" size={15} className="mt-0.5 shrink-0" />
           <span>
-            <b>คำที่ทุกคลิปอยู่ในชุดทดสอบหมด {data.words_without_train.length} คำ</b> — โมเดลจะไม่ได้เรียนคำเหล่านี้เลย ต้องให้คนในทีมอัดเพิ่มเป็นคลิปเทรน:{" "}
+            <b>คำที่ทุกคลิปอยู่ในชุดเทสหมด {data.words_without_train.length} คำ</b> — โมเดลจะไม่ได้เรียนคำเหล่านี้เลย ต้องให้คนในทีมอัดเพิ่มเป็นคลิปเทรน:{" "}
             {data.words_without_train.join(", ")}
           </span>
         </p>
@@ -771,7 +771,7 @@ function SplitTab() {
           onChange={setShow}
           options={[
             { value: "", label: "ทุกคน" },
-            { value: "test", label: "เฉพาะชุดทดสอบ" },
+            { value: "test", label: "เฉพาะชุดเทส" },
             { value: "train", label: "เฉพาะชุดเทรน" },
           ]}
         />
@@ -833,7 +833,7 @@ function History({
         ) : (
           <span className="inline-flex items-center gap-1 tabular-nums">
             {pct(m.test.accuracy)}
-            {m.test.seen_test && <HintIcon text="เวอร์ชันนี้เคยเห็นชุดทดสอบตอนเทรน ผล Run Test สูงเกินจริง" />}
+            {m.test.seen_test && <HintIcon text="เวอร์ชันนี้เคยเห็นชุดเทสตอนเทรน ผล Run Test สูงเกินจริง" />}
           </span>
         ),
     },

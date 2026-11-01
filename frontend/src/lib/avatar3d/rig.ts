@@ -107,7 +107,7 @@ function surfaceAt(rig: Rig, x: number, y: number, r: number): { front: number; 
     }
   }
   const fc = rig.faceCard;
-  if (Math.abs(x - fc.center.x) < fc.half + r && Math.abs(y - fc.center.y) < fc.half + r) {
+  if (fc.half > 0 && Math.abs(x - fc.center.x) < fc.half + r && Math.abs(y - fc.center.y) < fc.half + r) {
     front = Math.max(front, fc.center.z);
     back = Math.min(back, fc.center.z);
   }
@@ -473,6 +473,41 @@ export function applyPose(rig: Rig, hands: HandPair, face: Face) {
   });
 
   poseHead(rig, face);
+  if (rig.vrm) slimArms(rig);
+}
+
+// ความหนาของแขน VRM เทียบของเดิม (1 = เท่าเดิม) VRM แขนอวบกว่าหุ่นเดิมมาก ทำให้แขนใหญ่บังตัว/ท่าดูหนัก
+// ย่อเฉพาะด้านขวางแขน ความยาวคงเดิม เพื่อไม่กระทบตำแหน่งข้อมือที่ IK คำนวณไว้
+const VRM_ARM_THICKNESS = 0.8;
+
+// แกน (0=x, 1=y, 2=z) ในกรอบท้องถิ่นของกระดูกที่ชี้ไปตามความยาวกระดูก (ดูจากตำแหน่งกระดูกลูก) หาครั้งเดียวต่อกระดูก
+const alongAxis = new WeakMap<THREE.Bone, number>();
+function alongOf(bone: THREE.Bone, child: THREE.Bone): number {
+  let a = alongAxis.get(bone);
+  if (a === undefined) {
+    const { x, y, z } = child.position;
+    const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
+    a = ax >= ay && ax >= az ? 0 : ay >= az ? 1 : 2;
+    alongAxis.set(bone, a);
+  }
+  return a;
+}
+
+// ย่อต้นแขนด้านขวางแขน (ท่อนแขนล่างได้ขนาดเดียวกันเพราะสเกลสืบทอดลงมา) แล้วชดเชยที่ข้อมือให้มือและนิ้วขนาดเท่าเดิม
+//   ต้องเรียกหลัง skeleton.pose() ทุกเฟรม เพราะ pose() คืนสเกลกลับเป็นค่าตอน bind
+//   ใช้ได้เมื่อกรอบแกนของต้นแขน ท่อนแขนล่าง และมือตรงกันตอน bind (เป็นจริงใน VRM)
+function slimArms(rig: Rig) {
+  const k = VRM_ARM_THICKNESS;
+  (["r", "l"] as Side[]).forEach((side) => {
+    const [upperName, foreName, handName] = ARM_BONES[side];
+    const upper = rig.bones.get(upperName)!;
+    const fore = rig.bones.get(foreName)!;
+    const hand = rig.bones.get(handName)!;
+    const s = [k, k, k];
+    s[alongOf(upper, fore)] = 1;
+    upper.scale.set(s[0], s[1], s[2]);
+    hand.scale.set(1 / s[0], 1 / s[1], 1 / s[2]);
+  });
 }
 
 // กระดูกที่ขยับตามท่า (แขน มือ นิ้ว หัว) ใช้ทำให้การเคลื่อนไหวต่อเนื่องระหว่างเฟรม

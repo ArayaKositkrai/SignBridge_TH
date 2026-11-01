@@ -7,7 +7,7 @@ import { fmtDate } from "../../../lib/format";
 import { HINTS, LABELS, TECH } from "./metricInfo";
 import { getModelMetrics, type MetricDetail, type ModelFile, type ModelMetrics as Metrics, type TrainStatus } from "../services/adminApi";
 
-// ชุดทดสอบที่มีคลิปน้อยกว่านี้ ผลยังเชื่อถือไม่ได้
+// ชุดเทสที่มีคลิปน้อยกว่านี้ ผลยังเชื่อถือไม่ได้
 const SMALL_TEST_SET = 50;
 // จำนวนคู่คำที่สับสนกันที่แสดง
 const TOP_CONFUSIONS = 10;
@@ -211,7 +211,7 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
       ) : !m || !m.clips ? (
         <p className="py-6 text-center text-sm text-ink/50">
           {source === "validation"
-            ? "เวอร์ชันนี้ไม่มีผลวัดละเอียด (เทรนก่อนเพิ่มระบบวัดผล) — กด Run Test เพื่อวัดด้วยชุดทดสอบปัจจุบัน"
+            ? "เวอร์ชันนี้ไม่มีผลวัดละเอียด (เทรนก่อนเพิ่มระบบวัดผล) — กด Run Test เพื่อวัดด้วยชุดเทสปัจจุบัน"
             : 'ยังไม่ได้ Run Test — กด "Run Test ทุกเวอร์ชัน"'}
         </p>
       ) : (
@@ -225,16 +225,16 @@ export default function ModelMetrics({ models, status, onRunTest, runBusy }: Pro
 
           {/* คำเตือนเรื่องความน่าเชื่อถือ */}
           {source === "test" && m.seen_test && (
-            <Warning>โมเดลนี้เคยเห็นคลิปในชุดทดสอบตอนเทรน ผลจึงสูงเกินจริง เทียบกับเวอร์ชันอื่นไม่ได้ (เวอร์ชันที่เทรนหลังจากนี้จะกันชุดทดสอบออกให้เอง)</Warning>
+            <Warning>โมเดลนี้เคยเห็นคลิปในชุดเทสตอนเทรน ผลจึงสูงเกินจริง เทียบกับเวอร์ชันอื่นไม่ได้ (เวอร์ชันที่เทรนหลังจากนี้จะกันชุดเทสออกให้เอง)</Warning>
           )}
-          {m.clips < SMALL_TEST_SET && <Warning>ชุดทดสอบมีแค่ {m.clips} คลิป ผลยังแกว่งมาก ควรเลือกล่ามในชุดทดสอบให้มากขึ้น (แท็บชุดทดสอบ)</Warning>}
+          {m.clips < SMALL_TEST_SET && <Warning>ชุดเทสมีแค่ {m.clips} คลิป ผลยังแกว่งมาก ควรเลือกล่ามในชุดเทสให้มากขึ้น (แท็บชุดเทส)</Warning>}
           {m.no_train_words && m.no_train_words.length > 0 && (
             <Warning>
-              คำที่ทุกคลิปอยู่ในชุดทดสอบ โมเดลไม่ได้เรียนคำนี้เลย จึงทายผิดแน่นอน: {m.no_train_words.join(", ")}
+              คำที่ทุกคลิปอยู่ในชุดเทส โมเดลไม่ได้เรียนคำนี้เลย จึงทายผิดแน่นอน: {m.no_train_words.join(", ")}
             </Warning>
           )}
           {source === "test" && otherSets.size > 1 && (
-            <Warning>บางเวอร์ชันวัดด้วยชุดทดสอบคนละชุด กด Run Test ใหม่ให้ทุกเวอร์ชันใช้ชุดเดียวกันก่อนเทียบ</Warning>
+            <Warning>บางเวอร์ชันวัดด้วยชุดเทสคนละชุด กด Run Test ใหม่ให้ทุกเวอร์ชันใช้ชุดเดียวกันก่อนเทียบ</Warning>
           )}
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

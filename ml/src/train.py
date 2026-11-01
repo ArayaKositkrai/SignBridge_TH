@@ -6,7 +6,7 @@
 ผลลัพธ์: ไฟล์ ml/models/model_signBridge_vX.Y.Z.npz + แถวในตาราง models (status = draft) และ model_words
         และอัปไฟล์โมเดลขึ้น Supabase Storage (models/) ให้ backend ทุกเครื่องดาวน์โหลดไปใช้ได้
 
-ขั้นตอน: แปลงเป็น feature (features.py) → แบ่งชุดทดสอบตามผู้แสดง (คนที่ทดสอบไม่อยู่ในชุดเทรน)
+ขั้นตอน: แปลงเป็น feature (features.py) → แบ่งชุดเทสตามผู้แสดง (คนที่ทดสอบไม่อยู่ในชุดเทรน)
 → เทรน CNN 1 มิติ วัดความแม่นยำ → เทรนใหม่ด้วยข้อมูลทั้งหมด → บันทึกน้ำหนักเป็น .npz (backend ใช้แค่ numpy)
 """
 import argparse
@@ -253,17 +253,17 @@ def predict_probs(model, X, mean, std) -> np.ndarray:
     return torch.softmax(logits, 1).numpy()
 
 
-# รหัสของชุดทดสอบ (ผู้แสดงที่กันไว้ + จำนวนคลิป) ใช้บอกว่าผลของแต่ละเวอร์ชันวัดด้วยชุดเดียวกันไหม
+# รหัสของชุดเทส (ผู้แสดงที่กันไว้ + จำนวนคลิป) ใช้บอกว่าผลของแต่ละเวอร์ชันวัดด้วยชุดเดียวกันไหม
 def test_set_id(val_signers: set[str], n_clips: int) -> str:
     import hashlib
     return hashlib.sha1(("|".join(sorted(val_signers)) + f"#{n_clips}").encode()).hexdigest()[:12]
 
 
-# เลือกชุดทดสอบ (ใช้ร่วมกับ evaluate.py):
+# เลือกชุดเทส (ใช้ร่วมกับ evaluate.py):
 #   - คลิปที่อัดผ่านระบบ: ตามคนที่อัด — ตั้งที่ แอดมิน › ผู้ใช้ (ล่ามตัวจริง = ทดสอบ, คนในทีม = เทรน)
 #     และคลิปที่แอดมินสลับเป็น "ทดสอบ" รายคลิปในหน้าคลังคำศัพท์
 #   - ชุด TSL: สุ่มผู้แสดงประมาณ 20% ของแต่ละชุดข้อมูลเสมอ (seed คงที่ ได้คนเดิมถ้าข้อมูลไม่เปลี่ยน)
-#   คืน (is_val ต่อคลิป, ผู้แสดงที่กันไว้, คำที่ทุกคลิปอยู่ในชุดทดสอบ)
+#   คืน (is_val ต่อคลิป, ผู้แสดงที่กันไว้, คำที่ทุกคลิปอยู่ในชุดเทส)
 def split_test(conn, signers, sources, clip_test, labels_raw, quiet: bool = False):
     recorded = {s for s, x in zip(signers, sources) if x == "ล่าม"}
     val_signers = db.test_signers(conn) & recorded
@@ -274,7 +274,7 @@ def split_test(conn, signers, sources, clip_test, labels_raw, quiet: bool = Fals
         if len(pool) >= 2:
             val_signers |= set(rng.choice(pool, max(1, round(len(pool) * VAL_SIGNER_RATIO)), replace=False))
     if not quiet:
-        log(f"ชุดทดสอบ: สุ่มผู้แสดง TSL {len(val_signers) - n_recorded} คน + คนที่อัดผ่านระบบที่ตั้งเป็นทดสอบ {n_recorded} คน"
+        log(f"ชุดเทส: สุ่มผู้แสดง TSL {len(val_signers) - n_recorded} คน + คนที่อัดผ่านระบบที่ตั้งเป็นทดสอบ {n_recorded} คน"
             f" + กำหนดรายคลิป {sum(clip_test)} คลิป")
     is_val = np.array([s in val_signers or t for s, t in zip(signers, clip_test)])
     no_train = sorted({l for l, v in zip(labels_raw, is_val) if v} - {l for l, v in zip(labels_raw, is_val) if not v})
@@ -332,7 +332,7 @@ def main():
 
     is_val, val_signers, no_train = split_test(conn, signers, sources, clip_test, labels_raw)
     if no_train:
-        log(f"คำเตือน: คำที่ทุกคลิปอยู่ในชุดทดสอบ (ไม่มีคลิปให้เทรนตอนวัดผล): {', '.join(no_train)}")
+        log(f"คำเตือน: คำที่ทุกคลิปอยู่ในชุดเทส (ไม่มีคลิปให้เทรนตอนวัดผล): {', '.join(no_train)}")
     metrics = {}
     full_metrics: dict = {}
     if is_val.any() and (~is_val).any():
@@ -360,11 +360,11 @@ def main():
         worst = sorted(per.items(), key=lambda kv: kv[1])[:5]
         log("คำที่ทายพลาดบ่อย: " + ", ".join(f"{k} {v:.0%}" for k, v in worst))
 
-    # เทรนรอบสุดท้ายสำหรับใช้งานจริง: ไม่ใช้คลิปในชุดทดสอบ (held-out) ให้ Run Test วัดกับข้อมูลที่โมเดลไม่เคยเห็นจริง
+    # เทรนรอบสุดท้ายสำหรับใช้งานจริง: ไม่ใช้คลิปในชุดเทส (held-out) ให้ Run Test วัดกับข้อมูลที่โมเดลไม่เคยเห็นจริง
     #   ตั้ง "final_train_on_all": true ใน train_words.json = เทรนด้วยข้อมูลทั้งหมดแบบเดิม (ได้ข้อมูลเพิ่ม แต่ Run Test จะเชื่อไม่ได้)
     final_all = bool(cfg.get("final_train_on_all", False)) or not is_val.any()
     train_mask = np.ones(len(X), bool) if final_all else ~is_val
-    log("เทรนรอบสุดท้ายด้วยข้อมูลทั้งหมด…" if final_all else f"เทรนรอบสุดท้าย (ไม่รวมชุดทดสอบ {int(is_val.sum())} คลิป)…")
+    log("เทรนรอบสุดท้ายด้วยข้อมูลทั้งหมด…" if final_all else f"เทรนรอบสุดท้าย (ไม่รวมชุดเทส {int(is_val.sum())} คลิป)…")
     Xf, yf = X[train_mask], y[train_mask]
     mean, std = Xf.reshape(-1, X.shape[2]).mean(0), Xf.reshape(-1, X.shape[2]).std(0) + 1e-6
     model = fit(Xf, yf, len(labels), mean, std, stage="final")
@@ -385,7 +385,7 @@ def main():
     version = next_version(conn)
     name = MODEL_NAME.format(*version)
     path = MODELS_PATH / name
-    # threshold = เกณฑ์ความมั่นใจที่คำนวณจากชุดทดสอบ (ตัวแปลใช้ตัดสินว่าได้คำ) ไม่มีผลวัด = ค่าเริ่มต้น
+    # threshold = เกณฑ์ความมั่นใจที่คำนวณจากชุดเทส (ตัวแปลใช้ตัดสินว่าได้คำ) ไม่มีผลวัด = ค่าเริ่มต้น
     save_npz_atomic(path, labels=np.array(labels), feature_version=np.array(F.FEATURE_VERSION),
                     threshold=np.array(full_metrics.get("threshold", M.DEFAULT_THRESHOLD), dtype=np.float32), **weights)
     seconds = round(time.time() - t0, 1)

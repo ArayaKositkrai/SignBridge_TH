@@ -342,7 +342,7 @@ function UserDialog({
     setMsg(null);
     try {
       onSaved({ ...user, ...(await setUserSplit(user.id, split)) });
-      toast.success(split === "test" ? "ตั้งเป็นชุดทดสอบแล้ว" : "ตั้งเป็นชุดเทรนแล้ว");
+      toast.success(split === "test" ? "ตั้งเป็นชุดเทสแล้ว" : "ตั้งเป็นชุดเทรนแล้ว");
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
     } finally {

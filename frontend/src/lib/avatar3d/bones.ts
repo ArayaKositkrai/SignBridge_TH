@@ -36,3 +36,32 @@ export const CURL_INDEX: Record<FingerName, number> = {
   Ring: 3,
   Pinky: 4,
 };
+
+// ชื่อกระดูกมาตรฐาน VRM 1.0 -> ชื่อ Mixamo ที่ระบบท่าทางใช้ (ตัวโหลด VRM จะเปลี่ยนชื่อโหนดให้ตรงกัน
+// จึงไม่ต้องแก้ rig.ts) นิ้วโป้งของ VRM คือ Metacarpal/Proximal/Distal = ข้อ 1/2/3 ของ Mixamo
+export const VRM_TO_MIXAMO: Record<string, string> = (() => {
+  const map: Record<string, string> = {
+    hips: "mixamorigHips",
+    neck: "mixamorigNeck",
+    head: "mixamorigHead",
+  };
+  const fingers: [string, string, [string, string, string]][] = [
+    ["Thumb", "Thumb", ["Metacarpal", "Proximal", "Distal"]],
+    ["Index", "Index", ["Proximal", "Intermediate", "Distal"]],
+    ["Middle", "Middle", ["Proximal", "Intermediate", "Distal"]],
+    ["Ring", "Ring", ["Proximal", "Intermediate", "Distal"]],
+    ["Little", "Pinky", ["Proximal", "Intermediate", "Distal"]],
+  ];
+  for (const [vrmSide, mixSide] of [["left", "Left"], ["right", "Right"]] as const) {
+    map[`${vrmSide}Shoulder`] = `mixamorig${mixSide}Shoulder`;
+    map[`${vrmSide}UpperArm`] = `mixamorig${mixSide}Arm`;
+    map[`${vrmSide}LowerArm`] = `mixamorig${mixSide}ForeArm`;
+    map[`${vrmSide}Hand`] = `mixamorig${mixSide}Hand`;
+    for (const [vrmFinger, mixFinger, parts] of fingers) {
+      parts.forEach((part, i) => {
+        map[`${vrmSide}${vrmFinger}${part}`] = `mixamorig${mixSide}Hand${mixFinger}${i + 1}`;
+      });
+    }
+  }
+  return map;
+})();

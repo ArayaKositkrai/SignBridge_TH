@@ -107,7 +107,7 @@ class WordExternalSource(Base):
     contributors: Mapped[int] = mapped_column(Integer, default=0)
 
 
-# คนที่ทำท่าในคลิป (ใช้แบ่งชุดทดสอบตามคน)
+# คนที่ทำท่าในคลิป (ใช้แบ่งชุดเทสตามคน)
 class Contributor(Base):
     __tablename__ = "contributors"
 

@@ -70,7 +70,7 @@ export default function TrainingProgress() {
   useEffect(() => {
     toast.progress(
       "evaluate",
-      isAdmin && evaluating ? { title: "กำลัง Run Test", detail: "วัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน", percent: null } : null,
+      isAdmin && evaluating ? { title: "กำลัง Run Test", detail: "วัดผลทุกเวอร์ชันด้วยชุดเทสปัจจุบัน", percent: null } : null,
     );
   }, [isAdmin, evaluating, toast]);
 

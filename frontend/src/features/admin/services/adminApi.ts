@@ -24,7 +24,7 @@ export interface User {
   can_login?: boolean;
   created_at?: string;
   last_login_at?: string | null;
-  // คลิปที่คนนี้อัด (ในฐานะล่าม) ใช้เป็นชุดเทรนหรือชุดทดสอบ (ผู้ใช้ทั่วไป = null)
+  // คลิปที่คนนี้อัด (ในฐานะล่าม) ใช้เป็นชุดเทรนหรือชุดเทส (ผู้ใช้ทั่วไป = null)
   split?: Split | null;
   // จำนวนคลิปที่อัดไว้ในชื่อนี้ (เฉพาะแอดมิน)
   clips?: number | null;
@@ -38,7 +38,7 @@ export type UserChanges = Partial<
   Pick<User, "role" | "active" | "first_name" | "last_name" | "phone" | "disability_card_number" | "email">
 >;
 
-// ล่ามหนึ่งคนในหน้าชุดทดสอบ (ดูอย่างเดียว)
+// ล่ามหนึ่งคนในหน้าชุดเทส (ดูอย่างเดียว)
 //   reason: random = ระบบสุ่ม (ชุด TSL), user = ตั้งเป็นทดสอบในหน้าผู้ใช้, clips = บางคลิปถูกตั้งเป็นทดสอบรายคลิป, null = ใช้เทรน
 export interface SplitSigner {
   id: string;
@@ -51,7 +51,7 @@ export interface SplitSigner {
   reason: "random" | "user" | "clips" | null;
 }
 
-// ภาพรวมชุดทดสอบ: ล่ามในชุดทดสอบของการเทรนครั้งถัดไป คลิป/คำกี่ตัว และคำที่ไม่มีคลิปทดสอบ/ไม่เหลือให้เทรน
+// ภาพรวมชุดเทส: ล่ามในชุดเทสของการเทรนครั้งถัดไป คลิป/คำกี่ตัว และคำที่ไม่มีคลิปทดสอบ/ไม่เหลือให้เทรน
 export interface TestSplit {
   signers: SplitSigner[];
   total_clips: number;
@@ -104,7 +104,7 @@ export interface ModelFile {
   compatible?: boolean;
   // ไม่มีไฟล์โมเดลในเครื่องเซิร์ฟเวอร์
   file_missing?: boolean;
-  // สรุปตัวชี้วัดตอนเทรน (ชุดทดสอบตอนนั้น) และ Run Test (ชุดทดสอบปัจจุบัน) — null = ยังไม่มีผล
+  // สรุปตัวชี้วัดตอนเทรน (ชุดเทสตอนนั้น) และ Run Test (ชุดเทสปัจจุบัน) — null = ยังไม่มีผล
   validation?: MetricSummary | null;
   test?: MetricSummary | null;
 }
@@ -119,16 +119,16 @@ export interface MetricSummary {
   f1?: number;
   // เกณฑ์ความมั่นใจที่ตัวแปลใช้ตัดสินว่า "ได้คำ"
   threshold?: number;
-  // ตอนไม่ได้ทำท่า ระบบพูดเป็นคำกี่ % (null = ชุดทดสอบไม่มีคลิป "ไม่ทำท่า")
+  // ตอนไม่ได้ทำท่า ระบบพูดเป็นคำกี่ % (null = ชุดเทสไม่มีคลิป "ไม่ทำท่า")
   null_false_alarm?: number | null;
   // ตอนทำท่าจริง ระบบไม่พูดอะไรกี่ %
   word_dropped?: number | null;
   test_set_id?: string;
   evaluated_at?: string;
   excluded_clips?: number;
-  // Run Test: โมเดลเคยเห็นชุดทดสอบนี้ตอนเทรน (ผลสูงเกินจริง)
+  // Run Test: โมเดลเคยเห็นชุดเทสนี้ตอนเทรน (ผลสูงเกินจริง)
   seen_test?: boolean;
-  // ตอนเทรน: รอบสุดท้ายกันชุดทดสอบออก (Run Test เชื่อได้)
+  // ตอนเทรน: รอบสุดท้ายกันชุดเทสออก (Run Test เชื่อได้)
   final_excludes_test?: boolean;
 }
 
@@ -227,7 +227,7 @@ export async function userCardImage(id: string): Promise<string> {
   return URL.createObjectURL(await res.blob());
 }
 
-// ดูล่ามทุกคนและชุดทดสอบที่เลือก
+// ดูล่ามทุกคนและชุดเทสที่เลือก
 // ตั้งคลิปที่ล่ามอัดเป็นชุดเทรน/ทดสอบ
 export const setSampleSplit = (id: string, split: "train" | "test") =>
   send<{ id: string; split: string }>(`${BASE}/samples/${encodeURIComponent(id)}`, json("PATCH", { split }));
@@ -253,7 +253,7 @@ export const setTrainWords = (words: string[], inTrainSet: boolean) =>
     json("POST", { words, in_train_set: inTrainSet }),
   );
 
-// ล่ามในชุดทดสอบของการเทรนครั้งถัดไป (ดูอย่างเดียว)
+// ล่ามในชุดเทสของการเทรนครั้งถัดไป (ดูอย่างเดียว)
 export const getTestSplit = () => send<TestSplit>(`${BASE}/test-split`);
 
 // ดึงรายการไฟล์โมเดล
@@ -267,7 +267,7 @@ export const getTrainStatus = () => send<TrainStatus>(`${BASE}/train/status`);
 // ตัวชี้วัดเต็มของโมเดลหนึ่งเวอร์ชัน (ผลรายคำ คำที่สับสน กราฟความมั่นใจ)
 export const getModelMetrics = (version: string) =>
   send<ModelMetrics>(`${BASE}/models/${encodeURIComponent(version)}/metrics`);
-// วัดผลทุกเวอร์ชันด้วยชุดทดสอบปัจจุบัน (Run Test) ในพื้นหลัง
+// วัดผลทุกเวอร์ชันด้วยชุดเทสปัจจุบัน (Run Test) ในพื้นหลัง
 export const runModelTest = () => send<{ message: string }>(`${BASE}/models/evaluate`, { method: "POST" });
 // สร้างท่าอวตารจาก skeleton จริง (ชุด TSL + คลิปที่อัด) ในพื้นหลัง และดูสถานะ
 export interface MotionBuild {

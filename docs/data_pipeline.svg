@@ -74,7 +74,7 @@
 
   <rect x="620" y="580" width="250" height="110" class="box"/>
   <text x="745" y="612" class="t">⑤ ประเมินผล</text><text x="745" y="634" class="s">Model Evaluation</text>
-  <text x="745" y="654" class="s">Top-1 / Top-3 บนชุดทดสอบ</text><text x="745" y="674" class="s">ความแม่นยำรายคำ</text>
+  <text x="745" y="654" class="s">Top-1 / Top-3 บนชุดเทส</text><text x="745" y="674" class="s">ความแม่นยำรายคำ</text>
 
   <rect x="940" y="580" width="250" height="110" class="box"/>
   <text x="1065" y="612" class="t">⑥ แพ็กโมเดล</text><text x="1065" y="634" class="s">Model Packaging</text>

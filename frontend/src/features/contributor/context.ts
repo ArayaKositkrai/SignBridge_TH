@@ -9,7 +9,7 @@ export interface ContributorContext {
   models: ModelsBrief | null;
   refresh: () => Promise<void>;
   signer: string | null;
-  // คลิปที่อัดในชื่อล่ามที่เลือก จะเข้าชุดเทรนหรือชุดทดสอบ
+  // คลิปที่อัดในชื่อล่ามที่เลือก จะเข้าชุดเทรนหรือชุดเทส
   signerSplit: Split;
   setError: (msg: string | null) => void;
 }

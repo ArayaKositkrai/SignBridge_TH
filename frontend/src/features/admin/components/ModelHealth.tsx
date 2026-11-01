@@ -120,7 +120,7 @@ export default function ModelHealth() {
       }
     >
       <p className="mb-3 text-sm text-ink/70">
-        เราเก็บคลิปของคนที่โมเดลไม่เคยเห็น (ล่ามตัวจริง และคนในชุด TSL ที่ระบบสุ่มไว้) เป็น "ชุดทดสอบ" {num(m.clips)} คลิป แล้วให้โมเดลทายว่าเป็นคำอะไร · มีคลิปทดสอบ {measured} จาก{" "}
+        เราเก็บคลิปของคนที่โมเดลไม่เคยเห็น (ล่ามตัวจริง และคนในชุด TSL ที่ระบบสุ่มไว้) เป็น "ชุดเทส" {num(m.clips)} คลิป แล้วให้โมเดลทายว่าเป็นคำอะไร · มีคลิปทดสอบ {measured} จาก{" "}
         {model.words ?? "?"} คำที่โมเดลรู้จัก · <b>กดการ์ดเพื่อดูคำอธิบายและคำที่ต้องปรับปรุง</b>
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -144,7 +144,7 @@ export default function ModelHealth() {
         open={open}
         m={m}
         modelWords={model.words}
-        subtitle={`${model.label} · ${source === "validation" ? "คะแนนตอนเทรน" : "คะแนน Run Test"} · ชุดทดสอบ ${num(m.clips)} คลิป`}
+        subtitle={`${model.label} · ${source === "validation" ? "คะแนนตอนเทรน" : "คะแนน Run Test"} · ชุดเทส ${num(m.clips)} คลิป`}
         onClose={() => setOpen(null)}
       />
     </Card>
@@ -304,10 +304,10 @@ function MetricDialog({
   const coverage =
     unmeasured > 0 ? (
       <Note>
-        มี {unmeasured} คำที่โมเดลรู้จักแต่ยังไม่มีคลิปในชุดทดสอบ จึงยังไม่รู้ว่าทายคำพวกนี้ได้ดีแค่ไหน (ไม่ได้นับในตัวเลขนี้) — ให้ล่ามตัวจริงอัดคำเหล่านี้
-        คลิปของล่ามจะเข้าชุดทดสอบให้เอง (ดูรายชื่อคำได้ที่{" "}
+        มี {unmeasured} คำที่โมเดลรู้จักแต่ยังไม่มีคลิปในชุดเทส จึงยังไม่รู้ว่าทายคำพวกนี้ได้ดีแค่ไหน (ไม่ได้นับในตัวเลขนี้) — ให้ล่ามตัวจริงอัดคำเหล่านี้
+        คลิปของล่ามจะเข้าชุดเทสให้เอง (ดูรายชื่อคำได้ที่{" "}
         <Link to="/admin/models?tab=split" className="font-semibold text-brand hover:underline">
-          โมเดล › ชุดทดสอบ
+          โมเดล › ชุดเทส
         </Link>
         )
       </Note>
@@ -382,7 +382,7 @@ function MetricDialog({
         {open === "falseAlarm" ? (
           <Big>
             {m.null_false_alarm == null ? (
-              'ชุดทดสอบนี้ไม่มีคลิปช่วง "ไม่ได้ทำท่า" จึงวัดตัวเลขนี้ไม่ได้'
+              'ชุดเทสนี้ไม่มีคลิปช่วง "ไม่ได้ทำท่า" จึงวัดตัวเลขนี้ไม่ได้'
             ) : (
               <>
                 ทุก 100 ครั้งที่ไม่มีใครทำภาษามือ ระบบเผลอขึ้นคำมาประมาณ <b>{Math.round((m.null_false_alarm ?? 0) * 100)}</b> ครั้ง

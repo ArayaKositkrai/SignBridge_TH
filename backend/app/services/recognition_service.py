@@ -129,7 +129,7 @@ class Recognizer:
         # ยังไม่มั่นใจพอ / ไม่ได้ทำท่า: แสดงคำใกล้เคียงไว้ดู แต่ไม่นับเป็นคำ
         second = ranked[1][1] if len(ranked) > 1 else 0.0
         clear_lead = LOW_PROB is not None and avg[top] >= LOW_PROB and avg[top] >= MARGIN_RATIO * second
-        # เกณฑ์ "ได้คำ": ใช้ค่าที่คำนวณมากับโมเดล (จากชุดทดสอบตอนเทรน) ไม่มีค่อยใช้ค่าตั้งต้น
+        # เกณฑ์ "ได้คำ": ใช้ค่าที่คำนวณมากับโมเดล (จากชุดเทสตอนเทรน) ไม่มีค่อยใช้ค่าตั้งต้น
         word_prob = model.threshold or WORD_PROB
         if top == null or (avg[top] < word_prob and not clear_lead):
             self.candidate, self.hits = None, 0

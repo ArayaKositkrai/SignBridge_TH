@@ -315,7 +315,7 @@ def oauth_login(provider: str, code: str) -> str:
             )
         )
         # ล่ามที่แอดมินเพิ่มเองและใส่อีเมลไว้ (ไม่มีรหัสผ่าน ยังไม่ผูกบัญชีใด) + Google/LINE ยืนยันอีเมลนั้นแล้ว
-        #   = เจ้าของตัวจริง ผูกเข้าบัญชีเดิม (คลิปและการตั้งค่าชุดทดสอบของล่ามคนนั้นอยู่บัญชีเดียวกัน)
+        #   = เจ้าของตัวจริง ผูกเข้าบัญชีเดิม (คลิปและการตั้งค่าชุดเทสของล่ามคนนั้นอยู่บัญชีเดียวกัน)
         existing = None if identity or not verified_email else _find_by_email(db, verified_email)
         claimable = (
             existing is not None
