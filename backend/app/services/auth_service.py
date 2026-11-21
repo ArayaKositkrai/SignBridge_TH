@@ -197,6 +197,10 @@ PROVIDERS = {
 }
 
 
+# ชื่อที่แสดงให้ผู้ใช้เห็น
+PROVIDER_NAMES = {"google": "Google", "line": "LINE"}
+
+
 # ผู้ให้บริการที่ตั้งค่า client id/secret ไว้แล้ว
 def enabled_providers() -> list[str]:
     return [name for name, p in PROVIDERS.items() if p["client_id"] and p["client_secret"]]
@@ -363,6 +367,7 @@ def oauth_login(provider: str, code: str) -> str:
 def link_identity(provider: str, code: str, user_id: str) -> None:
     profile = _fetch_profile(provider, code)
     email = (profile["email"] or "").strip().lower() or None
+    name = PROVIDER_NAMES.get(provider, provider)
     with SessionLocal() as db:
         user = db.get(User, user_id)
         if user is None or not user.active:
@@ -372,27 +377,29 @@ def link_identity(provider: str, code: str, user_id: str) -> None:
                 UserIdentity.provider == provider, UserIdentity.provider_user_id == profile["sub"]
             )
         )
-        if identity and identity.user_id != user.id:
+        if identity and identity.user_id == user.id:
+            raise AuthError(f"บัญชี {name} นี้เชื่อมกับบัญชีของคุณไปแล้ว", 409)
+        if identity:
             other = db.get(User, identity.user_id)
             other_ids = db.scalars(select(UserIdentity.id).where(UserIdentity.user_id == other.id)).all()
             # บัญชีอื่นที่เข้าได้ด้วยบัญชีนี้ทางเดียว (เช่นเคยล็อกอิน LINE ก่อนสมัครอีเมล) = เจ้าของคนเดียวกัน
             #   ย้ายบัญชีที่ผูก + ปุ่มฉุกเฉินมาไว้ที่ผู้ใช้นี้ (บัญชีเก่ายังอยู่ แต่เข้าสู่ระบบไม่ได้แล้ว)
             if other.password_hash or len(other_ids) > 1 or other.role != "user":
-                raise AuthError(f"บัญชี {provider} นี้ผูกกับผู้ใช้อื่นอยู่แล้ว", 409)
+                raise AuthError(f"บัญชี {name} นี้เชื่อมกับบัญชีอื่นไปแล้ว", 409)
             if db.scalar(
                 select(UserIdentity.id).where(UserIdentity.user_id == user.id, UserIdentity.provider == provider)
             ):
-                raise AuthError(f"ผูกบัญชี {provider} อื่นไว้แล้ว", 409)
+                raise AuthError(f"คุณเชื่อมบัญชี {name} อื่นไปแล้ว เลิกเชื่อมอันเดิมก่อน", 409)
             identity.user_id = user.id
             db.execute(update(EmergencyPhrase).where(EmergencyPhrase.user_id == other.id).values(user_id=user.id))
         if identity is None:
             if db.scalar(
                 select(UserIdentity.id).where(UserIdentity.user_id == user.id, UserIdentity.provider == provider)
             ):
-                raise AuthError(f"ผูกบัญชี {provider} อื่นไว้แล้ว", 409)
+                raise AuthError(f"คุณเชื่อมบัญชี {name} อื่นไปแล้ว เลิกเชื่อมอันเดิมก่อน", 409)
             identity = UserIdentity(
                 user_id=user.id, provider=provider, provider_user_id=profile["sub"], provider_email=email
             )
             db.add(identity)
         identity.last_used_at = func.now()
-        _commit_unique(db, "บัญชีนี้ถูกผูกไว้แล้ว กรุณารีเฟรชหน้าเว็บ")
+        _commit_unique(db, f"บัญชี {name} นี้เชื่อมไปแล้ว กรุณารีเฟรชหน้าเว็บ")
