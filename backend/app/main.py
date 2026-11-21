@@ -1,5 +1,3 @@
-import inspect
-
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,22 +11,24 @@ from app.db.schema import ensure_schema
 from app.db.session import ping
 from app.services import activity_log
 
+
+# โหลดโมเดลแปลภาษามือ (ทำใน thread แยก ไม่ให้เซิร์ฟเวอร์รอ) ไม่สำเร็จก็ไม่เป็นไร เดี๋ยวโหลดตอนมีคนใช้แทน
+def _warm_model() -> None:
+    try:
+        sign_to_text.warm_model()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# ตอนเซิร์ฟเวอร์เริ่มทำงานจริง (ครั้งเดียวต่อ worker ไม่ใช่ตอน import) ให้โหลดโมเดลรอไว้ในพื้นหลัง
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    threading.Thread(target=_warm_model, daemon=True).start()
+    yield
+
+
 # สร้างแอป FastAPI หลักของ backend
-# หน้า Swagger: http://localhost:8000/docs
-app = FastAPI(
-    title="SignBridge TH API",
-    description="API ของ SignBridge TH (ภาษามือไทย) — API ที่ต้องล็อกอินใช้ cookie session: "
-    "ล็อกอินที่หน้าเว็บก่อน แล้วเปิดหน้านี้ในเบราว์เซอร์เดียวกัน",
-    openapi_tags=[
-        {"name": "auth", "description": "สมัคร ล็อกอิน ออกจากระบบ และเชื่อมบัญชี Google/LINE"},
-        {"name": "profile", "description": "โปรไฟล์ของตัวเอง รหัสผ่าน บัญชีที่เชื่อม และลบบัญชี"},
-        {"name": "text-to-sign", "description": "แปลงข้อความเป็นท่าภาษามือ"},
-        {"name": "emergency", "description": "ปุ่มสื่อสารฉุกเฉิน"},
-        {"name": "contributor", "description": "อัดและจัดการคลิปภาษามือ (ล่าม/ผู้ร่วมอัด)"},
-        {"name": "admin", "description": "จัดการผู้ใช้ คำศัพท์ โมเดล (เฉพาะแอดมิน)"},
-        {"name": "logs", "description": "บันทึกการใช้งาน"},
-    ],
-)
+app = FastAPI(title="SignBridge TH API")
 
 # อนุญาตให้หน้าเว็บเรียก API ได้ (ดู app/core/cors.py) และส่ง cookie session มาด้วย
 app.add_middleware(
@@ -58,6 +58,7 @@ try:
     activity_log.prune()
 except Exception:  # noqa: BLE001 — log เสียต้องไม่ทำให้เซิร์ฟเวอร์เปิดไม่ได้
     pass
+
 
 # method ที่ไม่บันทึก (อ่านข้อมูลเฉย ๆ หรือคำขอเช็ก CORS)
 SKIP_LOG_METHODS = {"GET", "HEAD", "OPTIONS"}

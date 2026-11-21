@@ -1,16 +1,24 @@
 import * as THREE from "three";
 import { CURL_TO_RAD, HEAD, REST, SHOULDER, type Face, type HandPair, type Side } from "../avatar/skeleton";
 import { ARM_BONES, CURL_INDEX, FINGERS, HEAD_BONE, SHOULDER_BONES, fingerBones } from "./bones";
-import type { Rig } from "./loadModel";
+import { shrinkBust, type Rig } from "./loadModel";
 
 // อัตราขยายมุมบิดข้อมือ ต่อหน่วยมุม a ที่เปลี่ยนไปจากท่าพัก
 const WRIST_TWIST_GAIN = 1.1;
 // มือยิ่งเหยียดออกจากลำตัวมาก ยิ่งยื่นมาข้างหน้า (ทำให้ท่าดูเป็นธรรมชาติ ไม่แบนติดลำตัว)
 const FORWARD_BASE = 0.12;
 const FORWARD_GAIN = 0.42;
+// ตอนมือห้อยพัก (ยกไม่ถึง RAISE_FULL) มือยื่นมาข้างหน้าแค่นี้ ให้แขนห้อยแนบข้างลำตัว แล้วค่อยยื่นออกตามที่ยกมือ
+const FORWARD_REST = 0.02;
+const RAISE_FULL = 0.25;
+// ตอนมือห้อยพัก แขนจมเข้าตัวได้ไม่เกินเท่านี้ (สัดส่วนความยาวแขน) ให้แขนแนบตัวได้ ทะลุเสื้อนิดหน่อยไม่เป็นไร
+//   ยิ่งยกมือยิ่งลดลงจนเป็น 0 (ท่าที่มือแตะหน้า/อกต้องไม่จม) และบริเวณศีรษะไม่ยอมให้จมเลย
+const ARM_SINK_ALLOW = 0.03;
 // ทิศข้อศอกตามธรรมชาติ (เทียบกับแนวดิ่งลง): กางออกข้างและเอนไปข้างหลังเท่าไร
 const ELBOW_OUT = 0.35;
 const ELBOW_BACK = 0.15;
+// ตอนมือห้อยพัก ข้อศอกกางออกข้างแค่นี้ (แนบลำตัว) แล้วค่อยกางถึง ELBOW_OUT เมื่อยกมือ
+const ELBOW_OUT_REST = 0.08;
 const MAX_HEAD_TILT = 0.32;
 const REST_ANGLE = Math.PI; // มุม a ตอนท่าพัก (มือคว่ำห้อยลง)
 
@@ -121,6 +129,12 @@ function penetration(rig: Rig, p: THREE.Vector3, r: number): number {
   return Math.max(0, s.front + r - p.z);
 }
 
+// ความลึกที่แขน/มือจมเข้าตัว หลังหักส่วนที่ยอมให้ทะลุได้ (allow = ระยะจริง, ที่ศีรษะไม่หัก)
+function armSink(rig: Rig, p: THREE.Vector3, r: number, allow: number): number {
+  const d = penetration(rig, p, r);
+  return p.y > rig.body.headY ? d : Math.max(0, d - allow);
+}
+
 // ความหนาของข้อมือ ณ ความสูงนั้น (ที่ศีรษะเว้นน้อยให้แตะหน้าได้)
 const wristRadius = (rig: Rig, y: number) => (y > rig.body.headY ? WRIST_RADIUS_HEAD : WRIST_RADIUS) * rig.armLength;
 
@@ -138,21 +152,21 @@ function elbowFor(s: THREE.Vector3, w: THREE.Vector3, l1: number, l2: number, po
 }
 
 // ผลรวมความลึกที่ต้นแขน ข้อศอก และท่อนแขนจมเข้าตัว
-function armPenetration(rig: Rig, s: THREE.Vector3, e: THREE.Vector3, w: THREE.Vector3): { upper: number; fore: number } {
+function armPenetration(rig: Rig, s: THREE.Vector3, e: THREE.Vector3, w: THREE.Vector3, allow = 0): { upper: number; fore: number } {
   const len = rig.armLength;
-  const upper = penetration(rig, e, ELBOW_RADIUS * len) + penetration(rig, s.clone().lerp(e, 0.6), ELBOW_RADIUS * len);
+  const upper = armSink(rig, e, ELBOW_RADIUS * len, allow) + armSink(rig, s.clone().lerp(e, 0.6), ELBOW_RADIUS * len, allow);
   let fore = 0;
-  for (const t of [0.3, 0.6, 0.85]) fore = Math.max(fore, penetration(rig, e.clone().lerp(w, t), FOREARM_RADIUS * len));
+  for (const t of [0.3, 0.6, 0.85]) fore = Math.max(fore, armSink(rig, e.clone().lerp(w, t), FOREARM_RADIUS * len, allow));
   return { upper, fore };
 }
 
 // ความลึกที่มือ (ฝ่ามือถึงปลายนิ้ว) จมเข้าตัว: ไล่ตรวจตามทิศนิ้ว handDir ยาว handLen จากข้อมือ
-function handPenetration(rig: Rig, w: THREE.Vector3, handDir: THREE.Vector3, handLen: number): number {
+function handPenetration(rig: Rig, w: THREE.Vector3, handDir: THREE.Vector3, handLen: number, allow = 0): number {
   let worst = 0;
   for (const t of [0.35, 0.7, 1]) {
     const p = w.clone().addScaledVector(handDir, handLen * t);
     const r = (p.y > rig.body.headY ? HAND_RADIUS_HEAD : HAND_RADIUS) * rig.armLength;
-    worst = Math.max(worst, penetration(rig, p, r));
+    worst = Math.max(worst, armSink(rig, p, r, allow));
   }
   return worst;
 }
@@ -174,13 +188,15 @@ export function solveArm3D(
   l2: number,
   hand?: { dir: THREE.Vector3; length: number },
   prev?: { elbow: THREE.Vector3; wrist: THREE.Vector3 },
+  // ระยะที่ยอมให้แขนจมเข้าตัวได้ (หน่วยของโมเดล) 0 = ไม่ยอม
+  sinkAllow = 0,
 ): ArmSolution {
   const w = wristTarget.clone();
   let elbow = w.clone();
   // เฟรมต่อเนื่องของคลิปเดิม (เป้าข้อมือไม่กระโดด) = ข้อศอกเฟรมก่อน ใช้รักษาความต่อเนื่อง
   const keep = prev && prev.wrist.distanceTo(wristTarget) < CONTINUITY_RESET * rig.armLength ? prev.elbow : undefined;
   for (let pass = 0; pass <= FOREARM_PASSES; pass++) {
-    w.z += penetration(rig, w, wristRadius(rig, w.y));
+    w.z += armSink(rig, w, wristRadius(rig, w.y), sinkAllow);
     // เป้าที่ไกล/ใกล้เกินแขนเอื้อม: เลื่อนเข้าหา/ออกจากไหล่ตามแนวเดิม
     const dir = w.clone().sub(shoulder);
     const d = Math.min(Math.max(dir.length(), Math.abs(l1 - l2) + 1e-3), l1 + l2 - 1e-3);
@@ -192,7 +208,7 @@ export function solveArm3D(
       for (const sign of k ? [1, -1] : [1]) {
         const angle = sign * k * SWIVEL_STEP;
         const e = elbowFor(shoulder, w, l1, l2, pole, angle);
-        const pen = armPenetration(rig, shoulder, e, w);
+        const pen = armPenetration(rig, shoulder, e, w, sinkAllow);
         // หลังแนวไหล่เล็กน้อยเป็นเรื่องปกติ (แขนพับข้างตัว) ลงโทษเฉพาะที่เลยไปหลังแผ่นหลัง
         const behind = Math.max(0, shoulder.z - BEHIND_ALLOW * rig.armLength - e.z);
         const moved = keep ? keep.distanceTo(e) : 0;
@@ -215,7 +231,7 @@ export function solveArm3D(
       elbow = elbowFor(shoulder, w, l1, l2, pole, from + step);
     }
     // ท่อนแขนหรือมือยังจม (เช่นมือแนบอกแต่ข้อศอกอยู่ข้างตัว) ดันข้อมือมาข้างหน้าแล้วลองใหม่
-    const push = Math.max(best.fore, hand ? handPenetration(rig, w, hand.dir, hand.length) : 0);
+    const push = Math.max(best.fore, hand ? handPenetration(rig, w, hand.dir, hand.length, sinkAllow) : 0);
     if (push < 0.005 * rig.armLength) break;
     w.z += push;
   }
@@ -225,6 +241,17 @@ export function solveArm3D(
 // การหมุนในโลกที่พาทิศ (f, n) ตอน bind ไปเป็นทิศ (f2, n2) — ใช้กำหนดทั้งทิศกระดูกและการบิดรอบตัวเอง
 function frameQuat(f: THREE.Vector3, n: THREE.Vector3, f2: THREE.Vector3, n2: THREE.Vector3): THREE.Quaternion {
   return basisQuat(f, n, f2, n2);
+}
+
+// มือยกขึ้นแค่ไหน 0 = ห้อยพัก, 1 = ระดับศีรษะ (ไม่ใช่ "ห่างจากไหล่แค่ไหน" เพราะมือที่ห้อยลงก็ห่างจากไหล่มากอยู่แล้ว)
+function raiseOf(side: Side, hand: HandPair["r"]): number {
+  const restY = REST[side].y;
+  return Math.min(Math.max((restY - hand.y) / (restY - HEAD.y), 0), 1);
+}
+
+// สัดส่วนที่ออกจากท่าพักแล้ว 0 = ห้อยพัก, 1 = ยกถึง RAISE_FULL ขึ้นไป (ใช้ค่อย ๆ เปลี่ยนจากท่าแขนแนบตัวไปเป็นท่าทำภาษามือ)
+function liftOf(side: Side, hand: HandPair["r"]): number {
+  return Math.min(raiseOf(side, hand) / RAISE_FULL, 1);
 }
 
 // หมุนกระดูก "ต้นแขน" และ "ท่อนแขนล่าง" ให้ข้อมือไปถึงจุดเป้าหมายในโลก 3D ด้วย IK สองข้อต่อจริง
@@ -243,19 +270,21 @@ function poseArm(rig: Rig, side: Side, hand: HandPair["r"], extraForward = 0): v
 
   // "ยกมือขึ้นแค่ไหน" ไม่ใช่ "ห่างจากไหล่แค่ไหน" เพราะมือที่ห้อยลงข้างตัวตามสบาย
   // ก็ห่างจากไหล่มากอยู่แล้ว (ตกลงมาตามแนวดิ่ง) แต่ไม่ควรยื่นออกมาข้างหน้าเลย
-  const restY = REST[side].y;
-  const raise = Math.min(Math.max((restY - hand.y) / (restY - HEAD.y), 0), 1);
+  const raise = raiseOf(side, hand);
   // ท่าจากข้อมูลจริงบอกระยะยื่นมา (z) เอง ท่าเขียนมือใช้การเดา: ยิ่งยกมือสูงยิ่งยื่นไปข้างหน้า
-  const wristForward = z ?? FORWARD_BASE + FORWARD_GAIN * raise;
+  //   มือที่ห้อยพักไม่ยื่น (แขนแนบลำตัว) แล้วค่อย ๆ ยื่นออกจนเท่าสูตรเดิมเมื่อยกถึง RAISE_FULL
+  const lift = liftOf(side, hand);
+  const wristForward = z ?? FORWARD_REST + (FORWARD_BASE + FORWARD_GAIN * raise - FORWARD_REST) * lift;
   const wristTarget = toWorldPoint(rig, side, hand, wristForward);
   wristTarget.z += extraForward;
   const outward = shoulderBind.pos.x >= 0 ? 1 : -1;
-  const elbowHint = shoulderBind.pos.clone().add(new THREE.Vector3(outward * ELBOW_OUT, -1, -ELBOW_BACK).multiplyScalar(rig.armLength));
+  const elbowHint = shoulderBind.pos.clone().add(new THREE.Vector3(outward * (ELBOW_OUT_REST + (ELBOW_OUT - ELBOW_OUT_REST) * lift), -1, -ELBOW_BACK).multiplyScalar(rig.armLength));
   // ทิศนิ้วโดยประมาณ (จากมุม a บนจอ) ใช้ตรวจว่ามือจะจมเข้าตัวหรือไม่
   const handDir = new THREE.Vector3(Math.sin(hand.a), Math.cos(hand.a), 0.15).normalize();
   const handLength = handBind.pos.distanceTo(rig.bind.get(fingerBones(side, "Middle")[2])!.pos) * HAND_LENGTH_GAIN;
   const prev = prevElbows.get(rig) ?? {};
-  const { elbow, wrist } = solveArm3D(rig, shoulderBind.pos, wristTarget, elbowHint, l1, l2, { dir: handDir, length: handLength }, prev[side]);
+  const { elbow, wrist } = solveArm3D(rig, shoulderBind.pos, wristTarget, elbowHint, l1, l2, { dir: handDir, length: handLength }, prev[side],
+    ARM_SINK_ALLOW * (1 - lift) * rig.armLength);
   prev[side] = { elbow: elbow.clone(), wrist: wristTarget.clone() };
   prevElbows.set(rig, prev);
 
@@ -465,7 +494,9 @@ export function applyPose(rig: Rig, hands: HandPair, face: Face) {
     poseFingers(rig, side, hands[side]);
     // ตรวจปลายนิ้วจริงหลังจัดท่ามือแล้ว: ยังจมเข้าตัวอยู่ ดันข้อมือมาข้างหน้าเท่าที่จม แล้วจัดใหม่อีกรอบ
     const sink = fingerPenetration(rig, side);
-    if (sink > FINGER_SINK_TOLERANCE * rig.armLength) {
+    // ตอนมือห้อยพักยอมให้นิ้วจมได้มากขึ้นเท่ากับที่ยอมให้แขน (มือแนบต้นขา) ไม่งั้นมือจะถูกดันออกมาข้างหน้าอีก
+    const tolerance = FINGER_SINK_TOLERANCE + ARM_SINK_ALLOW * (1 - liftOf(side, hands[side]));
+    if (sink > tolerance * rig.armLength) {
       poseArm(rig, side, hands[side], sink);
       poseWrist(rig, side, hands[side]);
       poseFingers(rig, side, hands[side]);
@@ -473,7 +504,10 @@ export function applyPose(rig: Rig, hands: HandPair, face: Face) {
   });
 
   poseHead(rig, face);
-  if (rig.vrm) slimArms(rig);
+  if (rig.vrm) {
+    slimArms(rig);
+    shrinkBust(rig.bones);
+  }
 }
 
 // ความหนาของแขน VRM เทียบของเดิม (1 = เท่าเดิม) VRM แขนอวบกว่าหุ่นเดิมมาก ทำให้แขนใหญ่บังตัว/ท่าดูหนัก

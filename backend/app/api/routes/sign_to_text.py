@@ -7,6 +7,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from app.api.deps import SESSION_COOKIE
 from app.services import auth_service
+from app.ml.classifier import features, get_model
 from app.services.recognition_service import Recognizer
 
 # กลุ่ม route ของฟีเจอร์ภาษามือ -> ข้อความ
@@ -84,6 +85,18 @@ def _version(ws: WebSocket) -> tuple[str, str | None]:
     return "active", "โมเดล draft ใช้ได้เฉพาะแอดมินหรือล่ามที่เข้าสู่ระบบ — ใช้โมเดลที่เผยแพร่แทน"
 
 
+# โหลดโมเดลแปลภาษามือ (และดาวน์โหลดจาก Storage ถ้ายังไม่มี) ล่วงหน้า ให้เปิดกล้องแล้วแปลได้ทันที
+def warm_model() -> bool:
+    features()
+    return get_model("active") is not None
+
+
+# หน้าเว็บเรียกตอนเปิดเว็บ: ปลุกเซิร์ฟเวอร์และโหลดโมเดลรอไว้ (ready = พร้อมแปลแล้ว)
+@router.get("/api/sign-to-text/warmup")
+async def warmup():
+    return {"ready": await run_in_threadpool(warm_model)}
+
+
 # WebSocket รับ landmarks จากกล้องทีละเฟรม แล้วส่งคำที่แปลได้กลับไป (?version=draft = ทดสอบโมเดล draft)
 @router.websocket("/ws/sign-to-text")
 async def sign_to_text(ws: WebSocket):
@@ -93,6 +106,8 @@ async def sign_to_text(ws: WebSocket):
         await ws.send_json({"type": "error", "detail": warning})
     # ตัวแปลประจำการเชื่อมต่อนี้ (แยกกันต่อผู้ใช้)
     recognizer = Recognizer(version)
+    # โหลดโมเดลรอไว้ตั้งแต่ต่อสาย (หน้าเว็บต่อทันทีที่เข้าหน้า ยังไม่ต้องเปิดกล้อง)
+    await run_in_threadpool(get_model, version)
     window_start, count = time.monotonic(), 0
     try:
         # วนรับข้อความจากหน้าเว็บจนกว่าจะปิดการเชื่อมต่อ

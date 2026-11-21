@@ -21,10 +21,10 @@ export interface HandPair {
 
 // การงอนิ้วเมื่อปล่อยมือตามสบาย
 const relaxed = [0.3, 0.25, 0.25, 0.25, 0.25];
-// ท่าพัก: ปล่อยมือห้อยข้างลำตัว
+// ท่าพัก: ปล่อยมือห้อยแนบข้างลำตัว (ข้อมืออยู่ใต้ไหล่พอดี ไม่กางออก)
 export const REST: HandPair = {
-  r: { x: 0.38, y: 0.79, a: Math.PI, c: relaxed },
-  l: { x: 0.62, y: 0.79, a: Math.PI, c: relaxed },
+  r: { x: 0.4, y: 0.79, a: Math.PI, c: relaxed },
+  l: { x: 0.6, y: 0.79, a: Math.PI, c: relaxed },
 };
 
 // ทำให้การเคลื่อนไหวเริ่มช้า เร็วตรงกลาง แล้วช้าลง (smoothstep)

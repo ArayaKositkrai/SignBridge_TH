@@ -53,7 +53,7 @@ export default function TextToSignPage() {
       if (res.fixes?.length) logEvent("แก้คำพิมพ์ผิด", res.fixes.map((f) => `${f.typed}→${f.word}`).join(", "));
       if (!res.clips.length) setError("ไม่พบคำที่แปลเป็นภาษามือได้");
     } catch {
-      setError("เชื่อมต่อ backend ไม่ได้ ลองใหม่อีกครั้ง");
+      setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
     }

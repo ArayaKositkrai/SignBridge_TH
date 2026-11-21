@@ -63,3 +63,6 @@ backend/app/data/custom_phrases.json
 backend/app/data/users.json
 backend/app/data/activity_log.db*
 backend/app/data/*.tmp
+
+# ---------- Temporary files from Claude Code ----------
+.claude/tmp/

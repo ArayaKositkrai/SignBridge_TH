@@ -139,10 +139,14 @@ export function buildRig(root: THREE.Object3D, vrm?: VRM): Rig {
   const skeleton = skinned.skeleton;
 
   skeleton.pose();
-  root.updateMatrixWorld(true);
 
   const bones = new Map<string, THREE.Bone>();
   for (const b of skeleton.bones) bones.set(b.name, b);
+  // ย่อหน้าอกก่อนวัดรูปร่างลำตัว ให้ตารางกันแขนทะลุตรงกับรูปร่างที่แสดงจริง
+  if (vrm) shrinkBust(bones);
+  root.updateMatrixWorld(true);
+  // ให้สปริงหน้าอก/ผม/เสื้อผ้าจำท่าตั้งต้นใหม่หลังย่อ (เดิมจำขนาดก่อนย่อ ทำให้กระตุก/ยืดตอนขยับ)
+  vrm?.springBoneManager?.setInitState();
 
   // VRM ไม่มีกระดูกปลายหัว: สร้างกระดูกเปล่าไว้บนสุดของเมชหน้า (ใช้วัดขนาดหัวและตั้งกล้อง)
   if (vrm && !bones.has("mixamorigHeadTop_End")) {
@@ -303,6 +307,16 @@ export function buildRig(root: THREE.Object3D, vrm?: VRM): Rig {
     frame: { headTop: headTopBind.pos.clone(), chest, height },
     vrm,
   };
+}
+
+// สัดส่วนขนาดหน้าอกของ VRM เทียบของเดิม (1 = เท่าเดิม) ลดค่า = หน้าอกเล็กลง
+const VRM_BUST_SCALE = 0.6;
+// กระดูกโคนหน้าอกของโมเดล VRoid (กระดูกปลายสืบทอดสเกลลงไปเอง)
+const BUST_BONES = ["J_Sec_L_Bust1", "J_Sec_R_Bust1"];
+
+// ย่อหน้าอกตัวละครด้วยการสเกลกระดูกหน้าอก ต้องเรียกซ้ำหลัง skeleton.pose() ทุกครั้ง เพราะ pose() คืนสเกลกลับเป็น 1
+export function shrinkBust(bones: Map<string, THREE.Bone>): void {
+  for (const name of BUST_BONES) bones.get(name)?.scale.setScalar(VRM_BUST_SCALE);
 }
 
 // ขนาดช่องของตารางรูปร่างลำตัว (หน่วยของโมเดล = ซม.) และความกว้างที่ครอบคลุมจากแกนกลาง

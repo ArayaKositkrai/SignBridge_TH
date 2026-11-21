@@ -140,6 +140,10 @@ export interface MetricDetail extends MetricSummary {
   confidence?: { bins: number[]; correct: number[]; wrong: number[] };
   has_null_class?: boolean;
   no_train_words?: string[];
+  // ตอนไม่ได้ทำท่า คำไหนเผลอขึ้นมาบ่อยที่สุด (rate = สัดส่วนของคลิป "ไม่ทำท่า")
+  false_alarm_words?: { word: string; count: number; rate: number }[];
+  // ทำท่าคำนี้แล้วระบบเงียบกี่คลิป (rate = สัดส่วนของคลิปคำนี้)
+  dropped_words?: { word: string; count: number; clips: number; rate: number }[];
 }
 
 // ตัวชี้วัดเต็มของโมเดลหนึ่งเวอร์ชัน

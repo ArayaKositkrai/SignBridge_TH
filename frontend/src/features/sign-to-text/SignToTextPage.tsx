@@ -14,7 +14,7 @@ export default function SignToTextPage() {
   const cam = useCamera();
   const on = cam.status === "on";
   // โมเดลตรวจจับท่าทาง (MediaPipe)
-  const mp = useMediaPipe({ videoRef: cam.videoRef, active: on });
+  const mp = useMediaPipe({ videoRef: cam.videoRef, active: on, fast: true });
   // ?version=draft = ทดสอบโมเดลที่เทรนแล้วแต่ยังไม่เผยแพร่ (ปุ่ม "ทดสอบ Draft" ในหน้าแอดมิน)
   const [params] = useSearchParams();
   const version = params.get("version") === "draft" ? "draft" : "active";
@@ -78,6 +78,12 @@ export default function SignToTextPage() {
         onRemoveLast={() => {
           logEvent("ลบคำล่าสุด");
           stream.removeLast();
+        }}
+        choices={stream.choices}
+        onPick={(w) => {
+          // ไม่บันทึกตัวคำ (เหมือนการแปลประโยค)
+          logEvent("เลือกคำใกล้เคียง");
+          stream.pickCandidate(w);
         }}
         onCommit={() => {
           logEvent("กดจบประโยค");

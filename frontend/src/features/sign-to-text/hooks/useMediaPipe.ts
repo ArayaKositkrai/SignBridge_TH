@@ -6,15 +6,19 @@ import type { LandmarkFrame } from "../../../types";
 // สถานะการโหลดโมเดล
 export type ModelStatus = "idle" | "loading" | "ready" | "error";
 
-// ค่าที่ hook รับ: ตัว <video> และเปิดใช้งานหรือไม่
+// ค่าที่ hook รับ: ตัว <video> เปิดใช้งานหรือไม่ และโหมดเร็ว (ย่อภาพก่อนตรวจ + หามือเพิ่มเฉพาะมือที่ยก ใช้ตอนแปลสด)
 interface Options {
   videoRef: RefObject<HTMLVideoElement>;
   active: boolean;
+  fast?: boolean;
 }
+
+// โหมดเร็ว: ย่อภาพให้กว้างไม่เกินเท่านี้ก่อนส่งให้ MediaPipe (ภาพ 1280 px ส่งเข้า GPU ช้า ส่วนโมเดลใช้ภาพเล็กกว่านี้อยู่แล้ว)
+const FAST_MAX_WIDTH = 640;
 
 // hook ตรวจจับท่าทางจากวิดีโอทุกเฟรม เก็บผลล่าสุดไว้ใน ref (ไม่ทำให้หน้ารีเรนเดอร์ถี่)
 //   frameRef = ผลดิบ (ส่งให้โมเดลจดจำ เหมือนข้อมูลตอนเทรน) / displayRef = ผลที่กรองให้นิ่งแล้ว (ไว้วาดทับภาพ)
-export function useMediaPipe({ videoRef, active }: Options) {
+export function useMediaPipe({ videoRef, active, fast = false }: Options) {
   const frameRef = useRef<LandmarkFrame | null>(null);
   const displayRef = useRef<LandmarkFrame | null>(null);
   const smootherRef = useRef(new FrameSmoother());
@@ -44,6 +48,9 @@ export function useMediaPipe({ videoRef, active }: Options) {
     let fpsStart = performance.now();
     let lastHands = false;
     let lastBody = false;
+    // ผืนภาพสำหรับย่อเฟรม (โหมดเร็ว)
+    const canvas = fast ? document.createElement("canvas") : null;
+    const ctx = canvas?.getContext("2d", { alpha: false, desynchronized: true }) ?? null;
 
     setStatus("loading");
     loadHolistic()
@@ -57,7 +64,15 @@ export function useMediaPipe({ videoRef, active }: Options) {
           if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
             lastVideoTime = video.currentTime;
             try {
-              const frame = detect(landmarker, video, performance.now());
+              let source: HTMLVideoElement | HTMLCanvasElement = video;
+              if (canvas && ctx && video.videoWidth > FAST_MAX_WIDTH) {
+                const w = FAST_MAX_WIDTH;
+                const h = Math.round((video.videoHeight / video.videoWidth) * w);
+                if (canvas.width !== w || canvas.height !== h) [canvas.width, canvas.height] = [w, h];
+                ctx.drawImage(video, 0, 0, w, h);
+                source = canvas;
+              }
+              const frame = detect(landmarker, source, performance.now(), { fillOnlyRaised: fast });
               frameRef.current = frame;
               displayRef.current = smootherRef.current.apply(frame, performance.now());
               frameIdRef.current += 1;
@@ -88,7 +103,7 @@ export function useMediaPipe({ videoRef, active }: Options) {
       frameRef.current = null;
       displayRef.current = null;
     };
-  }, [active, videoRef]);
+  }, [active, videoRef, fast]);
 
   return { frameRef, displayRef, frameIdRef, status, handsVisible, bodyVisible, fps };
 }

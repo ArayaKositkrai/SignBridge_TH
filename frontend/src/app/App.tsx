@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import PageLayout from "../components/layout/PageLayout";
 import TrainingProgress from "../features/admin/components/TrainingProgress";
 import { logEvent } from "../lib/activityLog";
+import { apiGet } from "../lib/apiClient";
+import { loadHolistic } from "../lib/mediapipe/holistic";
 import AppRoutes from "./routes";
 
 // ชื่อหน้าภาษาไทยตามพาธ (ใช้บันทึก log การเปิดหน้า)
@@ -26,6 +28,24 @@ const pageName = (path: string) => PAGE_NAMES.find(([p]) => path === p || path.s
 // แอปหลัก: ครอบทุกหน้าด้วยโครงหน้า (header + เมนู) และบันทึก log ทุกครั้งที่เปิดหน้า
 export default function App() {
   const { pathname } = useLocation();
+
+  // เปิดเว็บแล้วปลุก backend และให้โหลดโมเดลแปลภาษามือรอไว้ (ทุกหน้า เบา ๆ แค่คำขอเดียว)
+  useEffect(() => {
+    apiGet("/api/sign-to-text/warmup").catch(() => {});
+  }, []);
+
+  // โหลด MediaPipe (~30 MB) รอไว้ตอนเครื่องว่าง เฉพาะหน้าภาษามือ → ข้อความ (หน้าอื่นไม่ใช้ ไม่ต้องเปลืองเน็ต/การ์ดจอ)
+  const onSignPage = pathname === "/";
+  useEffect(() => {
+    if (!onSignPage) return;
+    const preload = () => loadHolistic().catch(() => {});
+    const idle = window.requestIdleCallback?.(preload, { timeout: 3000 });
+    const timer = idle === undefined ? window.setTimeout(preload, 1500) : undefined;
+    return () => {
+      if (idle !== undefined) window.cancelIdleCallback?.(idle);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [onSignPage]);
 
   // บันทึกการเปิดหน้า
   useEffect(() => {

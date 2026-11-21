@@ -3,6 +3,7 @@ import Card from "../../../components/ui/Card";
 import Chip from "../../../components/ui/Chip";
 import Icon from "../../../components/ui/Icon";
 import type { SignResult, SocketStatus } from "../../../types";
+import type { Choices } from "../hooks/useSignStream";
 
 // ค่าที่แผงผลลัพธ์รับ
 interface Props {
@@ -18,6 +19,10 @@ interface Props {
   onClear: () => void;
   // ลบคำล่าสุดออกจากประโยค (ระบบจับผิด)
   onRemoveLast: () => void;
+  // กดเลือกคำใกล้เคียง (ระบบขึ้นคำผิด แต่คำที่ถูกอยู่ใน 3 อันดับแรก)
+  onPick: (word: string) => void;
+  // คำใกล้เคียงของคำล่าสุดที่ค้างไว้ให้เลือก (มีค่า = แสดงแทนคำใกล้เคียงสด)
+  choices: Choices | null;
 }
 
 // ข้อความบอกสถานะการเชื่อมต่อ backend
@@ -99,15 +104,31 @@ export default function ResultPanel(p: Props) {
         </div>
 
         <div className="mt-3 flex min-h-[2rem] flex-wrap items-center gap-2 border-t border-sky/60 pt-3">
-          <span className="text-xs text-ink/55">ใกล้เคียง</span>
-          {p.result?.candidates.length ? (
-            p.result.candidates.map((c) => (
-              <Chip key={c.text} disabled className="!opacity-100">
-                {c.text}
-              </Chip>
-            ))
+          {p.choices ? (
+            <>
+              <span className="text-xs text-ink/55">
+                ไม่ใช่ "<b className="text-navy">{p.choices.word}</b>"? แตะเพื่อเปลี่ยน
+              </span>
+              {p.choices.options.map((w) => (
+                <Chip key={`${p.choices!.word}-${w}`} onClick={() => p.onPick(w)} title={`เปลี่ยนเป็น "${w}"`}>
+                  {w}
+                </Chip>
+              ))}
+            </>
+          ) : p.result?.candidates.length ? (
+            <>
+              <span className="text-xs text-ink/55">ใกล้เคียง (แตะเพื่อเลือก)</span>
+              {p.result.candidates.slice(0, 3).map((c) => (
+                <Chip key={c.text} onClick={() => p.onPick(c.text)} title={`ใช้คำว่า "${c.text}"`}>
+                  {c.text}
+                </Chip>
+              ))}
+            </>
           ) : (
-            <span className="text-sm text-ink/35">–</span>
+            <>
+              <span className="text-xs text-ink/55">ใกล้เคียง</span>
+              <span className="text-sm text-ink/35">–</span>
+            </>
           )}
         </div>
 

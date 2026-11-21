@@ -8,8 +8,8 @@ import { TARGET_SAMPLES } from "./constants";
 import { useContributor } from "./context";
 import type { VocabEntry } from "./services/contributorApi";
 
-// กลุ่มคำที่ดู: ต้องอัดเอง / ควรอัดเพิ่ม / อยู่ในโมเดล / อัดแล้ว / ทั้งหมด
-type Tab = "plan" | "weak" | "model" | "recorded" | "all";
+// กลุ่มคำที่ดู: ทั้งหมด / ควรอัดเพิ่ม / อยู่ในโมเดล / อัดแล้ว
+type Tab = "all" | "weak" | "model" | "recorded";
 
 // วิธีเรียงคำในคลัง
 type SortKey = "need" | "accuracy" | "samples" | "updated" | "word";
@@ -19,11 +19,10 @@ const acc = (v: VocabEntry) => (v.model?.active.included ? v.model.active.accura
 
 // ตัวเลือกกลุ่มคำ ("ควรอัดเพิ่ม" = อยู่ในโมเดลแต่ทายถูกไม่ถึง 70%)
 const TABS: { value: Tab; label: string; test: (v: VocabEntry) => boolean }[] = [
-  { value: "plan", label: "ต้องอัดเอง", test: (v) => v.to_record },
+  { value: "all", label: "ทั้งหมด", test: () => true },
   { value: "weak", label: "ควรอัดเพิ่ม (แม่นต่ำ)", test: (v) => (acc(v) ?? 1) < 0.7 },
   { value: "model", label: "อยู่ในโมเดล", test: (v) => !!v.model?.active.included || !!v.model?.draft.included },
   { value: "recorded", label: "อัดแล้ว", test: (v) => !!v.data?.samples },
-  { value: "all", label: "ทั้งหมด", test: () => true },
 ];
 
 // ตัวเลือกการเรียง
@@ -56,7 +55,7 @@ const SORTERS: Record<SortKey, (a: VocabEntry, b: VocabEntry) => number> = {
 // คลังคำศัพท์: คำที่ต้องอัด คำจากชุดข้อมูล TSL และคำที่อัดแล้ว พร้อมสถิติและปุ่มไปอัด
 export default function LibraryView() {
   const { vocab, models } = useContributor();
-  const [tab, setTab] = useState<Tab>("plan");
+  const [tab, setTab] = useState<Tab>("all");
   const [category, setCategory] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("need");
@@ -73,16 +72,12 @@ export default function LibraryView() {
       .sort(SORTERS[sort]);
   }, [inTab, category, query, sort]);
 
-  const plan = vocab.filter((v) => v.to_record);
-  const planDone = plan.filter((v) => n(v) >= TARGET_SAMPLES).length;
-
   return (
-    <Card title={`คลังคำศัพท์ · ${vocab.length} คำ · คำที่ต้องอัดครบแล้ว ${planDone}/${plan.length}`} className="min-w-0">
+    <Card title={`คลังคำศัพท์ · ${vocab.length} คำ`} className="min-w-0">
       {/* โมเดลที่ใช้งานอยู่ */}
       {models?.active.label && (
         <p className="mb-3 text-sm text-ink/70">
           โมเดลที่ใช้งาน <b className="text-navy">{models.active.label}</b> รู้จัก {models.active.word_count} คำ
-          {models.active.val_accuracy != null && <> · ทดสอบกับคนใหม่ทายถูก {Math.round(models.active.val_accuracy * 100)}%</>}
           {models.draft.label && (
             <>
               {" "}· มี Draft <b className="text-navy">{models.draft.label}</b> รอทดสอบ
