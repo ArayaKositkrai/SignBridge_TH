@@ -39,6 +39,12 @@ LOW_PROB: float | None = 0.25
 MARGIN_RATIO = 3.0
 # คำที่ผ่านด้วยเกณฑ์ผ่อน ต้องชนะติดกันกี่รอบ (มากกว่า WORD_HOLD กันคำแทรกตอนเปลี่ยนท่า)
 LEAD_HOLD = 3
+# มั่นใจสูงถึงเท่านี้ ขึ้นคำได้ทันทีในรอบเดียว ไม่ต้องรอให้ชนะติดกัน (ลดเวลารอคำที่ทำชัด ๆ)
+STRONG_PROB = 0.7
+# ลดมือลง (จบท่า) ตอนที่มีคำกำลังดูอยู่: ถ้ามั่นใจถึงเท่านี้และนำอันดับ 2 อย่างน้อย FLUSH_RATIO เท่า ให้ขึ้นคำนั้นเลย
+#   เดิมลดมือแล้วคำที่ยังนับไม่ครบถูกทิ้ง ผู้ใช้ต้องทำท่าค้างนานกว่าจะขึ้นคำ
+FLUSH_PROB = 0.35
+FLUSH_RATIO = 2.0
 # ความมั่นใจขั้นต่ำที่จะแสดงเป็น "กำลังดูท่า…" (ยังไม่นับเป็นคำ)
 SHOW_PROB = 0.3
 # ชื่อคลาสของการไม่ทำท่า (ไม่แสดงเป็นคำ)
@@ -71,6 +77,8 @@ class Recognizer:
         self.avg: np.ndarray | None = None
         self.candidate: int | None = None
         self.hits = 0
+        # ค่าเฉลี่ยความน่าจะเป็น ณ รอบทายล่าสุดที่ยังเห็นมือ (ใช้ขึ้นคำตอนลดมือ ก่อนค่าเฉลี่ยไหลไปทาง "ไม่ทำท่า")
+        self.hand_avg: np.ndarray | None = None
 
     # รับ landmarks หนึ่งเฟรม คืนผลล่าสุด (คำที่กำลังดู ความมั่นใจ คำใกล้เคียง เวอร์ชันโมเดล และ word เมื่อได้คำใหม่)
     def push(self, ts: float, pose: list, left_hand: list, right_hand: list, aspect: float, face: list | None = None) -> dict:
@@ -83,10 +91,11 @@ class Recognizer:
         if hands:
             self.last_hands = ts
         elif ts - self.last_hands > HANDS_GONE_MS:
+            flushed = self._flush(model, ts)
             self.frames.clear()
             self._reset_votes()
             self.result = EMPTY
-            return {**EMPTY, "model": model.version}
+            return {**(flushed or EMPTY), "model": model.version}
 
         F = features()
         self.frames.append((ts, F.from_mediapipe(pose, left_hand, right_hand), F.face_from_mediapipe(face)))
@@ -98,7 +107,31 @@ class Recognizer:
             return {**self.result, "word": None, "model": model.version}
         self.last_predict = ts
         self.result = self._predict(model, ts, aspect)
+        if hands and self.avg is not None:
+            self.hand_avg = self.avg.copy()
         return {**self.result, "model": model.version}
+
+    # ลดมือแล้ว: คำที่กำลังดูอยู่และมั่นใจพอ ให้ขึ้นเป็นคำเลย (คืน None ถ้าไม่มีคำที่ควรขึ้น)
+    def _flush(self, model, ts: float) -> dict | None:
+        avg = self.hand_avg
+        if avg is None:
+            return None
+        labels = model.labels
+        null = labels.index(NULL_LABEL) if NULL_LABEL in labels else None
+        order = [int(i) for i in np.argsort(avg)[::-1] if i != null]
+        if not order or (null is not None and int(np.argmax(avg)) == null):
+            return None
+        top = order[0]
+        second = float(avg[order[1]]) if len(order) > 1 else 0.0
+        if avg[top] < FLUSH_PROB or avg[top] < FLUSH_RATIO * second:
+            return None
+        word = labels[top]
+        # คำเดียวกับคำล่าสุดไม่ขึ้นซ้ำตอนลดมือ (มักเป็นท่าค้างของคำที่เพิ่งขึ้นไป) — ทำคำซ้ำจริงยังขึ้นได้ทางปกติ
+        if self.last_word[0] == word:
+            return None
+        self.last_word = (word, ts)
+        candidates = [{"text": labels[i], "confidence": round(float(avg[i]), 2)} for i in order[1:4]]
+        return {"text": word, "confidence": round(float(avg[top]), 2), "candidates": candidates, "word": word, "pending": False}
 
     # ทายจากหลายความยาวหน้าต่าง → เลือกหน้าต่างที่มั่นใจคำที่สุด → เฉลี่ยข้ามรอบ → ตัดสินว่าได้คำหรือยัง
     def _predict(self, model, ts: float, aspect: float) -> dict:
@@ -140,7 +173,7 @@ class Recognizer:
         self.hits = self.hits + 1 if self.candidate == top else 1
         self.candidate = top
         word = labels[top]
-        need = WORD_HOLD if avg[top] >= word_prob else LEAD_HOLD
+        need = 1 if avg[top] >= max(STRONG_PROB, word_prob) else WORD_HOLD if avg[top] >= word_prob else LEAD_HOLD
         result = {"text": word, "confidence": round(float(avg[top]), 2), "candidates": candidates[1:4], "word": None,
                   "pending": self.hits < need}
         if self.hits < need:

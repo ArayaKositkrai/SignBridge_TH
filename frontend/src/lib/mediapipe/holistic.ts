@@ -11,12 +11,19 @@ export interface Landmarkers {
 // เก็บโมเดลที่โหลดแล้ว จะได้โหลดแค่ครั้งเดียว
 let landmarkerPromise: Promise<Landmarkers> | null = null;
 
-// สร้างโมเดลโดยลองใช้ GPU ก่อน ถ้าไม่ได้ใช้ CPU
-async function withDelegate<T>(make: (delegate: "GPU" | "CPU") => Promise<T>): Promise<T> {
+// ตัวประมวลผลที่ Holistic ใช้จริง (CPU = การ์ดจอใช้ไม่ได้ จะช้ากว่ามาก)
+export let holisticDelegate: "GPU" | "CPU" | null = null;
+
+// สร้างโมเดลโดยลองใช้ GPU ก่อน ถ้าไม่ได้ใช้ CPU (onUse = แจ้งว่าใช้ตัวไหน)
+async function withDelegate<T>(make: (delegate: "GPU" | "CPU") => Promise<T>, onUse?: (d: "GPU" | "CPU") => void): Promise<T> {
   try {
-    return await make("GPU");
+    const out = await make("GPU");
+    onUse?.("GPU");
+    return out;
   } catch {
-    return await make("CPU");
+    const out = await make("CPU");
+    onUse?.("CPU");
+    return out;
   }
 }
 
@@ -35,6 +42,10 @@ export function loadHolistic(): Promise<Landmarkers> {
             // มือที่ความมั่นใจต่ำ (มักเป็นมือที่ห้อยอยู่ขอบภาพ) ไม่นับ
             minHandLandmarksConfidence: 0.6,
           }),
+          (d) => {
+            holisticDelegate = d;
+            if (d === "CPU") console.warn("MediaPipe Holistic ใช้ GPU ไม่ได้ ตกไปใช้ CPU (ประมวลผลช้า)");
+          },
         ),
         withDelegate((delegate) =>
           HandLandmarker.createFromOptions(fileset, {
@@ -158,8 +169,29 @@ function dropHiddenHands(frame: LandmarkFrame): void {
   if (visibilityOf(frame.pose[POSE_R_WRIST]) < WRIST_MIN_VISIBILITY) frame.rightHand = [];
 }
 
+// จุดสะโพกใน pose ของ MediaPipe (ใช้ดูว่ามือยกขึ้นมาทำท่าหรือห้อยอยู่)
+const POSE_L_HIP = 23;
+const POSE_R_HIP = 24;
+
+// ข้อมือข้างนี้ยกขึ้นเหนือสะโพก (กำลังทำท่า) ไหม — มือที่ห้อยข้างตัวไม่ต้องเสียเวลาหาเพิ่ม
+function wristRaised(pose: Point[], wrist: number): boolean {
+  if (pose.length <= POSE_R_HIP) return true;
+  return pose[wrist].y < (pose[POSE_L_HIP].y + pose[POSE_R_HIP].y) / 2;
+}
+
+// ตัวเลือกการตรวจจับ: fillOnlyRaised = หามือเพิ่มเฉพาะข้างที่ยกมือขึ้นมา (ประหยัดเวลา ใช้ตอนแปลสด)
+export interface DetectOptions {
+  fillOnlyRaised?: boolean;
+}
+
 // ตรวจจับท่าทางจากเฟรมวิดีโอหนึ่งเฟรม (เรียก HandLandmarker เฉพาะตอนมือหายไปข้างใดข้างหนึ่ง)
-export function detect(models: Landmarkers, video: HTMLVideoElement, timestampMs: number): LandmarkFrame {
+//   source = วิดีโอ หรือภาพที่ย่อจากวิดีโอแล้ว (พิกัดที่ได้เป็นสัดส่วน 0-1 เหมือนกัน)
+export function detect(
+  models: Landmarkers,
+  video: HTMLVideoElement | HTMLCanvasElement,
+  timestampMs: number,
+  options: DetectOptions = {},
+): LandmarkFrame {
   lastTimestamp = Math.max(timestampMs, lastTimestamp + 1);
   const r = models.holistic.detectForVideo(video, lastTimestamp);
   const frame: LandmarkFrame = {
@@ -173,8 +205,10 @@ export function detect(models: Landmarkers, video: HTMLVideoElement, timestampMs
   //   ประหยัดเวลาประมวลผลเกือบครึ่งต่อเฟรมบนโน้ตบุ๊ก = ได้เฟรมต่อวินาทีมากขึ้น จับท่าที่ทำเร็วได้ดีขึ้น)
   const wantFill =
     frame.pose.length > POSE_R_WRIST &&
-    ((!frame.leftHand.length && visibilityOf(frame.pose[POSE_L_WRIST]) >= FILL_MIN_VISIBILITY) ||
-      (!frame.rightHand.length && visibilityOf(frame.pose[POSE_R_WRIST]) >= FILL_MIN_VISIBILITY));
+    ((!frame.leftHand.length && visibilityOf(frame.pose[POSE_L_WRIST]) >= FILL_MIN_VISIBILITY &&
+      (!options.fillOnlyRaised || wristRaised(frame.pose, POSE_L_WRIST))) ||
+      (!frame.rightHand.length && visibilityOf(frame.pose[POSE_R_WRIST]) >= FILL_MIN_VISIBILITY &&
+        (!options.fillOnlyRaised || wristRaised(frame.pose, POSE_R_WRIST))));
   if (models.hands && wantFill) {
     lastHandTimestamp = Math.max(timestampMs, lastHandTimestamp + 1);
     const h = models.hands.detectForVideo(video, lastHandTimestamp);

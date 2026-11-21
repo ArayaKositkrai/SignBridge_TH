@@ -9,6 +9,8 @@
     threshold_curve                      ผลของแต่ละเกณฑ์ (ไว้วาดกราฟ)
     null_false_alarm                     ตอนไม่ได้ทำท่า ระบบพูดเป็นคำกี่ % (ที่เกณฑ์ที่เลือก) — None ถ้าไม่มีคลาส "ไม่ทำท่า"
     word_dropped                         ตอนทำท่าจริง ระบบไม่พูดอะไรกี่ % (ทายเป็น "ไม่ทำท่า" หรือมั่นใจไม่ถึงเกณฑ์)
+    false_alarm_words                    ตอนไม่ได้ทำท่า คำไหนเผลอขึ้นมาบ่อยที่สุด (ที่เกณฑ์ที่เลือก)
+    dropped_words                        ต่อคำ: ทำท่าคำนี้แล้วระบบเงียบ (ไม่ขึ้นคำ) กี่ครั้ง / กี่ %
     confidence                           ฮิสโตแกรมความมั่นใจของคำที่ทาย แยกตอนทายถูก/ผิด
 """
 import numpy as np
@@ -52,6 +54,34 @@ def _at_threshold(probs: np.ndarray, y: np.ndarray, null: int | None, t: float) 
         "null_false_alarm": float(spoken[~is_word].mean()) if (~is_word).any() else None,
         "word_dropped": float((~spoken[is_word]).mean()) if is_word.any() else None,
     }
+
+
+# แยกรายคำ ณ เกณฑ์ t: คำที่เผลอขึ้นตอนไม่ได้ทำท่า และคำที่ทำท่าแล้วระบบเงียบ (เรียงจากบ่อยสุด)
+def _silence_breakdown(probs: np.ndarray, y: np.ndarray, labels: list[str], null: int | None, t: float) -> tuple[list, list]:
+    pred = probs.argmax(1)
+    conf = probs[np.arange(len(probs)), pred]
+    spoken = conf >= t
+    if null is not None:
+        spoken &= pred != null
+    is_word = y != null if null is not None else np.ones(len(y), bool)
+
+    false_alarm = []
+    idle = ~is_word
+    if idle.any():
+        hits = pred[idle & spoken]
+        for c in np.unique(hits):
+            cnt = int((hits == c).sum())
+            false_alarm.append({"word": labels[c], "count": cnt, "rate": _r(cnt / idle.sum(), 3)})
+        false_alarm.sort(key=lambda r: -r["count"])
+
+    dropped = []
+    for c in np.unique(y[is_word]):
+        mask = y == c
+        cnt = int((mask & ~spoken).sum())
+        if cnt:
+            dropped.append({"word": labels[c], "count": cnt, "clips": int(mask.sum()), "rate": _r(cnt / mask.sum(), 3)})
+    dropped.sort(key=lambda r: (-r["rate"], -r["count"]))
+    return false_alarm, dropped
 
 
 # ตัวชี้วัดทั้งหมดจากความน่าจะเป็น probs (N, C) ป้ายจริง y (N,) และรายชื่อคลาส labels
@@ -100,6 +130,8 @@ def compute(probs: np.ndarray, y: np.ndarray, labels: list[str]) -> dict:
     threshold = best["threshold"] if best and best["f1"] > 0 else DEFAULT_THRESHOLD
     chosen = next((c for c in curve if c["threshold"] == threshold), None) or _at_threshold(probs, y, null, threshold)
 
+    false_alarm_words, dropped_words = _silence_breakdown(probs, y, labels, null, threshold)
+
     # ฮิสโตแกรมความมั่นใจของคำอันดับ 1 แยกถูก/ผิด
     conf = probs[np.arange(n), pred]
     bins = np.minimum((conf * CONF_BINS).astype(int), CONF_BINS - 1)
@@ -123,6 +155,8 @@ def compute(probs: np.ndarray, y: np.ndarray, labels: list[str]) -> dict:
         "threshold_curve": [{k: _r(v) for k, v in c.items()} for c in curve],
         "null_false_alarm": _r(chosen["null_false_alarm"]),
         "word_dropped": _r(chosen["word_dropped"]),
+        "false_alarm_words": false_alarm_words,
+        "dropped_words": dropped_words,
         "has_null_class": null is not None and bool((y == null).any()),
         "confidence": confidence,
     }

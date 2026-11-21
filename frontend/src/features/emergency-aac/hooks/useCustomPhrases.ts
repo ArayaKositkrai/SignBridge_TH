@@ -22,7 +22,7 @@ export function useCustomPhrases(userId: string | null) {
     let cancelled = false;
     fetchCustomPhrases()
       .then((p) => !cancelled && setPhrases(p))
-      .catch(() => !cancelled && setError("โหลดปุ่มที่บันทึกไว้ไม่ได้ (เชื่อมต่อ backend ไม่ได้)"));
+      .catch(() => !cancelled && setError("โหลดปุ่มที่บันทึกไว้ไม่ได้ (เชื่อมต่อเซิร์ฟเวอร์ไม่ได้)"));
     return () => {
       cancelled = true;
     };
@@ -36,7 +36,7 @@ export function useCustomPhrases(userId: string | null) {
       setError(null);
       return true;
     } catch {
-      setError("บันทึกไม่สำเร็จ (อาจเชื่อมต่อ backend ไม่ได้ หรือเพิ่มครบ 30 คำแล้ว)");
+      setError("บันทึกไม่สำเร็จ (อาจเชื่อมต่อเซิร์ฟเวอร์ไม่ได้ หรือเพิ่มครบ 30 คำแล้ว)");
       return false;
     }
   }, []);

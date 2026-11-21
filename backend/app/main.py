@@ -1,3 +1,6 @@
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,8 +13,24 @@ from app.db.schema import ensure_schema
 from app.db.session import ping
 from app.services import activity_log
 
+
+# โหลดโมเดลแปลภาษามือ (ทำใน thread แยก ไม่ให้เซิร์ฟเวอร์รอ) ไม่สำเร็จก็ไม่เป็นไร เดี๋ยวโหลดตอนมีคนใช้แทน
+def _warm_model() -> None:
+    try:
+        sign_to_text.warm_model()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# ตอนเซิร์ฟเวอร์เริ่มทำงานจริง (ครั้งเดียวต่อ worker ไม่ใช่ตอน import) ให้โหลดโมเดลรอไว้ในพื้นหลัง
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    threading.Thread(target=_warm_model, daemon=True).start()
+    yield
+
+
 # สร้างแอป FastAPI หลักของ backend
-app = FastAPI(title="SignBridge TH API")
+app = FastAPI(title="SignBridge TH API", lifespan=lifespan)
 
 # อนุญาตให้หน้าเว็บเรียก API ได้ (ดู app/core/cors.py) และส่ง cookie session มาด้วย
 app.add_middleware(
@@ -41,6 +60,7 @@ try:
     activity_log.prune()
 except Exception:  # noqa: BLE001 — log เสียต้องไม่ทำให้เซิร์ฟเวอร์เปิดไม่ได้
     pass
+
 
 # method ที่ไม่บันทึก (อ่านข้อมูลเฉย ๆ หรือคำขอเช็ก CORS)
 SKIP_LOG_METHODS = {"GET", "HEAD", "OPTIONS"}
