@@ -1,6 +1,9 @@
+import inspect
+
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute
 
 from app.api.deps import current_user
 from app.api.routes import emergency, sign_to_text, text_to_sign
@@ -11,7 +14,21 @@ from app.db.session import ping
 from app.services import activity_log
 
 # สร้างแอป FastAPI หลักของ backend
-app = FastAPI(title="SignBridge TH API")
+# หน้า Swagger: http://localhost:8000/docs
+app = FastAPI(
+    title="SignBridge TH API",
+    description="API ของ SignBridge TH (ภาษามือไทย) — API ที่ต้องล็อกอินใช้ cookie session: "
+    "ล็อกอินที่หน้าเว็บก่อน แล้วเปิดหน้านี้ในเบราว์เซอร์เดียวกัน",
+    openapi_tags=[
+        {"name": "auth", "description": "สมัคร ล็อกอิน ออกจากระบบ และเชื่อมบัญชี Google/LINE"},
+        {"name": "profile", "description": "โปรไฟล์ของตัวเอง รหัสผ่าน บัญชีที่เชื่อม และลบบัญชี"},
+        {"name": "text-to-sign", "description": "แปลงข้อความเป็นท่าภาษามือ"},
+        {"name": "emergency", "description": "ปุ่มสื่อสารฉุกเฉิน"},
+        {"name": "contributor", "description": "อัดและจัดการคลิปภาษามือ (ล่าม/ผู้ร่วมอัด)"},
+        {"name": "admin", "description": "จัดการผู้ใช้ คำศัพท์ โมเดล (เฉพาะแอดมิน)"},
+        {"name": "logs", "description": "บันทึกการใช้งาน"},
+    ],
+)
 
 # อนุญาตให้หน้าเว็บเรียก API ได้ (ดู app/core/cors.py) และส่ง cookie session มาด้วย
 app.add_middleware(
@@ -88,3 +105,12 @@ def root():
 @app.get("/api/health")
 def health():
     return {"status": "ok", "database": "ok" if ping() else "down"}
+
+
+# ใช้คอมเมนต์ภาษาไทยเหนือแต่ละ route เป็นคำอธิบายในหน้า Swagger (ไม่ต้องเขียนซ้ำ)
+for _route in app.routes:
+    if isinstance(_route, APIRoute) and not _route.summary:
+        _lines = [line.lstrip("# ").rstrip() for line in (inspect.getcomments(_route.endpoint) or "").splitlines()]
+        if _lines:
+            _route.summary = _lines[0]
+            _route.description = _route.description or "\n\n".join(_lines[1:])

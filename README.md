@@ -54,6 +54,7 @@ docker compose up --build
 
 - หน้าเว็บ: http://localhost:5173
 - API: http://localhost:8000 (ตรวจสถานะ: http://localhost:8000/api/health)
+- เอกสาร API (Swagger): http://localhost:8000/docs (ดูหัวข้อ "เอกสาร API (Swagger)" ด้านล่าง)
 - แก้โค้ดแล้วรีโหลดเองทั้งสองฝั่ง (โฟลเดอร์ `backend/app`, `frontend/`, `ml/` ถูก mount เข้า container)
 
 ### 3. รันแบบไม่ใช้ Docker
@@ -76,6 +77,20 @@ npm install
 npm run dev                       # http://localhost:5173
 npm run build                     # ตรวจ type + build สำหรับขึ้นเซิร์ฟเวอร์
 ```
+
+### เอกสาร API (Swagger)
+
+เปิด backend ก่อน (Docker หรือ `uvicorn` ข้างบน) แล้วเข้า
+
+| หน้า | ใช้ทำอะไร |
+|---|---|
+| http://localhost:8000/docs | Swagger UI ดูรายการ API ทั้งหมด กด **Try it out** → **Execute** เพื่อลองยิงได้เลย |
+| http://localhost:8000/redoc | เอกสารแบบอ่านอย่างเดียว (ReDoc) |
+| http://localhost:8000/openapi.json | ไฟล์ OpenAPI ไว้ import เข้า Postman / Insomnia |
+
+- คำอธิบายภาษาไทยของแต่ละ API ดึงมาจากคอมเมนต์ `#` เหนือฟังก์ชัน route อัตโนมัติ (ดู `backend/app/main.py`) เพิ่ม route ใหม่ให้เขียนคอมเมนต์ไว้บรรทัดบนเสมอ
+- API ที่ต้องล็อกอินใช้ cookie session: ล็อกอินที่หน้าเว็บ http://localhost:5173 ก่อน แล้วเปิด `/docs` ในเบราว์เซอร์เดียวกัน cookie จะติดไปเอง (หรือยิง `POST /api/auth/login` ในหน้า Swagger ก็ได้)
+- WebSocket แปลภาษามือเป็นข้อความ (`/ws/sign-to-text`) ไม่แสดงใน Swagger
 
 ### 4. ตั้งแอดมินคนแรก
 
