@@ -1,3 +1,7 @@
+import inspect
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,7 +32,7 @@ async def lifespan(_app: FastAPI):
 
 
 # สร้างแอป FastAPI หลักของ backend
-app = FastAPI(title="SignBridge TH API")
+app = FastAPI(title="SignBridge TH API", lifespan=lifespan)
 
 # อนุญาตให้หน้าเว็บเรียก API ได้ (ดู app/core/cors.py) และส่ง cookie session มาด้วย
 app.add_middleware(
