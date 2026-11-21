@@ -45,8 +45,8 @@ export async function cardImageUrl(): Promise<string> {
 }
 
 // เปลี่ยน/ตั้งรหัสผ่าน
-export const changePassword = (currentPassword: string | null, newPassword: string) =>
-  send<{ message: string }>(`${BASE}/password`, json("POST", { current_password: currentPassword, new_password: newPassword }));
+export const changePassword = (currentPassword: string | null, newPassword: string, email?: string) =>
+  send<{ message: string }>(`${BASE}/password`, json("POST", { current_password: currentPassword, new_password: newPassword, email }));
 
 // เลิกเชื่อมบัญชี Google/LINE
 export const unlinkProvider = (provider: Provider) =>

@@ -78,7 +78,7 @@ export default function ProfilePage() {
         <PersonalCard profile={profile} onSaved={applyProfile} />
         {/* บัตรคนพิการเก็บเฉพาะผู้ใช้ทั่วไป (ล่าม/แอดมินไม่ต้องใช้) */}
         {profile.role === "user" && <DisabilityCard profile={profile} onSaved={applyProfile} />}
-        <SecurityCard profile={profile} />
+        <SecurityCard profile={profile} onSaved={applyProfile} />
         <AccountsCard profile={profile} enabled={enabledProviders} onSaved={applyProfile} />
         <DangerCard profile={profile} />
       </div>
@@ -298,7 +298,8 @@ function DisabilityCard({ profile, onSaved }: { profile: Profile; onSaved: (p: P
 }
 
 // การ์ดรหัสผ่าน: เปลี่ยนรหัส (ต้องใส่รหัสเดิม) หรือตั้งรหัสใหม่สำหรับบัญชีที่ใช้ Google/LINE อย่างเดียว
-function SecurityCard({ profile }: { profile: Profile }) {
+function SecurityCard({ profile, onSaved }: { profile: Profile; onSaved: (p: Profile) => void }) {
+  const [email, setEmail] = useState("");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -311,27 +312,30 @@ function SecurityCard({ profile }: { profile: Profile }) {
     e.preventDefault();
     if (mismatch || short || !next) return;
     void run(async () => {
-      await api.changePassword(profile.has_password ? current : null, next);
+      await api.changePassword(profile.has_password ? current : null, next, profile.email ? undefined : email);
+      if (!profile.email) onSaved(await api.getProfile());
       setCurrent("");
       setNext("");
       setConfirm("");
     }, "เปลี่ยนรหัสผ่านแล้ว");
   };
 
-  if (!profile.email) return null;
   return (
     <Card title={profile.has_password ? "เปลี่ยนรหัสผ่าน" : "ตั้งรหัสผ่าน"}>
       {!profile.has_password && (
         <p className="mb-3 text-sm text-ink/70">ตอนนี้คุณเข้าสู่ระบบด้วยบัญชีภายนอกอย่างเดียว ตั้งรหัสผ่านไว้เพื่อเข้าด้วยอีเมลได้ด้วย</p>
       )}
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-3">
+        {!profile.email && (
+          <Field label="อีเมลที่จะใช้เข้าสู่ระบบ" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+        )}
         {profile.has_password && (
           <Field label="รหัสผ่านปัจจุบัน" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required />
         )}
         <Field label="รหัสผ่านใหม่" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" error={short} />
         <Field label="ยืนยันรหัสผ่านใหม่" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" error={mismatch} />
         <div className="flex items-center gap-3 sm:col-span-3">
-          <Button type="submit" icon="shield" disabled={busy || !next || !confirm || !!mismatch || !!short || (profile.has_password && !current)}>
+          <Button type="submit" icon="shield" disabled={busy || !next || !confirm || !!mismatch || !!short || (profile.has_password && !current) || (!profile.email && !email.trim())}>
             {profile.has_password ? "เปลี่ยนรหัสผ่าน" : "ตั้งรหัสผ่าน"}
           </Button>
           <Status msg={msg} />

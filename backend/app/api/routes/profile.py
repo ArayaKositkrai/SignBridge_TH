@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import SESSION_COOKIE, require_login
 from app.core.rate_limit import limit_auth
@@ -28,6 +29,8 @@ class ProfilePatch(BaseModel):
 class PasswordIn(BaseModel):
     current_password: str | None = Field(default=None, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
+    # บัญชีที่ยังไม่มีอีเมล (เช่นสมัครด้วย LINE) ใส่อีเมลที่จะใช้ล็อกอินมาด้วย
+    email: str | None = Field(default=None, max_length=254)
 
 
 # ยืนยันการลบบัญชี: พิมพ์ข้อความยืนยัน + รหัสผ่าน (ถ้าบัญชีมีรหัสผ่าน)
@@ -104,9 +107,18 @@ def change_password(body: PasswordIn, me: dict = Depends(require_login)):
     with SessionLocal() as db:
         user = db.get(User, me["id"])
         if not user.email:
-            raise HTTPException(status_code=400, detail="บัญชีนี้ไม่มีอีเมล จึงตั้งรหัสผ่านไม่ได้")
+            try:
+                email = user_service.clean_email(body.email)
+            except InvalidField as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            if not email:
+                raise HTTPException(status_code=400, detail="กรุณาใส่อีเมลที่จะใช้เข้าสู่ระบบ")
+            user.email = email
         user.password_hash = auth_service.hash_password(body.new_password)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            raise HTTPException(status_code=409, detail="อีเมลนี้ถูกใช้สมัครแล้ว")
     return {"message": "เปลี่ยนรหัสผ่านแล้ว"}
 
 

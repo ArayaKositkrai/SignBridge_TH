@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import httpx
 import jwt
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import (
@@ -20,7 +20,7 @@ from app.core.config import (
     PUBLIC_API_URL,
     SESSION_DAYS,
 )
-from app.db.models import User, UserIdentity
+from app.db.models import EmergencyPhrase, User, UserIdentity
 from app.db.session import SessionLocal
 from app.services.user_service import mask_card
 
@@ -373,7 +373,18 @@ def link_identity(provider: str, code: str, user_id: str) -> None:
             )
         )
         if identity and identity.user_id != user.id:
-            raise AuthError(f"บัญชี {provider} นี้ผูกกับผู้ใช้อื่นอยู่แล้ว", 409)
+            other = db.get(User, identity.user_id)
+            other_ids = db.scalars(select(UserIdentity.id).where(UserIdentity.user_id == other.id)).all()
+            # บัญชีอื่นที่เข้าได้ด้วยบัญชีนี้ทางเดียว (เช่นเคยล็อกอิน LINE ก่อนสมัครอีเมล) = เจ้าของคนเดียวกัน
+            #   ย้ายบัญชีที่ผูก + ปุ่มฉุกเฉินมาไว้ที่ผู้ใช้นี้ (บัญชีเก่ายังอยู่ แต่เข้าสู่ระบบไม่ได้แล้ว)
+            if other.password_hash or len(other_ids) > 1 or other.role != "user":
+                raise AuthError(f"บัญชี {provider} นี้ผูกกับผู้ใช้อื่นอยู่แล้ว", 409)
+            if db.scalar(
+                select(UserIdentity.id).where(UserIdentity.user_id == user.id, UserIdentity.provider == provider)
+            ):
+                raise AuthError(f"ผูกบัญชี {provider} อื่นไว้แล้ว", 409)
+            identity.user_id = user.id
+            db.execute(update(EmergencyPhrase).where(EmergencyPhrase.user_id == other.id).values(user_id=user.id))
         if identity is None:
             if db.scalar(
                 select(UserIdentity.id).where(UserIdentity.user_id == user.id, UserIdentity.provider == provider)
