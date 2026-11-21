@@ -1,13 +1,18 @@
-// ชื่อโฮสต์ปัจจุบัน ใช้สร้างที่อยู่ backend อัตโนมัติเมื่อไม่ได้ตั้ง env
-const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+// ที่อยู่หน้าเว็บปัจจุบัน ใช้สร้างที่อยู่ backend อัตโนมัติเมื่อไม่ได้ตั้ง env
+const loc = typeof window !== "undefined" ? window.location : undefined;
+const host = loc?.hostname ?? "localhost";
+// build จริง (npm run build) ที่ไม่ได้ตั้ง env = backend เสิร์ฟหน้าเว็บเอง อยู่โดเมนเดียวกัน (https → wss)
+//   ตอนพัฒนา (npm run dev) = backend อยู่พอร์ต 8000 ของเครื่องเดียวกันเหมือนเดิม
+const sameOrigin = import.meta.env.PROD && loc !== undefined;
 
 // ที่อยู่ REST API ของ backend
 export const API_URL: string =
-  import.meta.env.VITE_API_URL ?? `http://${host}:8000`;
+  import.meta.env.VITE_API_URL ?? (sameOrigin ? loc.origin : `http://${host}:8000`);
 
 // ที่อยู่ WebSocket ของ backend
 export const WS_URL: string =
-  import.meta.env.VITE_WS_URL ?? `ws://${host}:8000`;
+  import.meta.env.VITE_WS_URL ??
+  (sameOrigin ? `${loc.protocol === "https:" ? "wss" : "ws"}://${loc.host}` : `ws://${host}:8000`);
 
 // ไฟล์ wasm ของ MediaPipe (โหลดจาก CDN)
 export const MEDIAPIPE_WASM_URL =

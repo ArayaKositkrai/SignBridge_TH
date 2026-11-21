@@ -65,4 +65,4 @@ backend/app/data/activity_log.db*
 backend/app/data/*.tmp
 
 # ---------- Temporary files from Claude Code ----------
-.claude/tmp/
+.claude/

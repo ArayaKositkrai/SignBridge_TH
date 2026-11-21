@@ -1,0 +1,38 @@
+# Render Blueprint: Render → New → Blueprint → เลือก repo นี้ แล้วกรอกค่าที่ขึ้นว่า sync: false
+# บริการเดียว (หน้าเว็บ + API) build จาก Dockerfile ที่รากโปรเจกต์
+services:
+  - type: web
+    name: signbridge-th
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: singapore          # ใกล้ไทยที่สุด
+    plan: free                 # ฟรี: ไม่มีคนใช้ 15 นาทีจะหลับ คนแรกที่เข้ารอ ~1 นาที (อยากให้ไม่หลับ เปลี่ยนเป็น starter $7/เดือน)
+    branch: main
+    autoDeploy: true           # push ขึ้น main แล้วดีพลอยใหม่เอง
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true    # Render สุ่มให้
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ID
+        sync: false
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      # ที่อยู่เว็บจริง เช่น https://signbridge-th.onrender.com (ใส่หลังสร้างบริการแล้วรู้ชื่อ)
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: TRUST_PROXY
+        value: "1"

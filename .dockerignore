@@ -1,0 +1,17 @@
+# ไม่ส่งไฟล์เหล่านี้เข้า Docker ตอน build (Dockerfile ที่รากโปรเจกต์)
+.git
+.claude
+.env
+.env.*
+!.env.example
+**/node_modules
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+frontend/dist
+ml/data
+ml/models
+ml/reports
+backend/tests
+docs

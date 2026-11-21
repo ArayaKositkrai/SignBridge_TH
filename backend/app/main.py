@@ -1,10 +1,13 @@
 import inspect
+import os
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.routing import APIRoute
 
 from app.api.deps import current_user
@@ -29,6 +32,13 @@ def _warm_model() -> None:
 async def lifespan(_app: FastAPI):
     threading.Thread(target=_warm_model, daemon=True).start()
     yield
+
+
+# ตอนขึ้นเซิร์ฟเวอร์จริง: โฟลเดอร์หน้าเว็บที่ build แล้ว (frontend/dist) ให้ backend เสิร์ฟหน้าเว็บเองจากโดเมนเดียวกับ API
+#   หน้าเว็บกับ API อยู่โดเมนเดียวกัน = cookie ล็อกอินใช้ได้ (samesite=lax) และไม่ต้องตั้ง CORS
+#   ไม่ได้ตั้ง FRONTEND_DIST (รันในเครื่องแบบเดิม) = ไม่เสิร์ฟหน้าเว็บ ใช้ vite dev ที่พอร์ต 5173 ตามปกติ
+_dist = os.getenv("FRONTEND_DIST", "")
+FRONTEND_DIST = Path(_dist).resolve() if _dist and (Path(_dist) / "index.html").is_file() else None
 
 
 # สร้างแอป FastAPI หลักของ backend
@@ -100,9 +110,11 @@ async def log_api_calls(request: Request, call_next):
     return response
 
 
-# หน้าแรกของ backend ใช้เช็กว่าเซิร์ฟเวอร์ทำงานอยู่
+# หน้าแรกของ backend ใช้เช็กว่าเซิร์ฟเวอร์ทำงานอยู่ (ตอนเสิร์ฟหน้าเว็บด้วย = ส่งหน้าเว็บแทน)
 @app.get("/")
 def root():
+    if FRONTEND_DIST:
+        return FileResponse(FRONTEND_DIST / "index.html")
     return {"message": "Hello SignBridge TH"}
 
 
@@ -119,3 +131,15 @@ for _route in app.routes:
         if _lines:
             _route.summary = _lines[0]
             _route.description = _route.description or "\n\n".join(_lines[1:])
+
+# หน้าเว็บ (ต้องอยู่ท้ายสุด ให้ route ของ API ทั้งหมดมาก่อน): ไฟล์ที่มีจริงส่งไฟล์นั้น นอกนั้นส่ง index.html ให้ React Router จัดการ
+if FRONTEND_DIST:
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def frontend(full_path: str):
+        if full_path.startswith(("api/", "ws/")):
+            raise HTTPException(status_code=404, detail="Not Found")
+        file = (FRONTEND_DIST / full_path).resolve()
+        if full_path and file.is_file() and FRONTEND_DIST in file.parents:
+            return FileResponse(file)
+        return FileResponse(FRONTEND_DIST / "index.html")

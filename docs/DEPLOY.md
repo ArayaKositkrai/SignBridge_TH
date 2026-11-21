@@ -1,0 +1,57 @@
+# ดีพลอย SignBridge TH ขึ้น Render
+
+หน้าเว็บกับ API อยู่ในบริการเดียว โดเมนเดียว (build จาก `Dockerfile` ที่รากโปรเจกต์)
+ฐานข้อมูลและไฟล์ยังอยู่ที่ Supabase เดิม ไม่ต้องย้าย · โมเดลที่ใช้งาน (active) backend ดาวน์โหลดจาก Supabase Storage เอง
+
+การรันในเครื่องไม่เปลี่ยน: ยังใช้ `docker compose up` หรือ `npm run dev` + uvicorn แบบเดิม
+
+## ก่อนเริ่ม
+- push โค้ดล่าสุดขึ้น GitHub (`main`) — Render build จาก GitHub
+- หน้าแอดมิน → โมเดล: เวอร์ชันที่จะใช้ต้องเป็น "ใช้งาน" และมีไฟล์ใน Storage (ไม่มี = `python -m app.scripts.upload_models` ในโฟลเดอร์ backend)
+
+## 1. สร้างบริการ
+1. สมัคร/ล็อกอิน https://render.com ด้วยบัญชี GitHub
+2. New → **Blueprint** → เลือก repo นี้ → Render อ่าน `render.yaml` เอง (บริการชื่อ `signbridge-th`, สิงคโปร์, แพ็กเกจฟรี)
+3. กรอกค่าที่ขึ้นมา (คัดลอกจาก `.env` ในเครื่อง):
+
+| ตัวแปร | ค่า |
+|---|---|
+| `DATABASE_URL` | เหมือนใน `.env` |
+| `SUPABASE_SERVICE_ROLE_KEY` | เหมือนใน `.env` (ห้ามแชร์) |
+| `ADMIN_EMAILS` | อีเมลแอดมิน คั่นด้วยจุลภาค |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | เหมือนใน `.env` |
+| `LINE_CHANNEL_ID` / `LINE_CHANNEL_SECRET` | เหมือนใน `.env` |
+| `PUBLIC_API_URL` | ที่อยู่เว็บจริง เช่น `https://signbridge-th.onrender.com` |
+| `CORS_ORIGINS` | ค่าเดียวกับ `PUBLIC_API_URL` |
+
+`AUTH_SECRET` Render สุ่มให้เอง · `COOKIE_SECURE` / `TRUST_PROXY` ตั้งไว้แล้ว
+(ถ้าตอนกรอกยังไม่รู้ชื่อเว็บ ใส่ทีหลังได้ที่ Environment แล้วกด Save → ดีพลอยใหม่เอง)
+
+4. รอ build ครั้งแรก ~5-10 นาที → เปิด `https://<ชื่อ>.onrender.com/api/health` ต้องได้ `"database":"ok"`
+
+## 2. ตั้ง callback ของการล็อกอิน
+- **Google** Cloud Console → Credentials → OAuth client → Authorized redirect URIs เพิ่ม
+  `https://<ชื่อ>.onrender.com/api/auth/google/callback`
+- **LINE** Developers Console → LINE Login → Callback URL เพิ่ม
+  `https://<ชื่อ>.onrender.com/api/auth/line/callback`
+
+เก็บของ localhost ไว้ด้วย จะได้ล็อกอินตอนรันในเครื่องได้เหมือนเดิม
+
+## 3. ทดสอบหลังขึ้น
+- [ ] หน้าแรกเปิดได้ เป็น https (มีรูปกุญแจ)
+- [ ] ภาษามือ → ข้อความ: กล้องเปิดได้ ทำท่าแล้วขึ้นคำ (ครั้งแรกหลังดีพลอยรอโหลดโมเดลจาก Storage สักครู่)
+- [ ] ข้อความ → ภาษามือ: อวตารทำท่า
+- [ ] ปุ่มฉุกเฉินพูดออกเสียง
+- [ ] ล็อกอิน Google / LINE แล้วเข้าหน้าแอดมินได้
+
+## ใช้งานต่อ
+- push ขึ้น `main` = ดีพลอยใหม่เอง (ระหว่าง build ตัวเก่ายังใช้งานได้)
+- เปลี่ยนโมเดล: เทรนในเครื่อง → ตั้งเป็น "ใช้งาน" ในหน้าแอดมิน → เซิร์ฟเวอร์ดาวน์โหลดเองภายในไม่กี่วินาที ไม่ต้องดีพลอยใหม่
+- ปุ่มเทรน/วัดผลในหน้าแอดมินบนเซิร์ฟเวอร์จะบอกให้รันจากเครื่อง (เซิร์ฟเวอร์ไม่มี torch เพื่อให้เล็กและเร็ว)
+- ดู log: Render → บริการ → Logs
+
+## แพ็กเกจฟรี: ข้อควรรู้
+- ไม่มีคนใช้ 15 นาที เซิร์ฟเวอร์จะหลับ คนแรกที่เข้ารอได้ถึง ~1 นาที แล้วรอโหลดโมเดลจาก Storage อีกครู่ ก่อนแปลภาษามือได้
+- **ก่อนนำเสนอ/สาธิต เปิดเว็บทิ้งไว้ 2-3 นาที** แล้วลองทำท่าสักคำให้โมเดลโหลดเสร็จ
+- CPU ของแพ็กเกจฟรีน้อย ถ้าแปลภาษามือแล้วหน่วงมาก หรือเว็บช้า ให้อัปเป็น Starter ($7/เดือน ไม่หลับ CPU มากขึ้น):
+  Render → บริการ → Settings → Instance Type หรือแก้ `plan: free` เป็น `plan: starter` ใน `render.yaml` (ลิงก์เว็บเดิม)
