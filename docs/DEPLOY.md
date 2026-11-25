@@ -19,8 +19,6 @@
 | `DATABASE_URL` | เหมือนใน `.env` |
 | `SUPABASE_SERVICE_ROLE_KEY` | เหมือนใน `.env` (ห้ามแชร์) |
 | `ADMIN_EMAILS` | อีเมลแอดมิน คั่นด้วยจุลภาค |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | เหมือนใน `.env` |
-| `LINE_CHANNEL_ID` / `LINE_CHANNEL_SECRET` | เหมือนใน `.env` |
 | `PUBLIC_API_URL` | ที่อยู่เว็บจริง เช่น `https://signbridge-th.onrender.com` |
 | `CORS_ORIGINS` | ค่าเดียวกับ `PUBLIC_API_URL` |
 
@@ -29,20 +27,17 @@
 
 4. รอ build ครั้งแรก ~5-10 นาที → เปิด `https://<ชื่อ>.onrender.com/api/health` ต้องได้ `"database":"ok"`
 
-## 2. ตั้ง callback ของการล็อกอิน
-- **Google** Cloud Console → Credentials → OAuth client → Authorized redirect URIs เพิ่ม
-  `https://<ชื่อ>.onrender.com/api/auth/google/callback`
-- **LINE** Developers Console → LINE Login → Callback URL เพิ่ม
-  `https://<ชื่อ>.onrender.com/api/auth/line/callback`
-
-เก็บของ localhost ไว้ด้วย จะได้ล็อกอินตอนรันในเครื่องได้เหมือนเดิม
+## 2. การล็อกอินบนเว็บจริง
+ใช้อีเมล/รหัสผ่านอย่างเดียว (ไม่ได้ใส่ค่า Google/LINE ใน Render = ปุ่มซ่อนเอง)
+- คนที่เคยล็อกอินด้วย Google/LINE อย่างเดียว: เปิดแอปในเครื่อง ล็อกอินแบบเดิม → หน้าโปรไฟล์ → ตั้งรหัสผ่าน แล้วใช้อีเมล+รหัสผ่านนั้นบนเว็บจริง (บัญชี บทบาท และคลิปเดิมอยู่ครบ)
+- เพิ่มแอดมินใหม่: สมัครด้วยอีเมลบนเว็บ แล้วในเครื่องรัน `python -m app.scripts.set_role อีเมล admin` (โฟลเดอร์ backend)
 
 ## 3. ทดสอบหลังขึ้น
 - [ ] หน้าแรกเปิดได้ เป็น https (มีรูปกุญแจ)
 - [ ] ภาษามือ → ข้อความ: กล้องเปิดได้ ทำท่าแล้วขึ้นคำ (ครั้งแรกหลังดีพลอยรอโหลดโมเดลจาก Storage สักครู่)
 - [ ] ข้อความ → ภาษามือ: อวตารทำท่า
 - [ ] ปุ่มฉุกเฉินพูดออกเสียง
-- [ ] ล็อกอิน Google / LINE แล้วเข้าหน้าแอดมินได้
+- [ ] ล็อกอินด้วยอีเมล/รหัสผ่าน แล้วเข้าหน้าแอดมินได้
 
 ## ใช้งานต่อ
 - push ขึ้น `main` = ดีพลอยใหม่เอง (ระหว่าง build ตัวเก่ายังใช้งานได้)

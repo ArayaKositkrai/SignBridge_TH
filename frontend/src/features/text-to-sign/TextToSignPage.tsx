@@ -82,7 +82,8 @@ export default function TextToSignPage() {
       title="ข้อความ → ภาษามือ"
       subtitle="พิมพ์หรือพูด แล้วดูคลิปภาษามือทีละคำ"
     />
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-6">
+    {/* grid-cols-[minmax(0,1fr)] บนมือถือ: กันคอลัมน์ขยายตามขนาด canvas จนกล่องอวตารกว้างล้นจอไม่รู้จบ */}
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-6">
       <div className="order-2 flex flex-col gap-4 lg:order-1">
         <Card title="ข้อความที่ต้องการแปล">
           <TextInput value={text} onChange={setText} onSubmit={() => void submit()} />

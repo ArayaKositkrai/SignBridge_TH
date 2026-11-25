@@ -128,7 +128,7 @@ function ContributorLayout() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
         <aside className="flex flex-col gap-3 lg:sticky lg:top-20 lg:self-start">
           {/* ล่าม */}
           <div className="glass-card">

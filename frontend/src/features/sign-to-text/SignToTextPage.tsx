@@ -39,7 +39,7 @@ export default function SignToTextPage() {
         กำลังทดสอบโมเดล Draft (ยังไม่เผยแพร่ให้ผู้ใช้ทั่วไป)
       </div>
     )}
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
       <CameraView
         videoRef={cam.videoRef}
         frameRef={mp.displayRef}

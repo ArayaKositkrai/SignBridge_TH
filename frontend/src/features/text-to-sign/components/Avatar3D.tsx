@@ -160,6 +160,9 @@ function startScene(
   // เพราะเราคุมขนาด "บัฟเฟอร์วาดภาพ" เองตาม devicePixelRatio อยู่แล้วในลูปด้านล่าง
   // ถ้าไม่กำหนดตรงนี้ บนจอ HiDPI (devicePixelRatio > 1) canvas จะแสดงผลใหญ่กว่ากล่องจริง
   // 2 เท่า แล้วโดนตัดขอบ (overflow-hidden) ทำให้ตัวละครดูเหมือนไม่อยู่กึ่งกลาง
+  // วาง canvas แบบ absolute ด้วย ไม่ให้ขนาดบัฟเฟอร์ของมันไปดันขนาดกล่อง (บนมือถือเคยขยายวนจนกว้างหลายหมื่นพิกเซล)
+  renderer.domElement.style.position = "absolute";
+  renderer.domElement.style.inset = "0";
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
   renderer.domElement.style.display = "block";
@@ -205,7 +208,8 @@ function startScene(
       if (w !== lastW || h !== lastH) {
         lastW = w;
         lastH = h;
-        renderer.setSize(w, h, false);
+        // กันบัฟเฟอร์ใหญ่เกินที่ GPU มือถือรับไหว (ถ้ากล่องผิดขนาดไปชั่วขณะ)
+        renderer.setSize(Math.min(w, 2048), Math.min(h, 2048), false);
         camera.aspect = w / h;
         camDist = distanceFor(w / h);
         camera.updateProjectionMatrix();

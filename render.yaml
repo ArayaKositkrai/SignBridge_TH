@@ -19,14 +19,8 @@ services:
         generateValue: true    # Render สุ่มให้
       - key: ADMIN_EMAILS
         sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: LINE_CHANNEL_ID
-        sync: false
-      - key: LINE_CHANNEL_SECRET
-        sync: false
+      # ล็อกอิน Google/LINE บนเว็บจริงปิดไว้ (ไม่ใส่ค่า = ปุ่มซ่อนเอง ใช้อีเมล/รหัสผ่าน)
+      #   จะเปิดภายหลัง: เพิ่ม GOOGLE_CLIENT_ID/SECRET, LINE_CHANNEL_ID/SECRET ในหน้า Environment ของ Render
       # ที่อยู่เว็บจริง เช่น https://signbridge-th.onrender.com (ใส่หลังสร้างบริการแล้วรู้ชื่อ)
       - key: PUBLIC_API_URL
         sync: false
