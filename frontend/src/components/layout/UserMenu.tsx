@@ -1,3 +1,5 @@
+// ปุ่ม/เมนูผู้ใช้บน header (ล็อกอิน, โปรไฟล์, ออกจากระบบ)
+
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";

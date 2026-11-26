@@ -1,3 +1,5 @@
+// ตั้งค่า Vite (dev server และ build ของหน้าเว็บ)
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 

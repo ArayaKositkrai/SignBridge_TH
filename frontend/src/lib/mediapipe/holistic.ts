@@ -1,3 +1,5 @@
+// โหลดโมเดล MediaPipe (Holistic + HandLandmarker) และตรวจจับ landmark จากภาพ
+
 import { FilesetResolver, HandLandmarker, HolisticLandmarker } from "@mediapipe/tasks-vision";
 import { HAND_MODEL_URL, HOLISTIC_MODEL_URL, MEDIAPIPE_WASM_URL } from "../../config/env";
 import type { LandmarkFrame, Point } from "../../types";

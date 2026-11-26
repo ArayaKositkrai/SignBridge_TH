@@ -1,3 +1,5 @@
+// ผลวัดของโมเดลหนึ่งเวอร์ชันแบบเต็ม (ใช้ในหน้าโมเดล)
+
 import { useEffect, useMemo, useState } from "react";
 import Badge from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";

@@ -1,3 +1,5 @@
+// ตัวเล่นคลิปก่อนกดเก็บ
+
 import { useMemo } from "react";
 import type { Take } from "../hooks/useClipRecorder";
 import { unmirrorFrames } from "../services/extractLandmarks";

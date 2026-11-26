@@ -1,3 +1,5 @@
+// ตัวเล่น skeleton บนพื้นดำ
+
 import { useEffect, useRef, useState } from "react";
 import Icon from "../../../components/ui/Icon";
 import { drawFrame } from "../../../lib/mediapipe/draw";

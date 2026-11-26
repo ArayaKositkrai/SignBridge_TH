@@ -1,3 +1,5 @@
+// รายการไอคอนที่ปุ่ม AAC เลือกได้
+
 import type { IconName } from "../components/ui/Icon";
 
 // ไอคอนที่เลือกใช้กับปุ่ม AAC ได้ พร้อมชื่อภาษาไทย (ต้องตรงกับ ALLOWED_ICONS ใน backend)

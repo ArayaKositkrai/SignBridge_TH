@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: ปุ่มที่ใช้ทั้งแอป
+
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import Icon, { type IconName } from "./Icon";
 

@@ -1,3 +1,5 @@
+// ล่าม → คลังคำศัพท์: รายการคำ จำนวนคลิป และความแม่นยำในโมเดล
+
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../components/ui/Card";

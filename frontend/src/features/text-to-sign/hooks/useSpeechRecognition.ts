@@ -1,3 +1,5 @@
+// hook แปลงเสียงพูดเป็นข้อความด้วย Web Speech API
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // ชนิดข้อมูลผลลัพธ์จาก Web Speech API (ย่อเฉพาะที่ใช้)

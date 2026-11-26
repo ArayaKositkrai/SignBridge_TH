@@ -1,3 +1,5 @@
+# หาท่าทาง/คลิปของคำสำหรับข้อความ → ภาษามือ และรายการคำที่อวตารทำท่าได้
+
 import time
 
 from sqlalchemy import select

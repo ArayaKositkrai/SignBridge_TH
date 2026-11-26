@@ -1,3 +1,5 @@
+# ระบบล็อกอิน: แฮช/ตรวจรหัสผ่าน สร้าง/อ่าน session และล็อกอินผ่าน Google/LINE (OAuth)
+
 import base64
 import hashlib
 import hmac

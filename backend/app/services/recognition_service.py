@@ -1,3 +1,5 @@
+# Recognizer: รับเฟรม landmark ต่อเนื่อง ตัดเป็นหน้าต่างเวลา ทายคำด้วยโมเดล แล้วตัดสินว่าขึ้นคำไหน
+
 from collections import deque
 
 import numpy as np

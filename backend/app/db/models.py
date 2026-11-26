@@ -1,3 +1,5 @@
+# โมเดล SQLAlchemy ของทุกตารางใน database (ผู้ใช้ คำศัพท์ คลิป โมเดล log ฯลฯ)
+
 import uuid
 from datetime import datetime
 

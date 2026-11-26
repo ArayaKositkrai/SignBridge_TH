@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: หน้าต่างป๊อปอัป
+
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Icon from "./Icon";

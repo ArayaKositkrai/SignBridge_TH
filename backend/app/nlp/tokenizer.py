@@ -1,3 +1,5 @@
+# ตัดคำภาษาไทยสำหรับข้อความ → ภาษามือ และแก้คำพิมพ์ผิด/คำเรียกอื่นให้ตรงคลังคำ
+
 import json
 from functools import lru_cache
 from pathlib import Path

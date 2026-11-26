@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: tooltip และไอคอนคำอธิบาย (HintIcon)
+
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Icon, { type IconName } from "./Icon";

@@ -1,3 +1,5 @@
+// ฟังก์ชันเรียก API ปุ่มฉุกเฉิน (/api/emergency-phrases)
+
 import type { IconName } from "../../../components/ui/Icon";
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../../lib/apiClient";
 import type { EmergencyPhrase } from "../../../types";

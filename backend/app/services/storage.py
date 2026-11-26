@@ -1,3 +1,5 @@
+# ตัวเรียก Supabase Storage (REST): อัปโหลด ดาวน์โหลด ลบ และดูรายชื่อไฟล์
+
 import httpx
 from fastapi import HTTPException
 

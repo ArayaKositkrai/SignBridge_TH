@@ -1,3 +1,5 @@
+// context ข้อมูลร่วมของพื้นที่ล่าม
+
 import { useOutletContext } from "react-router-dom";
 import type { Split } from "../admin/services/adminApi";
 import type { ModelsBrief, VocabEntry, WordStats } from "./services/contributorApi";

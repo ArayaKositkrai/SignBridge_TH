@@ -1,3 +1,5 @@
+# ตัวเชื่อมต่อ database (engine + SessionLocal) และคลาสแม่ Base ของทุกตาราง
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 

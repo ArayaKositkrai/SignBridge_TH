@@ -1,3 +1,5 @@
+// หน้าการ์ตูนของอวตาร 3D (วาดลง canvas แล้วแปะเป็น texture)
+
 import * as THREE from "three";
 import type { Face } from "../avatar/skeleton";
 

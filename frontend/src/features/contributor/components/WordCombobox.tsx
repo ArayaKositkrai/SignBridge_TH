@@ -1,3 +1,5 @@
+// ช่องเลือกคำพร้อมคำแนะนำ
+
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Icon from "../../../components/ui/Icon";
 import type { VocabEntry, WordStats } from "../services/contributorApi";

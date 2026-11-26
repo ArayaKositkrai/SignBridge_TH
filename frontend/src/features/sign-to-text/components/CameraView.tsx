@@ -1,3 +1,5 @@
+// แผงกล้องของหน้าภาษามือ → ข้อความ
+
 import { useState, type MutableRefObject, type RefObject } from "react";
 import Button from "../../../components/ui/Button";
 import Icon from "../../../components/ui/Icon";

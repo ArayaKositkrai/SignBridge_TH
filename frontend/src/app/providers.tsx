@@ -1,3 +1,5 @@
+// รวม provider ระดับแอป (router, ผู้ใช้ที่ล็อกอิน, toast)
+
 import type { ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { ToastProvider } from "../components/ui/Toast";

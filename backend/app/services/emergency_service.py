@@ -1,3 +1,5 @@
+# ตรรกะปุ่มฉุกเฉินที่ผู้ใช้เพิ่มเอง: จำกัดจำนวน ตรวจไอคอน และอ่าน/เขียน database
+
 from sqlalchemy import func, select
 
 from app.db.models import EmergencyPhrase

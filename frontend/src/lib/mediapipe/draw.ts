@@ -1,3 +1,5 @@
+// วาดเส้น keypoint (ลำตัว มือ หน้า) ลง canvas
+
 import type { LandmarkFrame, Point } from "../../types";
 import { FACE_KEYPOINT_LINES } from "./faceKeypoints";
 import { FACE_CONTOURS, HAND_CONNECTIONS, POSE_CONNECTIONS } from "./holistic";

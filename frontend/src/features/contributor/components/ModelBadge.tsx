@@ -1,3 +1,5 @@
+// ป้ายสถานะคำในโมเดล
+
 import type { ModelsBrief, WordModelStatus } from "../services/contributorApi";
 
 // ค่าที่ป้ายรับ: สถานะของคำในโมเดล และข้อมูลเวอร์ชัน

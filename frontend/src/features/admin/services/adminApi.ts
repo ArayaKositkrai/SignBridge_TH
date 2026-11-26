@@ -1,3 +1,5 @@
+// ฟังก์ชันเรียก API แอดมิน (/api/admin) และชนิดข้อมูลที่ใช้ในหน้าแอดมิน
+
 import { API_URL } from "../../../config/env";
 import { send, type ModelsBrief, type SampleMeta, type VocabEntry, type WordStats } from "../../contributor/services/contributorApi";
 

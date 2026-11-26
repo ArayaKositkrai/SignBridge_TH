@@ -1,3 +1,5 @@
+// hook ส่ง landmark ไป backend ทาง WebSocket และรวมคำที่ได้เป็นประโยค
+
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { LandmarkFrame, SignResult, SocketStatus } from "../../../types";
 import { logEvent } from "../../../lib/activityLog";

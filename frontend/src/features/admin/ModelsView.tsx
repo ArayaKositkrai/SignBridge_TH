@@ -1,3 +1,5 @@
+// แอดมิน → โมเดล: รายการเวอร์ชัน ผลวัด สั่งเทรน/Run Test และเลือกเวอร์ชันที่ใช้งาน
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Badge from "../../components/ui/Badge";

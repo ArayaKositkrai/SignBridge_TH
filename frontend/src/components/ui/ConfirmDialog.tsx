@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: กล่องยืนยันก่อนทำสิ่งที่ย้อนกลับไม่ได้
+
 import type { ReactNode } from "react";
 import Button from "./Button";
 import Modal from "./Modal";

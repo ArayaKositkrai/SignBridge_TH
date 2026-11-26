@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: การ์ดจัดกลุ่มเนื้อหา
+
 import type { HTMLAttributes, ReactNode } from "react";
 
 // ค่าที่การ์ดรับ: หัวข้อ และปุ่มที่มุมขวาบน

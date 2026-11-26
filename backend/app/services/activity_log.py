@@ -1,3 +1,5 @@
+# บันทึกและค้นหา log การใช้งาน (กดปุ่ม เปิดหน้า เรียก API) ใช้ในหน้าแอดมิน → บันทึกการใช้งาน
+
 from datetime import datetime, timedelta
 
 from sqlalchemy import delete, func, or_, select

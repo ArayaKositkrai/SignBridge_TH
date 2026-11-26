@@ -1,3 +1,5 @@
+// ปุ่มพูดแทนพิมพ์ (Web Speech API)
+
 import Icon from "../../../components/ui/Icon";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 

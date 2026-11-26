@@ -1,3 +1,5 @@
+// การ์ด "โมเดลแม่นแค่ไหน" บนแดชบอร์ด
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../../components/ui/Card";

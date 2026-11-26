@@ -1,3 +1,5 @@
+// ตัวจัดการ WebSocket /ws/sign-to-text (ต่อใหม่อัตโนมัติ)
+
 import { WS_URL } from "../../../config/env";
 import { pickFaceKeypoints } from "../../../lib/mediapipe/faceKeypoints";
 import type { LandmarkFrame, SignResult, SocketStatus } from "../../../types";

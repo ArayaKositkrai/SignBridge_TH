@@ -1,3 +1,5 @@
+// ตัวเรียก HTTP ไป backend (GET/POST/PATCH/DELETE) ที่ทุก services ใช้
+
 import { API_URL } from "../config/env";
 import { logHeaders } from "./activityLog";
 

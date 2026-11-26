@@ -1,3 +1,5 @@
+# API log การใช้งาน: รับ event จากหน้าเว็บ และให้แอดมินค้นหา/ดาวน์โหลด CSV
+
 import csv
 import io
 import re

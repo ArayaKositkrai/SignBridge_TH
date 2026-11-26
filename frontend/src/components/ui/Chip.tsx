@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: ชิป/ป้ายกดเลือก
+
 import type { ButtonHTMLAttributes } from "react";
 
 // ค่าที่ชิปรับ: active = เลือกอยู่

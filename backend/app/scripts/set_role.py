@@ -1,3 +1,5 @@
+# สคริปต์ตั้งบทบาทผู้ใช้จากอีเมล (ใช้ตั้งแอดมินคนแรก)
+
 import sys
 
 from sqlalchemy import func, select

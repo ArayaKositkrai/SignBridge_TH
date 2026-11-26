@@ -1,3 +1,5 @@
+// hook รัน MediaPipe Holistic กับวิดีโอกล้องทุกเฟรม
+
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { detect, loadHolistic } from "../../../lib/mediapipe/holistic";
 import { FrameSmoother } from "../../../lib/mediapipe/smoothing";

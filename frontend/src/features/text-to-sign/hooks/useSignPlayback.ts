@@ -1,3 +1,5 @@
+// hook คุมการเล่นท่าทีละคำ
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SignClip } from "../../../types";
 

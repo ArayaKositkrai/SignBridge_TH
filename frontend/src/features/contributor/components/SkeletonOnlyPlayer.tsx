@@ -1,3 +1,5 @@
+// ตัวเล่นไฟล์ skeleton ที่ไม่มีวิดีโอ (.npy/.npz)
+
 import { useEffect, useRef } from "react";
 import { drawFrame } from "../../../lib/mediapipe/draw";
 import type { CapturedFrame } from "../services/contributorApi";

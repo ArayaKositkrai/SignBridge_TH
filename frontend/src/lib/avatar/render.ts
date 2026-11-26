@@ -1,3 +1,5 @@
+// วาดอวตาร 2D ลง canvas: ลำตัว แขน มือ สีหน้า และรอยแสงตามมือ
+
 import type { Point } from "../../types";
 import { HEAD, SHOULDER, type Arm, type Face, type Figure } from "./skeleton";
 

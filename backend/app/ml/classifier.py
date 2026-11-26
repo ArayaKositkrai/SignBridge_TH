@@ -1,3 +1,5 @@
+# โหลดไฟล์โมเดล .npz แล้วทายคำภาษามือด้วย numpy (ไม่ต้องมี torch) ใช้ features.py ตัวเดียวกับตอนเทรน
+
 import importlib.util
 import threading
 from functools import lru_cache

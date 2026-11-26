@@ -1,3 +1,5 @@
+// ฟังก์ชันเรียก API โปรไฟล์ (/api/profile)
+
 import { API_URL } from "../../../config/env";
 import type { AuthUser, Provider } from "../../auth/services/authApi";
 import { send } from "../../contributor/services/contributorApi";

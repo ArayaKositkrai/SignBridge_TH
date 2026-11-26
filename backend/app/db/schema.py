@@ -1,3 +1,5 @@
+# เพิ่มตาราง/คอลัมน์ที่โค้ดต้องใช้ตอนเปิดเซิร์ฟเวอร์ ถ้ายังไม่มีใน database
+
 import logging
 
 from sqlalchemy import text

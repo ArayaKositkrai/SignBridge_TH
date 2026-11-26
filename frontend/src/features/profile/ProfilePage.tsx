@@ -1,3 +1,5 @@
+// หน้าโปรไฟล์: แก้ข้อมูลตัวเอง รูปบัตรคนพิการ รหัสผ่าน บัญชีที่เชื่อม และลบบัญชี
+
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import Badge from "../../components/ui/Badge";

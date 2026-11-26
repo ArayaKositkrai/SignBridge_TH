@@ -1,3 +1,5 @@
+// ตัวเล่นวิดีโอพร้อม skeleton ทับ
+
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Icon from "../../../components/ui/Icon";
 import type { LandmarkFrame } from "../../../types";

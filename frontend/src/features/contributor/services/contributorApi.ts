@@ -1,3 +1,5 @@
+// ฟังก์ชันเรียก API ของล่าม (/api/contributor) และชนิดข้อมูลคลิป/คำ
+
 import { API_URL } from "../../../config/env";
 import { logHeaders } from "../../../lib/activityLog";
 import type { Point } from "../../../types";

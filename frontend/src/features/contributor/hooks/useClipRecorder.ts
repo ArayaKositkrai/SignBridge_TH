@@ -1,3 +1,5 @@
+// hook คุมการอัด/อัปโหลดคลิป: นับถอยหลัง อัดวิดีโอ สร้าง skeleton และเก็บคลิปรอตรวจ
+
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { logEvent } from "../../../lib/activityLog";
 import type { CapturedFrame } from "../services/contributorApi";

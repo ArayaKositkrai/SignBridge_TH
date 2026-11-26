@@ -1,3 +1,5 @@
+// เก็บ event การใช้งานบนหน้าเว็บแล้วทยอยส่งไป backend (log)
+
 import { API_URL } from "../config/env";
 
 // ประเภท event จากหน้าเว็บ: กดปุ่ม หรือเปิดหน้า

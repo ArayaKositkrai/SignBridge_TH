@@ -1,3 +1,5 @@
+// แผงอัดคลิป: กล้อง นับถอยหลัง อัด สร้าง skeleton ตรวจคุณภาพ และอัปขึ้น backend
+
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Button from "../../../components/ui/Button";
 import Icon, { type IconName } from "../../../components/ui/Icon";

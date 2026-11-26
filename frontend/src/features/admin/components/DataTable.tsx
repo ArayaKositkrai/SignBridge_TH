@@ -1,3 +1,5 @@
+// ตารางข้อมูลที่ใช้ในหน้าแอดมิน: เรียงคอลัมน์ แบ่งหน้า (ฝั่งหน้าเว็บหรือ backend)
+
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Icon from "../../../components/ui/Icon";
 

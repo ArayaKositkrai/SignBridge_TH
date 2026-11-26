@@ -1,3 +1,5 @@
+// ชนิดข้อมูลที่ใช้ร่วมกันทั้งแอป (landmark ผลแปล ท่าทางอวตาร)
+
 import type { IconName } from "../components/ui/Icon";
 
 // จุดหนึ่งจุดบนภาพ (พิกัด 0-1)

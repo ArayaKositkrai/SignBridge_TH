@@ -1,3 +1,5 @@
+// ฟังก์ชันเรียก API ล็อกอิน (/api/auth)
+
 import { API_URL } from "../../../config/env";
 import { send } from "../../contributor/services/contributorApi";
 import type { Role } from "../../admin/services/adminApi";

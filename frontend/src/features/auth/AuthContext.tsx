@@ -1,3 +1,5 @@
+// context ผู้ใช้ที่ล็อกอิน: เช็ก session ตอนเปิดเว็บ ล็อกอิน/ออก (ใช้ผ่าน useAuth)
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useToast } from "../../components/ui/Toast";
 import * as api from "./services/authApi";

@@ -1,3 +1,5 @@
+// เมนูนำทาง: แท็บบน (จอใหญ่) แท็บล่าง (มือถือ) และ sidebar ของทีมงาน
+
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import type { Role } from "../../features/admin/services/adminApi";

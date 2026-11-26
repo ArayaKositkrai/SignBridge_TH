@@ -1,3 +1,5 @@
+// แผงผลลัพธ์: ประโยคที่แปลได้ คำใกล้เคียง ลบคำ และอ่านออกเสียง
+
 import Button from "../../../components/ui/Button";
 import Card from "../../../components/ui/Card";
 import Chip from "../../../components/ui/Chip";

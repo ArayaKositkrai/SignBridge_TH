@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: ช่องกรอกข้อมูลพร้อมชื่อและข้อความผิดพลาด
+
 import type { InputHTMLAttributes, ReactNode } from "react";
 
 // ค่าที่ช่องกรอกข้อมูลรับ (นอกจาก props ปกติของ <input>)

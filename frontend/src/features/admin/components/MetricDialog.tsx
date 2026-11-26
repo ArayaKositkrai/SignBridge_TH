@@ -1,3 +1,5 @@
+// หน้าต่างรายละเอียดตัวชี้วัดโมเดล: คำอธิบาย และผลรายคำ
+
 import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import Badge from "../../../components/ui/Badge";

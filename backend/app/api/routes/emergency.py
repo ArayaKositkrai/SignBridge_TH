@@ -1,3 +1,5 @@
+# API ปุ่มฉุกเฉิน/AAC ที่ผู้ใช้เพิ่มเอง (/api/emergency-phrases): ดู เพิ่ม แก้ ลบ
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 

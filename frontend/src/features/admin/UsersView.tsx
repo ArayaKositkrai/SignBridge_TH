@@ -1,3 +1,5 @@
+// แอดมิน → ผู้ใช้: ตารางผู้ใช้ เพิ่ม/แก้/ปิดบัญชี ตั้งบทบาท และตั้งชุดเทรน/เทสของล่าม
+
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";

@@ -1,3 +1,5 @@
+// โครงหน้าร่วมที่ทุกหน้าใช้
+
 import type { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import Header from "./Header";

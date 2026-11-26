@@ -1,3 +1,5 @@
+// สร้าง skeleton (landmark) จากวิดีโอด้วย MediaPipe และเครื่องมือกลับซ้าย-ขวา/หาเฟรมตามเวลา
+
 import { pickFaceKeypoints } from "../../../lib/mediapipe/faceKeypoints";
 import { detect, loadHolistic } from "../../../lib/mediapipe/holistic";
 import type { LandmarkFrame, Point } from "../../../types";

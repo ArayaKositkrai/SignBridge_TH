@@ -1,3 +1,5 @@
+// ป้ายบอกชุดเทรน/ชุดเทสของล่าม
+
 import Icon from "../../../components/ui/Icon";
 import Tooltip from "../../../components/ui/Tooltip";
 import type { Split } from "../../admin/services/adminApi";

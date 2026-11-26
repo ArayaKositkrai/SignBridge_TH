@@ -1,3 +1,5 @@
+// กริดปุ่มวลีฉุกเฉิน
+
 import Icon from "../../../components/ui/Icon";
 import type { EmergencyPhrase } from "../../../types";
 

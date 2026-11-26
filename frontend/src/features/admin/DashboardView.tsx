@@ -1,3 +1,5 @@
+// แอดมิน → ภาพรวม: ตัวเลขสรุป คลิปต่อคำ ล่าม และสุขภาพโมเดล
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Card from "../../components/ui/Card";

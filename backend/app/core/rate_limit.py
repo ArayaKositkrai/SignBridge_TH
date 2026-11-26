@@ -1,3 +1,5 @@
+# จำกัดจำนวนครั้งการเรียก API ต่อ IP (กันเดารหัสผ่าน / ยิง log ถี่เกิน) เก็บในหน่วยความจำ
+
 import os
 import threading
 import time

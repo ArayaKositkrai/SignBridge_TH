@@ -1,3 +1,5 @@
+// แอดมิน → คลังคำศัพท์: ดู/เพิ่ม/แก้คำ และเลือกคำที่จะนำไปเทรน
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import Badge from "../../components/ui/Badge";

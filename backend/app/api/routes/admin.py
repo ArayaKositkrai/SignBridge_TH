@@ -1,3 +1,5 @@
+# API หน้าแอดมิน (/api/admin): แดชบอร์ด จัดการผู้ใช้ คลังคำศัพท์ ชุดเทรน/เทส สั่งเทรนและเลือกเวอร์ชันโมเดล
+
 import importlib.util
 import os
 import re

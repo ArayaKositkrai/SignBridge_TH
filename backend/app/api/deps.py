@@ -1,3 +1,5 @@
+# dependency ของ FastAPI สำหรับเช็กการล็อกอินและบทบาท (ใช้ใน route ทุกกลุ่มที่ต้องมีสิทธิ์)
+
 from fastapi import Depends, HTTPException, Request
 
 from app.services import auth_service

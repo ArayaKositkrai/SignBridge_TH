@@ -1,3 +1,5 @@
+// จุดเริ่มของหน้าเว็บ: mount <App /> ที่ครอบด้วย provider ลงใน #root
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";

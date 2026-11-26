@@ -1,3 +1,5 @@
+// ปุ่มสลับธีมสว่าง/มืด
+
 import { useTheme } from "../../lib/theme";
 import Icon from "../ui/Icon";
 

@@ -1,3 +1,5 @@
+// ตัวดูคลิปเต็มจอ (วิดีโอ + skeleton)
+
 import { useEffect, useState } from "react";
 import Icon from "../../../components/ui/Icon";
 import { SIDE_COLOR } from "../../../lib/mediapipe/draw";

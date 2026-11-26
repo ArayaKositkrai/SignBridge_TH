@@ -1,3 +1,5 @@
+// ธีมสว่าง/มืดของเว็บ (hook useTheme)
+
 import { useCallback, useEffect, useState } from "react";
 
 // ธีมของเว็บ: สว่าง / มืด

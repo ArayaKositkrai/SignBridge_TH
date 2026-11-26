@@ -1,3 +1,5 @@
+// ฟังก์ชันเรียก API ข้อความ → ภาษามือ
+
 import { apiGet, apiPost } from "../../../lib/apiClient";
 import type { TextToSignResponse } from "../../../types";
 

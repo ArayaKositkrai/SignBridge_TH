@@ -1,3 +1,5 @@
+# จัดการชุดข้อมูลเทรน: คำศัพท์ รหัสคลิป W/S/C บันทึกวิดีโอและ skeleton ของคลิปที่ล่ามอัด
+
 import io
 import re
 import uuid

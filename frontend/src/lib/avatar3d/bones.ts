@@ -1,3 +1,5 @@
+// ชื่อกระดูกของโมเดล 3D (มาตรฐาน Mixamo) ที่ rig.ts ใช้
+
 import type { Side } from "../avatar/skeleton";
 
 // ชื่อกระดูกตามมาตรฐาน Mixamo (ตรวจสอบจากไฟล์ x-bot.fbx จริงแล้ว)

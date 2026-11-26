@@ -1,3 +1,5 @@
+// hook อ่านออกเสียงข้อความ
+
 import { useCallback, useState } from "react";
 import { speak, ttsSupported } from "../../../lib/tts";
 

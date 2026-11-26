@@ -1,3 +1,5 @@
+// hook ปุ่ม AAC ที่ผู้ใช้เพิ่มเอง
+
 import { useCallback, useEffect, useState } from "react";
 import type { EmergencyPhrase } from "../../../types";
 import {

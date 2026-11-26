@@ -1,3 +1,5 @@
+// แอดมิน → บันทึกการใช้งาน: ตาราง log พร้อมตัวกรอง รีเฟรชอัตโนมัติ และดาวน์โหลด CSV
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Badge, { type Tone } from "../../components/ui/Badge";
 import Icon from "../../components/ui/Icon";

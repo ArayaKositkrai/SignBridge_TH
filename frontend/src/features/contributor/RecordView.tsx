@@ -1,3 +1,5 @@
+// ล่าม → อัดคลิป: เลือกคำ อัด/อัปโหลด ตรวจ แล้วเก็บ
+
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Card from "../../components/ui/Card";

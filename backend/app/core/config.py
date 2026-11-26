@@ -1,3 +1,5 @@
+# ค่าตั้งค่าของ backend อ่านจาก env/.env: database, Supabase, โฟลเดอร์ ml/models และสคริปต์เทรน
+
 import os
 import re
 from pathlib import Path

@@ -1,3 +1,5 @@
+// อวตาร 3D (three.js) ที่ทำท่าภาษามือตาม keyframe
+
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { applyPose, posedBones } from "../../../lib/avatar3d/rig";

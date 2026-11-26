@@ -1,3 +1,5 @@
+// อวตารแบบโครงกระดูก 2D (canvas)
+
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { drawAvatar, type Trails } from "../../../lib/avatar/render";
 import { computeFigure, sampleFace, sampleMotion } from "../../../lib/avatar/skeleton";

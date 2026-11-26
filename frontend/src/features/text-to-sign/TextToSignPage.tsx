@@ -1,3 +1,5 @@
+// หน้าข้อความ → ภาษามือ: พิมพ์/พูด แปล แล้วให้อวตารทำท่า
+
 import { useEffect, useMemo, useState } from "react";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";

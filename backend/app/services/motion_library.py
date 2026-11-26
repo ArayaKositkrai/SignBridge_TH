@@ -1,3 +1,5 @@
+# ดึงท่าทาง (keyframe) ของคำจากตาราง motions ให้อวตาร
+
 from sqlalchemy import select
 
 from app.db.models import Motion, Word

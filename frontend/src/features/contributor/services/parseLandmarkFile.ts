@@ -1,3 +1,5 @@
+// อ่านไฟล์ skeleton ที่อัปโหลด (.json/.npy/.npz) เป็นเฟรม landmark
+
 import { pickFaceKeypoints } from "../../../lib/mediapipe/faceKeypoints";
 import type { Point } from "../../../types";
 import type { CapturedFrame } from "./contributorApi";

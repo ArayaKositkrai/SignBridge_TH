@@ -1,3 +1,5 @@
+// ตาราง URL → หน้า ของทั้งแอป (หน้าไหนต้องล็อกอิน/บทบาทอะไร)
+
 import { Route, Routes } from "react-router-dom";
 import EmergencyPage from "../features/emergency-aac/EmergencyPage";
 import SignToTextPage from "../features/sign-to-text/SignToTextPage";

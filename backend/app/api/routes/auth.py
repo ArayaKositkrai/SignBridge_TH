@@ -1,3 +1,5 @@
+# API ล็อกอิน (/api/auth): สมัคร ล็อกอินด้วยอีเมล/Google/LINE ออกจากระบบ และดูผู้ใช้ปัจจุบัน
+
 import re
 from urllib.parse import quote, urlsplit
 

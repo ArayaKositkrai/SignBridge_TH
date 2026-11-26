@@ -1,3 +1,5 @@
+// หน้าภาษามือ → ข้อความ (กล้อง + MediaPipe + WebSocket + ผลลัพธ์)
+
 import { useSearchParams } from "react-router-dom";
 import PageTitle from "../../components/ui/PageTitle";
 import { logEvent } from "../../lib/activityLog";

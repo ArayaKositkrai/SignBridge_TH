@@ -1,3 +1,5 @@
+// canvas วาด keypoint ทับวิดีโอกล้อง
+
 import { useEffect, useRef, type MutableRefObject, type RefObject } from "react";
 import { drawFrame } from "../../../lib/mediapipe/draw";
 import type { LandmarkFrame } from "../../../types";

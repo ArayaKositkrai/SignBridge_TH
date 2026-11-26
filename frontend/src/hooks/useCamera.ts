@@ -1,3 +1,5 @@
+// hook เปิด/ปิดกล้อง สลับกล้องหน้า-หลัง และแปลข้อผิดพลาดเป็นภาษาไทย
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // สถานะกล้อง: ปิด กำลังเปิด เปิดอยู่ ผิดพลาด

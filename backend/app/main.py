@@ -1,3 +1,5 @@
+# จุดเริ่มของ backend (FastAPI): รวม router ทุกกลุ่ม ตั้ง CORS/log การเรียก API โหลดโมเดลรอไว้ และเสิร์ฟหน้าเว็บที่ build แล้ว
+
 import inspect
 import os
 import threading

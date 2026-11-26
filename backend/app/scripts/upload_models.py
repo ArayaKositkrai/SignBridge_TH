@@ -1,3 +1,5 @@
+# สคริปต์อัปไฟล์โมเดลในเครื่องขึ้น Supabase Storage
+
 import sys
 
 from sqlalchemy import select

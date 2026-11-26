@@ -1,3 +1,5 @@
+# API ข้อความ → ภาษามือ: ตัดคำแล้วคืนท่าทางของแต่ละคำให้อวตารเล่น
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 

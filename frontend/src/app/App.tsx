@@ -1,3 +1,5 @@
+// คอมโพเนนต์หลักของแอป: โครงหน้า + เส้นทาง และบันทึก log ทุกครั้งที่เปิดหน้า
+
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import PageLayout from "../components/layout/PageLayout";

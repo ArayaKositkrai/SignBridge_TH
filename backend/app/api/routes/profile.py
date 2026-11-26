@@ -1,3 +1,5 @@
+# API โปรไฟล์ (/api/profile): ดู/แก้ข้อมูลตัวเอง รูปบัตรคนพิการ รหัสผ่าน บัญชีที่เชื่อม และลบบัญชี
+
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select

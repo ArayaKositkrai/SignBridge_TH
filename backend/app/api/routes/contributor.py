@@ -1,3 +1,5 @@
+# API ของล่าม (/api/contributor): ดูคลังคำ อัป/ลบคลิปและ skeleton ที่อัดไว้สำหรับเทรนโมเดล
+
 import json
 from typing import Literal
 

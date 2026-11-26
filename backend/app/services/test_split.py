@@ -1,3 +1,5 @@
+# แบ่งชุดเทรน/ชุดเทสของคลิป (ตามผู้แสดง) ที่แอดมินตั้งในหน้าผู้ใช้
+
 import json
 import threading
 from collections import defaultdict

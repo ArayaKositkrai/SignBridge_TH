@@ -1,3 +1,5 @@
+// รายการคลิปที่เก็บแล้วของคำ
+
 import Icon from "../../../components/ui/Icon";
 import { fmtDate } from "../../../lib/format";
 import { sampleVideoUrl, type SampleMeta } from "../services/contributorApi";

@@ -1,3 +1,5 @@
+# API ภาษามือ → ข้อความ: WebSocket รับ landmark ทีละเฟรมจากกล้อง ส่งเข้า Recognizer แล้วตอบคำที่แปลได้
+
 import json
 import math
 import time

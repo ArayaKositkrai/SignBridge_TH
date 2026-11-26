@@ -1,3 +1,5 @@
+# รายการโดเมนที่เรียก API ได้ (CORS) และเช็ก origin ก่อน redirect
+
 import os
 import re
 

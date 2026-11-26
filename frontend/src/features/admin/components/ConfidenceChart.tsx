@@ -1,3 +1,5 @@
+// กราฟฮิสโตแกรมความมั่นใจของโมเดล (ทายถูก/ทายผิด)
+
 import { useState } from "react";
 import { HintIcon } from "../../../components/ui/Tooltip";
 import { HINTS } from "./metricInfo";

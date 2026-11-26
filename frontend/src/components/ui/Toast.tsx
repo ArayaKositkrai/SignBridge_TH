@@ -1,3 +1,5 @@
+// ระบบข้อความแจ้งเตือน (toast): provider + hook useToast สำหรับเรียกจากทุกหน้า
+
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import Icon, { type IconName } from "./Icon";

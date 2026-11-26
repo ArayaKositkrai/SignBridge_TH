@@ -1,3 +1,5 @@
+// สีหน้าของโมเดล VRM ผ่าน blendshape
+
 import type { VRM } from "@pixiv/three-vrm";
 import type * as THREE from "three";
 import type { Face } from "../avatar/skeleton";

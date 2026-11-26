@@ -1,3 +1,5 @@
+// ตัวเล่นท่าภาษามือคำต่อคำ: อวตาร ปุ่มเล่น/ข้าม และแถบความคืบหน้า
+
 import { useState, type MutableRefObject } from "react";
 import Icon from "../../../components/ui/Icon";
 import type { SignClip } from "../../../types";

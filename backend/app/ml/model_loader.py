@@ -1,3 +1,5 @@
+# หาพาธไฟล์โมเดลเวอร์ชันที่ใช้งานอยู่ (active/draft) จาก database พร้อมจำผลไว้ช่วงสั้น ๆ
+
 import time
 from pathlib import Path
 

@@ -1,3 +1,5 @@
+// หน้าแอดมิน: เมนูข้าง + หน้าย่อย (ภาพรวม ผู้ใช้ คลังคำ โมเดล log)
+
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import Icon, { type IconName } from "../../components/ui/Icon";
 import DashboardView from "./DashboardView";

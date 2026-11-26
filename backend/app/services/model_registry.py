@@ -1,3 +1,5 @@
+# ทะเบียนเวอร์ชันโมเดล: รายการโมเดล สถานะ active/draft คำที่โมเดลรู้จัก และผลวัดรายคำ
+
 import re
 
 from sqlalchemy import func, select, update

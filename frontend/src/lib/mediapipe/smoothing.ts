@@ -1,3 +1,5 @@
+// ตัวกรอง One-Euro ลดการสั่นของ landmark
+
 import type { LandmarkFrame, Point } from "../../types";
 
 // ค่าตัวกรอง One-Euro: minCutoff ยิ่งต่ำยิ่งนิ่งตอนช้า, beta ยิ่งสูงยิ่งตามทันตอนขยับเร็ว (พิกัดภาพ 0-1 ต่อวินาที)

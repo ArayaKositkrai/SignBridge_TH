@@ -1,3 +1,5 @@
+# รูปบัตรคนพิการ: ตรวจชนิดไฟล์ บันทึก/ลบใน Storage และส่งรูปให้ดูผ่าน backend เท่านั้น
+
 import secrets
 
 from fastapi import HTTPException, Response

@@ -1,3 +1,5 @@
+// พื้นที่ล่าม: เลือกล่าม แล้วสลับหน้าย่อย อัดคลิป / คลังคำศัพท์
+
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import Icon, { type IconName } from "../../components/ui/Icon";

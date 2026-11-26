@@ -1,3 +1,5 @@
+// คอมโพเนนต์ UI พื้นฐาน: ป้ายสถานะ
+
 import type { ReactNode } from "react";
 
 // โทนสีของป้าย

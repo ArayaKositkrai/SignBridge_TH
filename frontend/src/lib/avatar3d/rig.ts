@@ -1,3 +1,5 @@
+// คำนวณมุมกระดูก (IK แขน นิ้ว ข้อมือ) จากท่าทาง แล้วใส่ให้โมเดล 3D
+
 import * as THREE from "three";
 import { CURL_TO_RAD, HEAD, REST, SHOULDER, type Face, type HandPair, type Side } from "../avatar/skeleton";
 import { ARM_BONES, CURL_INDEX, FINGERS, HEAD_BONE, SHOULDER_BONES, fingerBones } from "./bones";

@@ -1,3 +1,5 @@
+# ไฟล์โมเดลใน Supabase Storage: อัปโหลด ดาวน์โหลดมาเก็บในเครื่อง และลบ
+
 import os
 import threading
 import time
